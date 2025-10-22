@@ -1,0 +1,32 @@
+pipeline {
+  agent any
+
+  options {
+    timestamps()
+  }
+
+  environment {
+    ARTIFACT_DIR = 'artifacts'
+    DOTNET_CLI_UI_LANGUAGE = 'en'
+  }
+
+  stages {
+    stage('Restore') {
+      steps {
+        bat 'dotnet restore'
+      }
+    }
+
+    stage('Build') {
+      steps {
+        bat "dotnet build --no-restore -c Release"
+      }
+    }
+
+    stage('Archive') {
+      steps {
+        archiveArtifacts artifacts: "${ARTIFACT_DIR}/**/*", fingerprint: true
+      }
+    }
+  }
+}

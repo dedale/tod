@@ -1,0 +1,39 @@
+pipeline {
+  agent any
+
+  options {
+    timestamps()
+  }
+
+  environment {
+    BUILD_JOB = 'MAIN-build'
+    BUILD_NUMBER = 'lastSuccessfulBuild'
+    ARTIFACT_DIR = 'artifacts'
+    DOTNET_CLI_UI_LANGUAGE = 'en'
+  }
+
+  stages {
+    stage('Fetch Artifacts') {
+      steps {
+        copyArtifacts(
+          projectName: "${BUILD_JOB}",
+          selector: [$class: 'StatusBuildSelector', stable: false],
+          filter: "${ARTIFACT_DIR}/**/*",
+          fingerprintArtifacts: true
+        )
+      }
+    }
+
+    stage('Run Tests') {
+      steps {
+        bat "dotnet test --no-build --configuration Release --logger:junit"
+      }
+    }
+  }
+
+  post {
+    always {
+      junit '**/TestResults/*.xml'
+    }
+  }
+}

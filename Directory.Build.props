@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <WarningsAsErrors>true</WarningsAsErrors>
+    <UseArtifactsOutput>true</UseArtifactsOutput>
+  </PropertyGroup>
+</Project>
