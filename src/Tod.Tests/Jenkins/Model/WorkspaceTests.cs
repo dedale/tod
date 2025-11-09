@@ -96,9 +96,9 @@ internal sealed class WorkspaceTests
         {
             new TestFilter("tests", "^tests$", "tests"),
         };
-        var config = new JenkinsConfig("http://localhost:8080", [], refJobConfigs, onDemandJobConfigs, filters);
+        var config = JenkinsConfig.New("http://localhost:8080", referenceJobs: refJobConfigs, onDemandJobs: onDemandJobConfigs, filters: filters);
         var jenkinsClient = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        jenkinsClient.Setup(x => x.GetJobNames()).ReturnsAsync(
+        jenkinsClient.Setup(x => x.GetJobNames(config.MultiBranchFolders)).ReturnsAsync(
         [
             new JobName("MAIN-build"),
             new JobName("MAIN-tests"),

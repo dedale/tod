@@ -19,7 +19,7 @@ internal sealed class FilterManagerTests
             new("empty2", "unmatched2", "tests"),
             new("prod", "production-tests", "tests"),
         };
-        var _config = new JenkinsConfig("http://localhost:8080", [], [], [], filters);
+        var _config = JenkinsConfig.New("http://localhost:8080", filters: filters);
 
         var referenceJobByBranch = new Dictionary<BranchName, JobName> { [_mainBranch] = new("MAIN-build") };
         var rootGroup = new JobGroup(referenceJobByBranch, new("CUSTOM-build"));
@@ -165,7 +165,7 @@ internal sealed class FilterManagerTests
         };
         var byTest = new Dictionary<TestName, JobGroup>();
         var jobGroups = new JobGroups(byRoot, byTest);
-        var config = new JenkinsConfig("http://localhost:8080", [], [], [], []);
+        var config = new JenkinsConfig("http://localhost:8080");
         var manager = new FilterManager(config, jobGroups);
 
         var rootNames = new[] { new RootName("build"), new RootName("deploy"), new RootName("package") };
@@ -194,7 +194,7 @@ internal sealed class FilterManagerTests
         };
         var byTest = new Dictionary<TestName, JobGroup>();
         var jobGroups = new JobGroups(byRoot, byTest);
-        var config = new JenkinsConfig("http://localhost:8080", [], [], [], []);
+        var config = new JenkinsConfig("http://localhost:8080");
         var manager = new FilterManager(config, jobGroups);
 
         var rootNames = new[] { new RootName("build"), new RootName("nonexistent") };
@@ -226,7 +226,7 @@ internal sealed class FilterManagerTests
         };
         var byTest = new Dictionary<TestName, JobGroup>();
         var jobGroups = new JobGroups(byRoot, byTest);
-        var config = new JenkinsConfig("http://localhost:8080", [], [], [], []);
+        var config = new JenkinsConfig("http://localhost:8080");
         var manager = new FilterManager(config, jobGroups);
 
         var rootNames = new[] { new RootName("build") };
@@ -339,7 +339,7 @@ internal sealed class FilterManagerTests
             new("net6", "net6", "framework"),
             new("net8", "net8", "framework"),
         };
-        var config = new JenkinsConfig("http://localhost:8080", [], referenceJobs, onDemandJobs, filters);
+        var config = JenkinsConfig.New("http://localhost:8080", referenceJobs: referenceJobs, onDemandJobs: onDemandJobs, filters: filters);
         var jobGroups = JobManager.TryLoad(config, jobs);
         Debug.Assert(jobGroups is not null);
         return new FilterManager(config, jobGroups);

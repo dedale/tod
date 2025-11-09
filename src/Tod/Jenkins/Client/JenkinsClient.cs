@@ -12,7 +12,7 @@ internal interface IJenkinsClient
     Task<FailedTest[]> GetFailedTests(BuildReference buildReference);
     Task<int> TriggerBuild(JobName jobName, Sha1 commit, int retryDelayMs = 2000);
     Task<BuildReference?> TryGetRootBuild(BuildReference buildReference);
-    Task<JobName[]> GetJobNames();
+    Task<JobName[]> GetJobNames(string[] multiBranchFolders);
 }
 
 internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApiClient? apiClient = null) : IJenkinsClient, IDisposable
@@ -21,7 +21,7 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
 
     public async Task<Build[]> GetLastBuilds(JobName jobName, int count = 100)
     {
-        var url = $"{config.Url}/job/{jobName}/api/json?tree=builds[id,number,result,timestamp,duration,building,changeSets[items[commitId]]]{{0,{count}}}";
+        var url = $"{config.Url}/{jobName.UrlPath}/api/json?tree=builds[id,number,result,timestamp,duration,building,changeSets[items[commitId]]]{{0,{count}}}";
         var doc = await _apiClient.GetAsync(url).ConfigureAwait(false);
         var builds = new List<Build>();
         foreach (var buildElement in doc.RootElement.GetProperty("builds").EnumerateArray())
@@ -40,7 +40,7 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
 
     public async Task<BuildReference[]> GetTriggeredBuilds(BuildReference buildReference)
     {
-        var logUrl = $"{config.Url}/job/{buildReference.JobName}/{buildReference.BuildNumber}/consoleText";
+        var logUrl = $"{config.Url}/{buildReference.JobName.UrlPath}/{buildReference.BuildNumber}/consoleText";
         var logText = await _apiClient.GetStringAsync(logUrl).ConfigureAwait(false);
         var triggeredBuilds = new List<BuildReference>();
         foreach (var line in logText.Split('\n'))
@@ -58,7 +58,7 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
 
     public async Task<int> GetFailCount(BuildReference buildReference)
     {
-        var url = $"{config.Url}/job/{buildReference.JobName}/{buildReference.BuildNumber}/api/json?tree=actions[failCount]";
+        var url = $"{config.Url}/{buildReference.JobName.UrlPath}/{buildReference.BuildNumber}/api/json?tree=actions[failCount]";
         var doc = await _apiClient.GetAsync(url).ConfigureAwait(false);
         foreach (var action in doc.RootElement.GetProperty("actions").EnumerateArray())
         {
@@ -72,7 +72,7 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
 
     public async Task<FailedTest[]> GetFailedTests(BuildReference buildReference)
     {
-        var url = $"{config.Url}/job/{buildReference.JobName}/{buildReference.BuildNumber}/testReport/api/json";
+        var url = $"{config.Url}/{buildReference.JobName.UrlPath}/{buildReference.BuildNumber}/testReport/api/json";
         var doc = await _apiClient.GetAsync(url).ConfigureAwait(false);
         var failedTests = new List<FailedTest>();
         foreach (var suite in doc.RootElement.GetProperty("suites").EnumerateArray())
@@ -96,7 +96,7 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
     {
         Log.Information("Triggering {JobName} build with commit {Commit}", jobName, commit);
         var crumbUrl = $"{config.Url}/crumbIssuer/api/json";
-        var triggerUrl = $"{config.Url}/job/{jobName}/buildWithParameters?BUILD_REF_SPEC={Uri.EscapeDataString(commit.Value)}";
+        var triggerUrl = $"{config.Url}/{jobName.UrlPath}/buildWithParameters?BUILD_REF_SPEC={Uri.EscapeDataString(commit.Value)}";
         var location = await _apiClient.PostAsync(crumbUrl, triggerUrl).ConfigureAwait(false);
         if (!location.Contains("/queue/item/"))
         {
@@ -121,7 +121,7 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
 
     public async Task<BuildReference?> TryGetRootBuild(BuildReference buildReference)
     {
-        var logUrl = $"{config.Url}/job/{buildReference.JobName}/{buildReference.BuildNumber}/consoleText";
+        var logUrl = $"{config.Url}/{buildReference.JobName.UrlPath}/{buildReference.BuildNumber}/consoleText";
         var logText = await _apiClient.GetStringAsync(logUrl).ConfigureAwait(false);
         foreach (var line in logText.Split('\n'))
         {
@@ -136,11 +136,25 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
         return null;
     }
 
-    public async Task<JobName[]> GetJobNames()
+    private async Task<JobName[]> GetJobNames(string jobPath)
     {
-        var url = $"{config.Url}/api/json?tree=jobs[name]";
+        var url = $"{config.Url}/{jobPath}api/json?tree=jobs[name]";
         var doc = await _apiClient.GetAsync(url).ConfigureAwait(false);
         return [.. doc.RootElement.GetProperty("jobs").EnumerateArray().Select(e => new JobName(e.GetProperty("name").ToString()))];
+    }
+
+    public async Task<JobName[]> GetJobNames(string[] multiBranchFolders)
+    {
+        var allJobNames = new List<JobName>();
+        allJobNames.AddRange(await GetJobNames(string.Empty).ConfigureAwait(false));
+        foreach (var folder in multiBranchFolders)
+        {
+            var jobPath = $"job/{string.Join("/job/", folder.Trim('/').Split('/'))}/";
+            var jobNames = await GetJobNames(jobPath).ConfigureAwait(false);
+            allJobNames.AddRange(jobNames.Select(j => new JobName(string.Concat(folder.Trim('/'), "/", j.Value))));
+        }
+        allJobNames.Sort();
+        return [.. allJobNames];
     }
 
     public void Dispose()
@@ -162,7 +176,7 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
         };
 
         using var client = new HttpClient(handler);
-        var apiUrl = $"{jenkinsUrl}/job/{jobName}/{buildNumber}/api/json";
+        var apiUrl = $"{jenkinsUrl}/{jobName.UrlPath}/{buildNumber}/api/json";
         var logUrl = ...;
 
         var triggeredBuilds = new List<(string job, int number, string url)>();

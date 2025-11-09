@@ -31,4 +31,12 @@ internal sealed class JobNameTests
         var jobName = new JobName("MyJob");
         Assert.That(jobName.CompareTo(null), Is.EqualTo(1));
     }
+
+    [TestCase("RootJob", "job/RootJob")]
+    [TestCase("MultiBranch/Pipeline/SomeJob", "job/MultiBranch/job/Pipeline/job/SomeJob")]
+    public void UrlPath_ReturnsExpectedFormat(string value, string urlPath)
+    {
+        var jobName = new JobName(value);
+        Assert.That(jobName.UrlPath, Is.EqualTo(urlPath));
+    }
 }

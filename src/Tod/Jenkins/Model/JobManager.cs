@@ -9,7 +9,7 @@ internal sealed class JobManager(JenkinsConfig config, IJenkinsClient client)
 
     public async Task<JobGroups?> TryLoad()
     {
-        var jobNames = await _client.GetJobNames().ConfigureAwait(false);
+        var jobNames = await _client.GetJobNames(_config.MultiBranchFolders).ConfigureAwait(false);
         return TryLoad(_config, jobNames);
     }
 

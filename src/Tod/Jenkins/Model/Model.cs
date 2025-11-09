@@ -41,6 +41,10 @@ internal static class DictionaryExtensions
 [JsonConverter(typeof(SingleStringValueConverterFactory))]
 internal sealed record JobName(string Value) : IComparable<JobName>
 {
+    private readonly string _urlPath = $"job/{string.Join("/job/", Value.Split('/'))}";
+
+    public string UrlPath => _urlPath;
+
     public int CompareTo(JobName? other)
     {
         return string.Compare(Value, other?.Value, StringComparison.Ordinal);

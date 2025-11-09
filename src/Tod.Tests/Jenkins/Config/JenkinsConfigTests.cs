@@ -37,7 +37,7 @@ internal sealed class JenkinsConfigTests
             new TestFilter("tests", "^tests$", "tests"),
             new TestFilter("integration", "^integration-tests$", "tests"),
         };
-        var config = new JenkinsConfig("http://localhost:8080", jobs, refJobConfigs, onDemandJobConfigs, filters);
+        var config = JenkinsConfig.New("http://localhost:8080", jobNames: jobs, referenceJobs: refJobConfigs, onDemandJobs: onDemandJobConfigs, filters: filters);
         var path = Path.Combine(tempDir.Directory.Path, "jenkins_config.json");
         try
         {

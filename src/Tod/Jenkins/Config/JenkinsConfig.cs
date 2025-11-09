@@ -44,14 +44,15 @@ internal sealed class JenkinsConfig
     private readonly Dictionary<string, TestFilter> _filtersByName;
 
     public JenkinsConfig(string url)
-        : this(url, [], [], [], [])
+        : this(url, [], [], [], [], [])
     {
     }
 
     [JsonConstructor]
-    public JenkinsConfig(string url, JobName[] jobNames, ReferenceJobConfig[] referenceJobs, OnDemandJobConfig[] onDemandJobs, TestFilter[] filters)
+    public JenkinsConfig(string url, string[] multiBranchFolders, JobName[] jobNames, ReferenceJobConfig[] referenceJobs, OnDemandJobConfig[] onDemandJobs, TestFilter[] filters)
     {
         Url = url;
+        MultiBranchFolders = multiBranchFolders;
         JobNames = jobNames;
         ReferenceJobs = referenceJobs;
         OnDemandJobs = onDemandJobs;
@@ -59,7 +60,27 @@ internal sealed class JenkinsConfig
         _filtersByName = filters.ToDictionary(f => f.Name);
     }
 
+    public static JenkinsConfig New(
+        string url,
+        string[]? multiBranchFolders = null,
+        JobName[]? jobNames = null,
+        ReferenceJobConfig[]? referenceJobs = null,
+        OnDemandJobConfig[]? onDemandJobs = null,
+        TestFilter[]? filters = null
+    )
+    {
+        return new JenkinsConfig(
+            url,
+            multiBranchFolders ?? [],
+            jobNames ?? [],
+            referenceJobs ?? [],
+            onDemandJobs ?? [],
+            filters ?? []
+        );
+    }
+
     public string Url { get; }
+    public string[] MultiBranchFolders { get; }
     public JobName[] JobNames { get; }
     public ReferenceJobConfig[] ReferenceJobs { get; }
     public OnDemandJobConfig[] OnDemandJobs { get; }

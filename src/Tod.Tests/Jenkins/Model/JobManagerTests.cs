@@ -24,19 +24,19 @@ internal sealed class JobManagerTests
             new OnDemandJobConfig("CUSTOM-(?<root>build)", true),
             new OnDemandJobConfig("CUSTOM-(?<test>.*tests)", false)
         };
-        var config = new JenkinsConfig(Url, [], referenceJobs, onDemandJobs, []);
+        var config = JenkinsConfig.New(Url, referenceJobs: referenceJobs, onDemandJobs: onDemandJobs);
 
         var jobNames = new List<JobName>
         {
-            new JobName("MAIN-build"),
-            new JobName("MAIN-integration-tests"),
-            new JobName("CUSTOM-build"),
-            new JobName("CUSTOM-integration-tests"),
+            new("MAIN-build"),
+            new("MAIN-integration-tests"),
+            new("CUSTOM-build"),
+            new("CUSTOM-integration-tests"),
         };
         extraJobs.Split(';').ToList().ForEach(j => jobNames.Add(new JobName(j)));
 
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        client.Setup(x => x.GetJobNames()).ReturnsAsync(jobNames.ToArray());
+        client.Setup(x => x.GetJobNames(config.MultiBranchFolders)).ReturnsAsync([.. jobNames]);
 
         var manager = new JobManager(config, client.Object);
 
@@ -76,7 +76,7 @@ internal sealed class JobManagerTests
             new OnDemandJobConfig("CUSTOM-(?<root>build)", true),
             new OnDemandJobConfig("CUSTOM-(?<test>.*)", false)
         };
-        var config = new JenkinsConfig(Url, [], referenceJobs, onDemandJobs, []);
+        var config = JenkinsConfig.New(Url, referenceJobs: referenceJobs, onDemandJobs: onDemandJobs);
 
         var jobNames = new[]
         {
@@ -85,7 +85,7 @@ internal sealed class JobManagerTests
         };
 
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        client.Setup(x => x.GetJobNames()).ReturnsAsync(jobNames);
+        client.Setup(x => x.GetJobNames(config.MultiBranchFolders)).ReturnsAsync(jobNames);
 
         var manager = new JobManager(config, client.Object);
         var result = await manager.TryLoad().ConfigureAwait(false);
@@ -107,7 +107,7 @@ internal sealed class JobManagerTests
             new OnDemandJobConfig("CUSTOM-(?<root>build)", true),
             new OnDemandJobConfig("CUSTOM-(?<test>.*)", false)
         };
-        var config = new JenkinsConfig(Url, [], referenceJobs, onDemandJobs, []);
+        var config = JenkinsConfig.New(Url, referenceJobs: referenceJobs, onDemandJobs: onDemandJobs);
 
         var jobNames = new[]
         {
@@ -117,7 +117,7 @@ internal sealed class JobManagerTests
         };
 
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        client.Setup(x => x.GetJobNames()).ReturnsAsync(jobNames);
+        client.Setup(x => x.GetJobNames(config.MultiBranchFolders)).ReturnsAsync(jobNames);
 
         var manager = new JobManager(config, client.Object);
         var result = await manager.TryLoad().ConfigureAwait(false);
@@ -142,7 +142,7 @@ internal sealed class JobManagerTests
             new OnDemandJobConfig("CUSTOM-(?<root>build)", true),
             new OnDemandJobConfig("CUSTOM-(?<test>.*tests)", false)
         };
-        var config = new JenkinsConfig(Url, [], referenceJobs, onDemandJobs, []);
+        var config = JenkinsConfig.New(Url, referenceJobs: referenceJobs, onDemandJobs: onDemandJobs);
 
         var jobNames = new[]
         {
@@ -158,7 +158,7 @@ internal sealed class JobManagerTests
         };
 
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        client.Setup(x => x.GetJobNames()).ReturnsAsync(jobNames);
+        client.Setup(x => x.GetJobNames(config.MultiBranchFolders)).ReturnsAsync(jobNames);
 
         var manager = new JobManager(config, client.Object);
         var result = await manager.TryLoad().ConfigureAwait(false);

@@ -70,7 +70,7 @@ internal sealed class JenkinsClientTests
         var builds = RandomBuilds.Generate(5).ToArray();
         var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
         apiClient
-            .Setup(c => c.GetAsync($"{s_url}/job/{jobName}/api/json?tree=builds[id,number,result,timestamp,duration,building,changeSets[items[commitId]]]{{0,{count}}}"))
+            .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/api/json?tree=builds[id,number,result,timestamp,duration,building,changeSets[items[commitId]]]{{0,{count}}}"))
             .ReturnsAsync(new BuildList { Builds = builds }.Serialize());
         apiClient.Setup(c => c.Dispose());
         using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
@@ -93,7 +93,7 @@ internal sealed class JenkinsClientTests
         var builds = RandomBuilds.Generate(5, [], buildings: [false, true, false, true, false]).ToArray();
         var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
         apiClient
-            .Setup(c => c.GetAsync($"{s_url}/job/{jobName}/api/json?tree=builds[id,number,result,timestamp,duration,building,changeSets[items[commitId]]]{{0,{count}}}"))
+            .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/api/json?tree=builds[id,number,result,timestamp,duration,building,changeSets[items[commitId]]]{{0,{count}}}"))
             .ReturnsAsync(new BuildList { Builds = builds }.Serialize());
         apiClient.Setup(c => c.Dispose());
         using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
@@ -120,7 +120,7 @@ internal sealed class JenkinsClientTests
         };
         var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
         apiClient
-            .Setup(c => c.GetStringAsync($"{s_url}/job/{jobName}/{buildNumber}/consoleText"))
+            .Setup(c => c.GetStringAsync($"{s_url}/{jobName.UrlPath}/{buildNumber}/consoleText"))
             .ReturnsAsync(
                 string.Join(Environment.NewLine,
                 [
@@ -147,7 +147,7 @@ internal sealed class JenkinsClientTests
         var buildNumber = 17;
         var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
         apiClient
-            .Setup(c => c.GetAsync($"{s_url}/job/{jobName}/{buildNumber}/api/json?tree=actions[failCount]"))
+            .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/{buildNumber}/api/json?tree=actions[failCount]"))
             .ReturnsAsync(new { actions = new[] { new { failCount = 3 } } }.Serialize());
         apiClient.Setup(c => c.Dispose());
         using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
@@ -165,7 +165,7 @@ internal sealed class JenkinsClientTests
         var buildNumber = 17;
         var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
         apiClient
-            .Setup(c => c.GetAsync($"{s_url}/job/{jobName}/{buildNumber}/api/json?tree=actions[failCount]"))
+            .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/{buildNumber}/api/json?tree=actions[failCount]"))
             .ReturnsAsync(new { actions = new[] { new { foo = "bar" } } }.Serialize());
         apiClient.Setup(c => c.Dispose());
         using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
@@ -188,7 +188,7 @@ internal sealed class JenkinsClientTests
         ]);
         var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
         apiClient
-            .Setup(c => c.GetAsync($"{s_url}/job/{jobName}/{buildNumber}/testReport/api/json"))
+            .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/{buildNumber}/testReport/api/json"))
             .ReturnsAsync(testReport.Serialize());
         apiClient.Setup(c => c.Dispose());
         using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
@@ -208,7 +208,7 @@ internal sealed class JenkinsClientTests
         var location = $"{s_url}/queue/item/123/";
         var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
         apiClient
-            .Setup(c => c.PostAsync($"{s_url}/crumbIssuer/api/json", $"{s_url}/job/{jobName}/buildWithParameters?BUILD_REF_SPEC={Uri.EscapeDataString(commit.Value)}"))
+            .Setup(c => c.PostAsync($"{s_url}/crumbIssuer/api/json", $"{s_url}/{jobName.UrlPath}/buildWithParameters?BUILD_REF_SPEC={Uri.EscapeDataString(commit.Value)}"))
             .ReturnsAsync(location);
         var queueUrl = location + "api/json";
         var expectedBuildNumber = 77;
@@ -231,7 +231,7 @@ internal sealed class JenkinsClientTests
         var commit = RandomData.NextSha1();
         var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
         apiClient
-            .Setup(c => c.PostAsync($"{s_url}/crumbIssuer/api/json", $"{s_url}/job/{jobName}/buildWithParameters?BUILD_REF_SPEC={Uri.EscapeDataString(commit.Value)}"))
+            .Setup(c => c.PostAsync($"{s_url}/crumbIssuer/api/json", $"{s_url}/{jobName.UrlPath}/buildWithParameters?BUILD_REF_SPEC={Uri.EscapeDataString(commit.Value)}"))
             .ReturnsAsync("");
         apiClient.Setup(c => c.Dispose());
         using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
@@ -250,7 +250,7 @@ internal sealed class JenkinsClientTests
         var location = $"{s_url}/queue/item/123/";
         var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
         apiClient
-            .Setup(c => c.PostAsync($"{s_url}/crumbIssuer/api/json", $"{s_url}/job/{jobName}/buildWithParameters?BUILD_REF_SPEC={Uri.EscapeDataString(commit.Value)}"))
+            .Setup(c => c.PostAsync($"{s_url}/crumbIssuer/api/json", $"{s_url}/{jobName.UrlPath}/buildWithParameters?BUILD_REF_SPEC={Uri.EscapeDataString(commit.Value)}"))
             .ReturnsAsync(location);
         var queueUrl = location + "api/json";
         var emptyDoc = JsonDocument.Parse("{}");
@@ -273,7 +273,7 @@ internal sealed class JenkinsClientTests
         var buildNumber = 42;
         var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
         apiClient
-            .Setup(c => c.GetStringAsync($"{s_url}/job/{jobName}/{buildNumber}/consoleText"))
+            .Setup(c => c.GetStringAsync($"{s_url}/{jobName.UrlPath}/{buildNumber}/consoleText"))
             .ReturnsAsync(
                 string.Join(Environment.NewLine,
                 [
@@ -298,7 +298,7 @@ internal sealed class JenkinsClientTests
         var buildNumber = 42;
         var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
         apiClient
-            .Setup(c => c.GetStringAsync($"{s_url}/job/{jobName}/{buildNumber}/consoleText"))
+            .Setup(c => c.GetStringAsync($"{s_url}/{jobName.UrlPath}/{buildNumber}/consoleText"))
             .ReturnsAsync(
                 string.Join(Environment.NewLine,
                 [
@@ -316,7 +316,7 @@ internal sealed class JenkinsClientTests
     }
 
     [Test]
-    public async Task TestGetJobNames()
+    public async Task GetJobNames_WithoutMultiBranchFolders()
     {
         var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
         apiClient
@@ -325,8 +325,59 @@ internal sealed class JenkinsClientTests
         apiClient.Setup(c => c.Dispose());
         using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
         {
-            var jobs = await client.GetJobNames().ConfigureAwait(false);
+            var jobs = await client.GetJobNames([]).ConfigureAwait(false);
             Assert.That(jobs, Is.EqualTo([new JobName("JobA"), new JobName("JobB")]));
+        }
+        apiClient.VerifyAll();
+    }
+
+    [Test]
+    public async Task GetJobNames_WithMultiBranchFolders()
+    {
+        var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
+        apiClient
+            .Setup(c => c.GetAsync($"{s_url}/api/json?tree=jobs[name]"))
+            .ReturnsAsync(new { jobs = new[] {
+                new { name = "AJob1" },
+                new { name = "Folder1" },
+                new { name = "Folder2" },
+                new { name = "ZJob2" },
+            } }.Serialize());
+
+        var multiBranchFolders = new[]
+        {
+            "Folder1/SubFolder1",
+            "Folder2/SubFolder2",
+        };
+
+        apiClient
+            .Setup(c => c.GetAsync($"{s_url}/job/Folder1/job/SubFolder1/api/json?tree=jobs[name]"))
+            .ReturnsAsync(new { jobs = new[] {
+                new { name = "Job111" },
+                new { name = "Job112" },
+            } }.Serialize());
+
+        apiClient
+            .Setup(c => c.GetAsync($"{s_url}/job/Folder2/job/SubFolder2/api/json?tree=jobs[name]"))
+            .ReturnsAsync(new { jobs = new[] {
+                new { name = "Job221" },
+                new { name = "Job222" },
+            } }.Serialize());
+
+        apiClient.Setup(c => c.Dispose());
+        using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
+        {
+            var jobs = await client.GetJobNames(multiBranchFolders).ConfigureAwait(false);
+            Assert.That(jobs, Is.EqualTo([
+                new JobName("AJob1"),
+                new JobName("Folder1"),
+                new JobName("Folder1/SubFolder1/Job111"),
+                new JobName("Folder1/SubFolder1/Job112"),
+                new JobName("Folder2"),
+                new JobName("Folder2/SubFolder2/Job221"),
+                new JobName("Folder2/SubFolder2/Job222"),
+                new JobName("ZJob2"),
+            ]));
         }
         apiClient.VerifyAll();
     }
