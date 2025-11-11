@@ -1,4 +1,5 @@
-﻿using NUnit.Framework;
+﻿using Moq;
+using NUnit.Framework;
 using Tod.Git;
 using Tod.Jenkins;
 
@@ -377,20 +378,28 @@ internal sealed class RequestStateTests
     public async Task TryGetChainReference_WithMultipleChains_ReturnsCorrectChain()
     {
         // Arrange
+        var onDemandRootJob1 = new JobName("OnDemandBuild1");
+        var onDemandRootJob2 = new JobName("OnDemandBuild2");
         var referenceRoot1 = new BuildReference("MainBuild1", RandomData.NextBuildNumber);
         var referenceRoot2 = new BuildReference("MainBuild2", RandomData.NextBuildNumber);
-        var onDemandRoot1 = new BuildReference("OnDemandBuild1", RandomData.NextBuildNumber);
-        var onDemandRoot2 = new BuildReference("OnDemandBuild2", RandomData.NextBuildNumber);
+        var onDemandRoot1 = new BuildReference(onDemandRootJob1, RandomData.NextBuildNumber);
+        var onDemandRoot2 = new BuildReference(onDemandRootJob2, RandomData.NextBuildNumber);
         
         var diffs1 = new List<RequestBuildDiff> { new(new("MainTest1"), new("OnDemandTest1")) };
         var diffs2 = new List<RequestBuildDiff> { new(new("MainTest2"), new("OnDemandTest2")) };
         
         var chains = new RequestChain[]
         {
-            new(referenceRoot1, RequestBuildReference.Create(new("OnDemandBuild1")), [.. diffs1]),
-            new(referenceRoot2, RequestBuildReference.Create(new("OnDemandBuild2")), [.. diffs2]),
+            new(referenceRoot1, RequestBuildReference.Create(onDemandRootJob1), [.. diffs1]),
+            new(referenceRoot2, RequestBuildReference.Create(onDemandRootJob2), [.. diffs2]),
         };
-        var onDemandBuilds = new OnDemandBuilds(new BuildCollections<RootBuild>(), new());
+
+        using var mocks = StoreMocks.New()
+            .WithOnDemandStore([onDemandRootJob1, onDemandRootJob2], out var onDemandStore)
+            .WithRootJobs(onDemandRootJob1)
+            .WithRootJobs(onDemandRootJob2);
+
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         Func<JobName, Sha1, Task<int>> triggerBuild = (job, sha1) => job.Value switch
         {
             "OnDemandBuild1" => Task.FromResult(onDemandRoot1.BuildNumber),
@@ -507,14 +516,22 @@ internal sealed class RequestStateTests
     public async Task TryGetChainOnDemand_WithPendingOnDemandRoot_ReturnsFalse()
     {
         // Arrange
+        var pendingJob = new JobName("PendingBuild");
         var referenceRoot = new BuildReference("MainBuild1", RandomData.NextBuildNumber);
-        var pendingOnDemandRoot = RequestBuildReference.Create(new JobName("PendingBuild"));
+        var pendingOnDemandRoot = RequestBuildReference.Create(pendingJob);
+        var onDemandTestJob = new JobName("OnDemandTest1");
 
         var chains = new RequestChain[]
         {
-            new(referenceRoot, RequestBuildReference.Create(new("PendingBuild")), [new RequestBuildDiff(new("MainTest1"), new("OnDemandTest1"))]),
+            new(referenceRoot, RequestBuildReference.Create(pendingJob), [new RequestBuildDiff(new("MainTest1"), onDemandTestJob)]),
         };
-        var onDemandBuilds = new OnDemandBuilds(new BuildCollections<RootBuild>(), new());
+
+        using var mocks = StoreMocks.New()
+            .WithOnDemandStore(pendingJob, out var onDemandStore)
+            .WithRootJobs(pendingJob)
+            .WithTestobs(onDemandTestJob);
+
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         Func<JobName, Sha1, Task<int>> triggerBuild = (job, sha1) => Task.FromResult(RandomData.NextBuildNumber);
         var requestState = await RequestState.New(_request, chains, onDemandBuilds, triggerBuild).ConfigureAwait(false);
 
@@ -532,20 +549,28 @@ internal sealed class RequestStateTests
     public async Task TryGetChainOnDemand_WithMultipleChains_ReturnsCorrectChain()
     {
         // Arrange
+        var onDemandRootJob1 = new JobName("OnDemandBuild1");
+        var onDemandRootJob2 = new JobName("OnDemandBuild2");
         var referenceRoot1 = new BuildReference("MainBuild1", RandomData.NextBuildNumber);
         var referenceRoot2 = new BuildReference("MainBuild2", RandomData.NextBuildNumber);
-        var onDemandRoot1 = new BuildReference("OnDemandBuild1", RandomData.NextBuildNumber);
-        var onDemandRoot2 = new BuildReference("OnDemandBuild2", RandomData.NextBuildNumber);
+        var onDemandRoot1 = new BuildReference(onDemandRootJob1, RandomData.NextBuildNumber);
+        var onDemandRoot2 = new BuildReference(onDemandRootJob2, RandomData.NextBuildNumber);
         
         var diffs1 = new List<RequestBuildDiff> { new(new("MainTest1"), new("OnDemandTest1")) };
         var diffs2 = new List<RequestBuildDiff> { new(new("MainTest2"), new("OnDemandTest2")) };
-        
+
         var chains = new RequestChain[]
         {
-            new(referenceRoot1, RequestBuildReference.Create(new("OnDemandBuild1")), [.. diffs1]),
-            new(referenceRoot2, RequestBuildReference.Create(new("OnDemandBuild2")), [.. diffs2]),
+            new(referenceRoot1, RequestBuildReference.Create(onDemandRootJob1), [.. diffs1]),
+            new(referenceRoot2, RequestBuildReference.Create(onDemandRootJob2), [.. diffs2]),
         };
-        var onDemandBuilds = new OnDemandBuilds(new BuildCollections<RootBuild>(), new());
+
+        using var mocks = StoreMocks.New()
+            .WithOnDemandStore([onDemandRootJob1, onDemandRootJob2], out var onDemandStore)
+            .WithRootJobs(onDemandRootJob1)
+            .WithRootJobs(onDemandRootJob2);
+
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         Func<JobName, Sha1, Task<int>> triggerBuild = (job, sha1) => job.Value switch
         {
             "OnDemandBuild1" => Task.FromResult(onDemandRoot1.BuildNumber),

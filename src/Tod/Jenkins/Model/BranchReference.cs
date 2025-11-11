@@ -1,12 +1,21 @@
 ﻿using Serilog;
 using System.Diagnostics.CodeAnalysis;
-using System.Text.Json.Serialization;
 using Tod.Git;
 
 namespace Tod.Jenkins;
 
 internal sealed class BranchReference
 {
+    public BranchReference(IReferenceStore referenceStore)
+        : this(referenceStore.Branch, referenceStore.RootStore, referenceStore.TestStore)
+    {
+    }
+
+    private BranchReference(BranchName branchName, IByJobNameStore rootStore, IByJobNameStore testStore)
+        : this(branchName, new BuildCollections<RootBuild>(rootStore), new BuildCollections<TestBuild>(testStore))
+    {
+    }
+
     private BranchReference(BranchName branchName, BuildCollections<RootBuild> rootBuilds, BuildCollections<TestBuild> testBuilds)
     {
         BranchName = branchName;
@@ -14,14 +23,14 @@ internal sealed class BranchReference
         TestBuilds = testBuilds;
     }
 
-    public BranchReference(BranchName branchName, JobName rootJobName)
-        : this(branchName, new([new BuildCollection<RootBuild>(rootJobName)]), [])
-    {
-    }
-
     public BranchName BranchName { get; }
     public BuildCollections<RootBuild> RootBuilds { get; }
     public BuildCollections<TestBuild> TestBuilds { get; }
+
+    public void TryAddRoot(JobName rootJobName)
+    {
+        RootBuilds.GetOrAdd(rootJobName);
+    }
 
     public bool TryAdd(RootBuild rootBuild)
     {
@@ -58,7 +67,7 @@ internal sealed class BranchReference
         return false;
     }
 
-    public void TryAdd(JobName testJobName)
+    public void TryAddTest(JobName testJobName)
     {
         TestBuilds.GetOrAdd(testJobName);
     }
@@ -91,34 +100,6 @@ internal sealed class BranchReference
     public TestBuild GetTestBuild(BuildReference buildReference)
     {
         return TestBuilds.GetOrAdd(buildReference.JobName)[buildReference];
-    }
-
-    [method: JsonConstructor]
-    internal sealed class Serializable(BranchName branchName, List<BuildCollection<RootBuild>.Serializable> rootBuilds, List<BuildCollection<TestBuild>.Serializable> testBuilds)
-    {
-        public Serializable(BranchReference branchReference)
-            : this(
-                branchReference.BranchName,
-                [.. branchReference.RootBuilds.Select(x => new BuildCollection<RootBuild>.Serializable(x))],
-                [.. branchReference.TestBuilds.Select(x => new BuildCollection<TestBuild>.Serializable(x))])
-        {
-        }
-
-        public BranchName BranchName { get; set; } = branchName;
-        public List<BuildCollection<RootBuild>.Serializable> RootBuilds { get; set; } = rootBuilds;
-        public List<BuildCollection<TestBuild>.Serializable> TestBuilds { get; set; } = testBuilds;
-
-        public BranchReference FromSerializable()
-        {
-            var rootBuildCollection = RootBuilds.Select(x => x.ToBuildCollection()).ToList();
-            var testBuildCollection = TestBuilds.Select(x => x.ToBuildCollection()).ToList();
-            return new BranchReference(BranchName, new(rootBuildCollection), new(testBuildCollection));
-        }
-    }
-
-    public Serializable ToSerializable()
-    {
-        return new Serializable(this);
     }
 }
 

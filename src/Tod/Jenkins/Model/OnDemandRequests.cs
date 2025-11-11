@@ -4,14 +4,9 @@ using Tod.Core;
 
 namespace Tod.Jenkins;
 
-internal sealed class CachedRequest
+internal sealed class CachedRequest(string path)
 {
-    private readonly Cached<RequestState, RequestState.Serializable> _cached;
-
-    public CachedRequest(string path)
-    {
-        _cached = new Cached<RequestState, RequestState.Serializable>(path);
-    }
+    private readonly Cached<RequestState, RequestState.Serializable> _cached = new(path);
 
     public static CachedRequest New(RequestState requestState, string path)
     {

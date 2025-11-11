@@ -13,7 +13,7 @@ internal sealed class CachedTests
     public void New_SavesValueToFile()
     {
         using var temp = new TempDirectory();
-        var testFilePath = Path.Combine(temp.Directory.Path, $"testfile_{Guid.NewGuid()}.json");
+        var testFilePath = Path.Combine(temp.Path, $"testfile_{Guid.NewGuid()}.json");
         var cached = Cached<Dummy, Dummy.Serializable>.New(Dummy.New(), testFilePath);
         Assert.That(File.Exists(testFilePath), Is.True);
         using var loadedDummy = LockedDummy.Load(testFilePath, "Load for verification").Value;
@@ -24,7 +24,7 @@ internal sealed class CachedTests
     public void Ctor_LoadsValueFromFile()
     {
         using var temp = new TempDirectory();
-        var testFilePath = Path.Combine(temp.Directory.Path, $"testfile_{Guid.NewGuid()}.json");
+        var testFilePath = Path.Combine(temp.Path, $"testfile_{Guid.NewGuid()}.json");
         Dummy.New().SaveNew(testFilePath);
 
         var cached = new Cached<Dummy, Dummy.Serializable>(testFilePath);
@@ -37,7 +37,7 @@ internal sealed class CachedTests
     public void Value_WhenFileUnchanged_ReturnsCachedValue()
     {
         using var temp = new TempDirectory();
-        var testFilePath = Path.Combine(temp.Directory.Path, $"testfile_{Guid.NewGuid()}.json");
+        var testFilePath = Path.Combine(temp.Path, $"testfile_{Guid.NewGuid()}.json");
         Dummy.New().SaveNew(testFilePath);
 
         var cached = new Cached<Dummy, Dummy.Serializable>(testFilePath);
@@ -51,7 +51,7 @@ internal sealed class CachedTests
     public void Value_WhenFileModified_ReloadsValue()
     {
         using var temp = new TempDirectory();
-        var testFilePath = Path.Combine(temp.Directory.Path, $"testfile_{Guid.NewGuid()}.json");
+        var testFilePath = Path.Combine(temp.Path, $"testfile_{Guid.NewGuid()}.json");
         Dummy.New().SaveNew(testFilePath);
 
         var cached = new Cached<Dummy, Dummy.Serializable>(testFilePath);
@@ -79,7 +79,7 @@ internal sealed class CachedTests
     public void Value_AfterMultipleReads_MaintainsCorrectCache()
     {
         using var temp = new TempDirectory();
-        var testFilePath = Path.Combine(temp.Directory.Path, $"testfile_{Guid.NewGuid()}.json");
+        var testFilePath = Path.Combine(temp.Path, $"testfile_{Guid.NewGuid()}.json");
         Dummy.New().SaveNew(testFilePath);
 
         var cached = new Cached<Dummy, Dummy.Serializable>(testFilePath);
@@ -97,7 +97,7 @@ internal sealed class CachedTests
     public void Value_WhenFileModifiedMultipleTimes_ReloadsEachTime()
     {
         using var temp = new TempDirectory();
-        var testFilePath = Path.Combine(temp.Directory.Path, $"testfile_{Guid.NewGuid()}.json");
+        var testFilePath = Path.Combine(temp.Path, $"testfile_{Guid.NewGuid()}.json");
         Dummy.New().SaveNew(testFilePath);
 
         var cached = new Cached<Dummy, Dummy.Serializable>(testFilePath);
@@ -123,7 +123,7 @@ internal sealed class CachedTests
     public void Value_PreservesDataIntegrity_AfterReload()
     {
         using var temp = new TempDirectory();
-        var testFilePath = Path.Combine(temp.Directory.Path, $"testfile_{Guid.NewGuid()}.json");
+        var testFilePath = Path.Combine(temp.Path, $"testfile_{Guid.NewGuid()}.json");
         
         var jobName = new JobName("TestJob");
         var buildNumber = RandomData.NextBuildNumber;

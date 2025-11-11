@@ -11,8 +11,8 @@ internal abstract class BaseOptions
     [Option('c', "config", Required = true, HelpText = "Path to config file")]
     public string ConfigPath { get; set; }
 
-    [Option('w', "workspace", Required = true, HelpText = "Path to workspace file")]
-    public string WorkspacePath { get; set; }
+    [Option('w', "workspace", Required = true, HelpText = "Path to workspace dir")]
+    public string WorkspaceDir { get; set; }
 
     [Option("no-cache", Required = false, HelpText = "Reload job list from Jenkins API")]
     public bool NoCache { get; set; }

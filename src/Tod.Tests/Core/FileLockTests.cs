@@ -22,7 +22,7 @@ internal sealed class FileLockTests
     public void Ctor_CreatesLockFileWithReason()
     {
         using var temp = new TempDirectory();
-        var testFilePath = Path.Combine(temp.Directory.Path, $"testfile_{Guid.NewGuid()}.txt");
+        var testFilePath = Path.Combine(temp.Path, $"testfile_{Guid.NewGuid()}.txt");
         using (var locker = NewFileLock(testFilePath, out var reason))
         {
             var lockPath = testFilePath + ".lock";
@@ -37,7 +37,7 @@ internal sealed class FileLockTests
     public void Ctor_WhenAlreadyLocked_Fails()
     {
         using var temp = new TempDirectory();
-        var testFilePath = Path.Combine(temp.Directory.Path, $"testfile_{Guid.NewGuid()}.txt");
+        var testFilePath = Path.Combine(temp.Path, $"testfile_{Guid.NewGuid()}.txt");
         using (var locker1 = NewFileLock(testFilePath))
         {
             Assert.That(() => NewFileLock(testFilePath), Throws.TypeOf<AlreadyLockedException>());
@@ -48,7 +48,7 @@ internal sealed class FileLockTests
     public void Dispose_RemovesLockFile()
     {
         using var temp = new TempDirectory();
-        var testFilePath = Path.Combine(temp.Directory.Path, $"testfile_{Guid.NewGuid()}.txt");
+        var testFilePath = Path.Combine(temp.Path, $"testfile_{Guid.NewGuid()}.txt");
         var locker = NewFileLock(testFilePath);
         var lockPath = testFilePath + ".lock";
         Assert.That(File.Exists(lockPath), Is.True);
@@ -60,7 +60,7 @@ internal sealed class FileLockTests
     public void Dispose_ReleaseLock()
     {
         using var temp = new TempDirectory();
-        var testFilePath = Path.Combine(temp.Directory.Path, $"testfile_{Guid.NewGuid()}.txt");
+        var testFilePath = Path.Combine(temp.Path, $"testfile_{Guid.NewGuid()}.txt");
         for (var i = 0; i < 2; i++)
         {
             using (var _ = NewFileLock(testFilePath))
@@ -73,7 +73,7 @@ internal sealed class FileLockTests
     public async Task Ctor_OnConcurrentAccess_ThrowsAlreadyLockedException()
     {
         using var temp = new TempDirectory();
-        var testFilePath = Path.Combine(temp.Directory.Path, $"testfile_{Guid.NewGuid()}.txt");
+        var testFilePath = Path.Combine(temp.Path, $"testfile_{Guid.NewGuid()}.txt");
         var taskCount = Environment.ProcessorCount / 2;
         Assert.That(taskCount, Is.GreaterThan(1));
         var tasks = Enumerable.Range(0, taskCount).Select(_ => Task.Run(async () =>

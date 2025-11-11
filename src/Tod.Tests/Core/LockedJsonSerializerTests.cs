@@ -15,7 +15,7 @@ internal sealed class LockedJsonSerializerTests
     {
         using var temp = new TempDirectory();
         var dummy = Dummy.New();
-        var path = Path.Combine(temp.Directory.Path, "request.json");
+        var path = Path.Combine(temp.Path, "request.json");
         using (var lockedJson = new LockedDummy(dummy, path, "New request"))
         {
             Assert.That(() => new LockedDummy(dummy, path, "New request"), Throws.TypeOf<AlreadyLockedException>());
@@ -27,7 +27,7 @@ internal sealed class LockedJsonSerializerTests
     {
         using var temp = new TempDirectory();
         var dummy = Dummy.New();
-        var path = Path.Combine(temp.Directory.Path, "request.json");
+        var path = Path.Combine(temp.Path, "request.json");
         dummy.SaveNew(path);
         using (var loaded = LockedDummy.Load(path, "Load request"))
         {
@@ -40,7 +40,7 @@ internal sealed class LockedJsonSerializerTests
     {
         using var temp = new TempDirectory();
         var dummy = Dummy.New();
-        var path = Path.Combine(temp.Directory.Path, "request.json");
+        var path = Path.Combine(temp.Path, "request.json");
         dummy.SaveNew(path);
         using (var lockedJson = new LockedDummy(dummy, path, "Locking for test"))
         {
@@ -54,7 +54,7 @@ internal sealed class LockedJsonSerializerTests
     {
         using var temp = new TempDirectory();
         var dummy = Dummy.New();
-        var path = Path.Combine(temp.Directory.Path, "request.json");
+        var path = Path.Combine(temp.Path, "request.json");
         using (var lockedJson = new LockedDummy(dummy, path, "New request"))
         {
             // Locked
@@ -70,24 +70,24 @@ internal sealed class LockedJsonSerializerTests
     public void Load_InvalidJson_Throws()
     {
         using var temp = new TempDirectory();
-        var path = Path.Combine(temp.Directory.Path, "request.json");
+        var path = Path.Combine(temp.Path, "request.json");
         File.WriteAllText(path, JsonSerializer.Serialize((Dummy)null!));
         Assert.That(() => LockedDummy.Load(path, "Load invalid json"),
             Throws.InvalidOperationException.And.Message.StartsWith("Cannot deserialize Tod.Tests.Core.Dummy+Serializable from"));
         File.Delete(path);
-        Assert.That(Directory.GetFiles(temp.Directory.Path), Is.Empty);
+        Assert.That(Directory.GetFiles(temp.Path), Is.Empty);
     }
 
     [Test]
     public void LoadUnlocked_InvalidJson_Throws()
     {
         using var temp = new TempDirectory();
-        var path = Path.Combine(temp.Directory.Path, "request.json");
+        var path = Path.Combine(temp.Path, "request.json");
         File.WriteAllText(path, JsonSerializer.Serialize((Dummy)null!));
         Assert.That(() => LockedDummy.LoadUnlocked(path),
             Throws.InvalidOperationException.And.Message.StartsWith("Cannot deserialize Tod.Tests.Core.Dummy+Serializable from"));
         File.Delete(path);
-        Assert.That(Directory.GetFiles(temp.Directory.Path), Is.Empty);
+        Assert.That(Directory.GetFiles(temp.Path), Is.Empty);
     }
 
     private static bool AreEqual(RequestBuildReference x, RequestBuildReference y)
@@ -114,7 +114,7 @@ internal sealed class LockedJsonSerializerTests
     {
         using var temp = new TempDirectory();
         var dummy = Dummy.New();
-        var path = Path.Combine(temp.Directory.Path, "request.json");
+        var path = Path.Combine(temp.Path, "request.json");
         // Save
         using (var lockedJson = LockedJsonSerializer<Dummy, Dummy.Serializable>.New(dummy, path, "Save request", saveIndented))
         {
@@ -139,7 +139,7 @@ internal sealed class LockedJsonSerializerTests
     {
         using var temp = new TempDirectory();
         var dummy = Dummy.New();
-        var path = Path.Combine(temp.Directory.Path, "request.json");
+        var path = Path.Combine(temp.Path, "request.json");
         DateTime beforeSaveUtc = DateTime.UtcNow.AddSeconds(-1);
         DateTime lastModifiedUtc;
         using (var lockedJson = new LockedDummy(dummy, path, "New request"))
@@ -157,7 +157,7 @@ internal sealed class LockedJsonSerializerTests
     {
         using var temp = new TempDirectory();
         var dummy = Dummy.New();
-        var path = Path.Combine(temp.Directory.Path, "request.json");
+        var path = Path.Combine(temp.Path, "request.json");
         DateTime lastModifiedUtc;
         using (var lockedJson = new LockedDummy(dummy, path, "New request"))
         {

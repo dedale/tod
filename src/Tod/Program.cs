@@ -28,13 +28,12 @@ internal static class Program
         }
         Debug.Assert(jobGroups is not null);
 
-        using var lockedWorkspace = Workspace.Load(options.WorkspacePath, $"{nameof(Program)}.{nameof(Sync)}");
+        var workSpace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
         var filterManager = new FilterManager(config, jobGroups);
         var reportSender = new ReportSender(new RequestReportBuilder());
-        var requestManager = new RequestManager(lockedWorkspace.Value, filterManager, jenkinsClient, reportSender);
+        var requestManager = new RequestManager(workSpace, filterManager, jenkinsClient, reportSender);
         var jenkinsSynchronizer = new JenkinsSynchronizer(jenkinsClient, requestManager);
-        await jenkinsSynchronizer.Update(lockedWorkspace.Value).ConfigureAwait(false);
-        lockedWorkspace.Save();
+        await jenkinsSynchronizer.Update(workSpace).ConfigureAwait(false);
         return 0;
     }
 
@@ -42,7 +41,7 @@ internal static class Program
     {
         using var gitRepo = new GitRepo();
         var commits = gitRepo.GetLastCommits(50);
-        var workspace = Workspace.LoadUnlocked(options.WorkspacePath);
+        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
         var wantedBranch = options.BranchName is not null ? new BranchName(options.BranchName) : null;
         var rootNames = new[] { new RootName("build") };
 

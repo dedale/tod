@@ -38,17 +38,23 @@ internal sealed class WorkspaceTests
                 new BuildReference(new JobName("MAIN-build"), 1),
                 []
             );
-            var branchReference = new BranchReference(
-                new BranchName("main"),
-                new JobName("MAIN-build")
-            );
+
+            var workspaceStore = new WorkspaceStore(temp.Path);
+            var referenceStore = workspaceStore.GetReferenceStore(new BranchName("main"));
+
+            var branchReference = new BranchReference(referenceStore);
+            branchReference.TryAddRoot(new JobName("MAIN-build"));
             Assert.That(branchReference.TryAdd(rootBuild), Is.True);
             Assert.That(branchReference.TryAdd(testBuild), Is.True);
+
+            var onDemandStore = workspaceStore.OnDemandStore;
+            var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+            onDemandBuilds.TryAddRoot(new JobName("CUSTOM-build"));
+
             var workspace = new Workspace(
-                temp.Directory.Path,
                 [branchReference],
-                new OnDemandBuilds(new JobName("CUSTOM-build")),
-                new OnDemandRequests(Path.Combine(temp.Directory.Path, "requests"))
+                onDemandBuilds,
+                new OnDemandRequests(Path.Combine(temp.Path, "requests"))
             );
             var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["integration"]);
             var requestState = RequestState.New(
@@ -69,12 +75,13 @@ internal sealed class WorkspaceTests
                 []
             );
             workspace.OnDemandBuilds.TryAdd(onDemandRootBuild);
-            var clone = workspace.SerializationRoundTrip<Workspace, Workspace.Serializable>();
-            Assert.That(clone.BranchReferences, Has.Count.EqualTo(1));
-            Assert.That(clone.BranchReferences[0].RootBuilds, Has.Count.EqualTo(1));
-            Assert.That(clone.BranchReferences[0].TestBuilds, Has.Count.EqualTo(2));
-            Assert.That(clone.BranchReferences[0].TestBuilds[0], Has.Count.EqualTo(1)); // MAIN-test
-            Assert.That(clone.BranchReferences[0].TestBuilds[1], Has.Count.EqualTo(0)); // MAIN-test2
+            var clone = Workspace.Load(temp.Path, new WorkspaceStore(temp.Path));
+            var branchReferences = clone.BranchReferences.ToList();
+            Assert.That(branchReferences, Has.Count.EqualTo(1));
+            Assert.That(branchReferences[0].RootBuilds, Has.Count.EqualTo(1));
+            Assert.That(branchReferences[0].TestBuilds, Has.Count.EqualTo(2));
+            Assert.That(branchReferences[0].TestBuilds[0], Has.Count.EqualTo(1)); // MAIN-test
+            Assert.That(branchReferences[0].TestBuilds[1], Has.Count.EqualTo(0)); // MAIN-test2
             Assert.That(clone.OnDemandBuilds.RootBuilds, Has.Count.EqualTo(1));
             Assert.That(clone.OnDemandRequests.ActiveRequests.Single().Value.Request.Id, Is.EqualTo(request.Id));
         }
@@ -116,10 +123,11 @@ internal sealed class WorkspaceTests
     {
         var jobGroups = await GetJobGroups().ConfigureAwait(false);
         using var temp = new TempDirectory();
-        var workspace = Workspace.New(Path.Combine(temp.Directory.Path, "Workspace.json"), jobGroups);
-        Assert.That(workspace.BranchReferences, Has.Count.EqualTo(1));
-        Assert.That(workspace.BranchReferences[0].TestBuilds, Has.Count.EqualTo(1));
-        Assert.That(workspace.BranchReferences[0].TestBuilds[0].JobName.Value, Is.EqualTo("MAIN-tests"));
+        var workspace = Workspace.New(temp.Path, jobGroups);
+        var branchReferences = workspace.BranchReferences.ToList();
+        Assert.That(branchReferences, Has.Count.EqualTo(1));
+        Assert.That(branchReferences[0].TestBuilds, Has.Count.EqualTo(1));
+        Assert.That(branchReferences[0].TestBuilds[0].JobName.Value, Is.EqualTo("MAIN-tests"));
         Assert.That(workspace.OnDemandBuilds.TestBuilds, Has.Count.EqualTo(1));
         Assert.That(workspace.OnDemandBuilds.TestBuilds[0].JobName.Value, Is.EqualTo("CUSTOM-tests"));
     }
@@ -129,25 +137,14 @@ internal sealed class WorkspaceTests
     {
         var jobGroups = await GetJobGroups().ConfigureAwait(false);
         using var temp = new TempDirectory();
-        Workspace.New(Path.Combine(temp.Directory.Path, "Workspace.json"), jobGroups);
-        using var lockedWorkspace = Workspace.Load(Path.Combine(temp.Directory.Path, "Workspace.json"), nameof(Load_Works));
-        Assert.That(lockedWorkspace.Value.BranchReferences, Has.Count.EqualTo(1));
-        Assert.That(lockedWorkspace.Value.BranchReferences[0].TestBuilds, Has.Count.EqualTo(1));
-        Assert.That(lockedWorkspace.Value.BranchReferences[0].TestBuilds[0].JobName.Value, Is.EqualTo("MAIN-tests"));
-        Assert.That(lockedWorkspace.Value.OnDemandBuilds.TestBuilds, Has.Count.EqualTo(1));
-        Assert.That(lockedWorkspace.Value.OnDemandBuilds.TestBuilds[0].JobName.Value, Is.EqualTo("CUSTOM-tests"));
-    }
+        Workspace.New(temp.Path, jobGroups);
 
-    [Test]
-    public async Task LoadUnlocked_Works()
-    {
-        var jobGroups = await GetJobGroups().ConfigureAwait(false);
-        using var temp = new TempDirectory();
-        Workspace.New(Path.Combine(temp.Directory.Path, "Workspace.json"), jobGroups);
-        var workspace = Workspace.LoadUnlocked(Path.Combine(temp.Directory.Path, "Workspace.json"));
-        Assert.That(workspace.BranchReferences, Has.Count.EqualTo(1));
-        Assert.That(workspace.BranchReferences[0].TestBuilds, Has.Count.EqualTo(1));
-        Assert.That(workspace.BranchReferences[0].TestBuilds[0].JobName.Value, Is.EqualTo("MAIN-tests"));
+        var workspaceStore = new WorkspaceStore(temp.Path);
+        var workspace = Workspace.Load(temp.Path, workspaceStore);
+        var branchReferences = workspace.BranchReferences.ToList();
+        Assert.That(branchReferences, Has.Count.EqualTo(1));
+        Assert.That(branchReferences[0].TestBuilds, Has.Count.EqualTo(1));
+        Assert.That(branchReferences[0].TestBuilds[0].JobName.Value, Is.EqualTo("MAIN-tests"));
         Assert.That(workspace.OnDemandBuilds.TestBuilds, Has.Count.EqualTo(1));
         Assert.That(workspace.OnDemandBuilds.TestBuilds[0].JobName.Value, Is.EqualTo("CUSTOM-tests"));
     }

@@ -66,13 +66,13 @@ internal sealed class OnDemandRequestsTests : IDisposable
     [SetUp]
     public void SetUp()
     {
-        _requests = new OnDemandRequests(_temp.Directory.Path);
+        _requests = new OnDemandRequests(_temp.Path);
     }
 
     [TearDown]
     public void TearDown()
     {
-        Directory.GetFiles(_temp.Directory.Path).ToList().ForEach(f =>
+        Directory.GetFiles(_temp.Path).ToList().ForEach(f =>
         {
             try
             {
@@ -82,7 +82,7 @@ internal sealed class OnDemandRequestsTests : IDisposable
             {
             }
         });
-        Assert.That(Directory.GetFiles(_temp.Directory.Path), Is.Empty);
+        Assert.That(Directory.GetFiles(_temp.Path), Is.Empty);
     }
 
     [Test]
@@ -142,7 +142,7 @@ internal sealed class OnDemandRequestsTests : IDisposable
         }
 
         Assert.That(_requests.ActiveRequests.Single().Value.ChainDiffs[0].Status, Is.EqualTo(ChainStatus.TestsTriggered));
-        var requests2 = new OnDemandRequests(_temp.Directory.Path);
+        var requests2 = new OnDemandRequests(_temp.Path);
         Assert.That(requests2.ActiveRequests.Single().Value.ChainDiffs[0].Status, Is.EqualTo(ChainStatus.TestsTriggered));
     }
 

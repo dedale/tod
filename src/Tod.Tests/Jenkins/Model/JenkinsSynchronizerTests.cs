@@ -7,14 +7,25 @@ namespace Tod.Tests.Jenkins;
 [TestFixture]
 internal sealed class JenkinsSynchronizerTests
 {
-    private static Workspace NewWorkspace(OnDemandBuilds onDemandBuilds)
+    private readonly BranchName _mainBranch = new("main");
+
+    private readonly JobName _refRootJob = new("MAIN-build");
+    private readonly JobName _refTestJob1 = new("MAIN-test1");
+    private readonly JobName _refTestJob2 = new("MAIN-test2");
+    private readonly JobName _onDemandRootJob = new("CUSTOM-build");
+    private readonly JobName _onDemandTestJob1 = new("CUSTOM-test1");
+    private readonly JobName _onDemandTestJob2 = new("CUSTOM-test2");
+
+    private Workspace NewWorkspace(OnDemandBuilds onDemandBuilds)
     {
-        return new Workspace(".", [], onDemandBuilds, new OnDemandRequests("requests"));
+        return new Workspace([], onDemandBuilds, new OnDemandRequests("requests"));
     }
 
-    private static Workspace NewWorkspace(BranchReference branchReference, JobName onDemandRootJobName)
+    private Workspace NewWorkspace(BranchReference branchReference, JobName onDemandRootJobName, IOnDemandStore onDemandStore)
     {
-        return new Workspace(".", [branchReference], new OnDemandBuilds(onDemandRootJobName), new OnDemandRequests("requests"));
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAddRoot(onDemandRootJobName);
+        return new Workspace([branchReference], onDemandBuilds, new OnDemandRequests("requests"));
     }
 
     [Test]
@@ -22,34 +33,36 @@ internal sealed class JenkinsSynchronizerTests
     {
         using (Assert.EnterMultipleScope())
         {
-            var config = new JenkinsConfig("http://localhost:8080");
-            var rootJobName = new JobName("MAIN-build");
-            var testJobName1 = new JobName("MAIN-test1");
-            var testJobName2 = new JobName("MAIN-test2");
-            var branchReference = new BranchReference(new("main"), rootJobName);
-            branchReference.TryAdd(testJobName1);
-            branchReference.TryAdd(testJobName2);
+            using var mocks = StoreMocks.New()
+                .WithReferenceStore(_mainBranch, _refRootJob, out var referenceStore)
+                .WithNewRootBuilds(_refRootJob)
+                .WithTestobs(_refTestJob1, _refTestJob2)
+                .WithOnDemandStore(_onDemandRootJob, out var onDemandStore);
+
+            var branchReference = new BranchReference(referenceStore);
+            branchReference.TryAddRoot(_refRootJob);
+            branchReference.TryAddTest(_refTestJob1);
+            branchReference.TryAddTest(_refTestJob2);
             var buildCount = 2;
             var builds = RandomBuilds.Generate(buildCount).ToArray();
             var triggered = Enumerable.Range(0, buildCount)
                 .Select(_ => new BuildReference[] {
-                new(testJobName1, RandomData.NextBuildNumber),
-                new(testJobName2, RandomData.NextBuildNumber),
+                new(_refTestJob1, RandomData.NextBuildNumber),
+                new(_refTestJob2, RandomData.NextBuildNumber),
                 })
                 .ToArray();
-            var onDemandRootJobName = new JobName("CUSTOM-build");
             var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
-            client.Setup(x => x.GetLastBuilds(rootJobName, 100)).ReturnsAsync(builds);
+            client.Setup(x => x.GetLastBuilds(_refRootJob, 100)).ReturnsAsync(builds);
             for (var i = 0; i < buildCount; i++)
             {
-                client.Setup(x => x.GetTriggeredBuilds(new(rootJobName, builds[i].Number))).ReturnsAsync(triggered[i]);
+                client.Setup(x => x.GetTriggeredBuilds(new(_refRootJob, builds[i].Number))).ReturnsAsync(triggered[i]);
             }
-            client.Setup(x => x.GetLastBuilds(testJobName1, 100)).ReturnsAsync([]);
-            client.Setup(x => x.GetLastBuilds(testJobName2, 100)).ReturnsAsync([]);
-            client.Setup(x => x.GetLastBuilds(onDemandRootJobName, 100)).ReturnsAsync([]);
+            client.Setup(x => x.GetLastBuilds(_refTestJob1, 100)).ReturnsAsync([]);
+            client.Setup(x => x.GetLastBuilds(_refTestJob2, 100)).ReturnsAsync([]);
+            client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
             var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
             var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
-            var workspace = NewWorkspace(branchReference, onDemandRootJobName);
+            var workspace = NewWorkspace(branchReference, _onDemandRootJob, onDemandStore);
             await synchronizer.Update(workspace).ConfigureAwait(false);
             Assert.That(branchReference.RootBuilds, Has.Count.EqualTo(1));
             Assert.That(branchReference.RootBuilds[0], Has.Count.EqualTo(buildCount));
@@ -76,20 +89,23 @@ internal sealed class JenkinsSynchronizerTests
     [Test]
     public async Task Update_BranchReference_DoNotAddKnownRootBuilds()
     {
-        var config = new JenkinsConfig("http://localhost:8080");
-        var rootJobName = new JobName("MAIN-build");
-        var branchReference = new BranchReference(new("main"), rootJobName);
+        using var mocks = StoreMocks.New()
+            .WithReferenceStore(_mainBranch, _refRootJob, out var referenceStore)
+            .WithNewRootBuilds(_refRootJob)
+            .WithTestobs(_refTestJob1, _refTestJob2)
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore);
+
+        var branchReference = new BranchReference(referenceStore);
+        branchReference.TryAddRoot(_refRootJob);
         var builds = RandomBuilds.Generate(1).ToArray();
         var build = builds[0];
-        var testJobName1 = new JobName("MAIN-test1");
-        var testJobName2 = new JobName("MAIN-test2");
         var triggered = new BuildReference[] {
-            new(testJobName1, RandomData.NextBuildNumber),
-            new(testJobName2, RandomData.NextBuildNumber),
+            new(_refTestJob1, RandomData.NextBuildNumber),
+            new(_refTestJob2, RandomData.NextBuildNumber),
         };
         // TryAdd on RootBuilds not branchReference as we do not care about triggered builds here
         branchReference.RootBuilds[0].TryAdd(new RootBuild(
-            rootJobName,
+            _refRootJob,
             build.Id,
             build.Number,
             build.TimestampUtc,
@@ -98,13 +114,12 @@ internal sealed class JenkinsSynchronizerTests
             build.GetCommits(),
             triggered
         ));
-        var onDemandRootJobName = new JobName("CUSTOM-build");
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        client.Setup(x => x.GetLastBuilds(rootJobName, 100)).ReturnsAsync(builds);
-        client.Setup(x => x.GetLastBuilds(onDemandRootJobName, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetLastBuilds(_refRootJob, 100)).ReturnsAsync(builds);
+        client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
         var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
-        var workspace = NewWorkspace(branchReference, onDemandRootJobName);
+        var workspace = NewWorkspace(branchReference, _onDemandRootJob, onDemandStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
         Assert.That(branchReference.RootBuilds, Has.Count.EqualTo(1));
         client.VerifyAll();
@@ -114,18 +129,22 @@ internal sealed class JenkinsSynchronizerTests
     [Test]
     public async Task Update_BranchReference_AddNewTestBuilds()
     {
-        var config = new JenkinsConfig("http://localhost:8080");
-        var rootJobName = new JobName("MAIN-build");
-        var branchReference = new BranchReference(new("main"), rootJobName);
+        using var mocks = StoreMocks.New()
+            .WithReferenceStore(_mainBranch, _refRootJob, out var referenceStore)
+            .WithNewRootBuilds(_refRootJob)
+            .WithNewTestBuilds(_refTestJob1)
+            .WithTestobs(_refTestJob2)
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore);
+
+        var branchReference = new BranchReference(referenceStore);
+        branchReference.TryAddRoot(_refRootJob);
         var buildCount = 2;
         var rootBuilds = RandomBuilds.Generate(2).ToArray();
-        var testJobName1 = new JobName("MAIN-test1");
-        var testJobName2 = new JobName("MAIN-test2");
         var triggeredNumbers = Enumerable.Range(0, buildCount).Select(_ => RandomData.NextBuildNumber).ToArray();
         var triggered = Enumerable.Range(0, buildCount)
             .Select(i => new BuildReference[] {
-                new(testJobName1, triggeredNumbers[0] - i),
-                new(testJobName2, triggeredNumbers[1] - i),
+                new(_refTestJob1, triggeredNumbers[0] - i),
+                new(_refTestJob2, triggeredNumbers[1] - i),
             })
             .ToArray();
         for (var i = 0; i < buildCount; i++)
@@ -133,7 +152,7 @@ internal sealed class JenkinsSynchronizerTests
             var j = buildCount - i - 1;
             var build = rootBuilds[j];
             branchReference.TryAdd(new RootBuild(
-                rootJobName,
+                _refRootJob,
                 build.Id,
                 build.Number,
                 build.TimestampUtc,
@@ -150,31 +169,30 @@ internal sealed class JenkinsSynchronizerTests
         ).ToArray();
         var failCounts = Enumerable.Range(0, buildCount).Select(i => i % 2 == 0 ? 0 : 2).ToArray();
         var failedTests = RandomFailedTests.Generate(2).ToArray();
-        var onDemandRootJobName = new JobName("CUSTOM-build");
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        client.Setup(x => x.GetLastBuilds(rootJobName, 100)).ReturnsAsync([]);
-        client.Setup(x => x.GetLastBuilds(testJobName1, 100)).ReturnsAsync(builds);
-        client.Setup(x => x.GetLastBuilds(testJobName2, 100)).ReturnsAsync([]);
-        client.Setup(x => x.GetLastBuilds(onDemandRootJobName, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetLastBuilds(_refRootJob, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetLastBuilds(_refTestJob1, 100)).ReturnsAsync(builds);
+        client.Setup(x => x.GetLastBuilds(_refTestJob2, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
         for (var i = 0; i < buildCount; i++)
         {
             var build = builds[i];
             var failCount = failCounts[i];
-            client.Setup(x => x.GetFailCount(new(testJobName1, build.Number))).ReturnsAsync(failCount);
+            client.Setup(x => x.GetFailCount(new(_refTestJob1, build.Number))).ReturnsAsync(failCount);
             if (failCount > 0)
             {
-                client.Setup(x => x.GetFailedTests(new(testJobName1, build.Number))).ReturnsAsync(failedTests);
+                client.Setup(x => x.GetFailedTests(new(_refTestJob1, build.Number))).ReturnsAsync(failedTests);
             }
         }
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
         for (var i = 0; i < buildCount; i++)
         {
-            handler.Setup(x => x.PostReferenceTestBuild(new BuildReference(rootJobName, rootBuilds[i].Number), triggered[i][0]));
+            handler.Setup(x => x.PostReferenceTestBuild(new BuildReference(_refRootJob, rootBuilds[i].Number), triggered[i][0]));
         }
         var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
-        var workspace = NewWorkspace(branchReference, onDemandRootJobName);
+        var workspace = NewWorkspace(branchReference, _onDemandRootJob, onDemandStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
-        var testCollection = branchReference.TestBuilds.Single(x => x.JobName == testJobName1);
+        var testCollection = branchReference.TestBuilds.Single(x => x.JobName == _refTestJob1);
         var testBuilds = testCollection.ToList();
         Assert.That(testBuilds, Has.Count.EqualTo(2));
         for (var i = 0; i < buildCount; i++)
@@ -190,17 +208,23 @@ internal sealed class JenkinsSynchronizerTests
     [Test]
     public async Task Update_BranchReference_DoNotAddKnownTestBuilds()
     {
-        var config = new JenkinsConfig("http://localhost:8080");
-        var rootJobName = new JobName("MAIN-build");
-        var branchReference = new BranchReference(new("main"), rootJobName);
+        var testJobName = new JobName("MAIN-test");
+
+        using var mocks = StoreMocks.New()
+            .WithReferenceStore(_mainBranch, _refRootJob, out var referenceStore)
+            .WithNewRootBuilds(_refRootJob)
+            .WithNewTestBuilds(testJobName)
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore);
+
+        var branchReference = new BranchReference(referenceStore);
+        branchReference.TryAddRoot(_refRootJob);
         var rootBuilds = RandomBuilds.Generate(1).ToArray();
         var rootBuild = rootBuilds[0];
-        var testJobName = new JobName("MAIN-test");
         var triggered = new BuildReference[] {
             new(testJobName, RandomData.NextBuildNumber),
         };
         branchReference.TryAdd(new RootBuild(
-            rootJobName,
+            _refRootJob,
             rootBuild.Id,
             rootBuild.Number,
             rootBuild.TimestampUtc,
@@ -216,21 +240,20 @@ internal sealed class JenkinsSynchronizerTests
             DateTime.UtcNow,
             DateTime.UtcNow.AddMinutes(5),
             true,
-            new BuildReference(rootJobName, rootBuild.Number),
+            new BuildReference(_refRootJob, rootBuild.Number),
             []
         ));
         var testBuildReference = triggered[0];
         var testBuilds = RandomBuilds.Generate(1, [testBuildReference.BuildNumber]).ToArray();
         var testBuild = testBuilds[0];
         var failedTests = RandomFailedTests.Generate(2).ToArray();
-        var onDemandRootJobName = new JobName("CUSTOM-build");
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        client.Setup(x => x.GetLastBuilds(rootJobName, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetLastBuilds(_refRootJob, 100)).ReturnsAsync([]);
         client.Setup(x => x.GetLastBuilds(testJobName, 100)).ReturnsAsync(testBuilds);
-        client.Setup(x => x.GetLastBuilds(onDemandRootJobName, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
         var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
-        var workspace = NewWorkspace(branchReference, onDemandRootJobName);
+        var workspace = NewWorkspace(branchReference, _onDemandRootJob, onDemandStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
         var testCollection = branchReference.TestBuilds.Single(x => x.JobName == testJobName);
         Assert.That(testCollection, Has.Count.EqualTo(1));
@@ -241,17 +264,25 @@ internal sealed class JenkinsSynchronizerTests
     [Test]
     public async Task Update_BranchReference_WithUnexpectedOtherTestBuild()
     {
-        var config = new JenkinsConfig("http://localhost:8080");
-        var rootJobName = new JobName("MAIN-build");
-        var branchReference = new BranchReference(new("main"), rootJobName);
+        var testJobName = new JobName("MAIN-test");
+        var otherTestJobName = new JobName("MAIN-other-test");
+
+        using var mocks = StoreMocks.New()
+            .WithReferenceStore(_mainBranch, _refRootJob, out var referenceStore)
+            .WithNewRootBuilds(_refRootJob)
+            .WithNewTestBuilds(testJobName)
+            .WithNewTestBuilds(otherTestJobName)
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore);
+
+        var branchReference = new BranchReference(referenceStore);
+        branchReference.TryAddRoot(_refRootJob);
         var rootBuilds = RandomBuilds.Generate(1).ToArray();
         var rootBuild = rootBuilds[0];
-        var testJobName = new JobName("MAIN-test");
         var triggered = new BuildReference[] {
             new(testJobName, RandomData.NextBuildNumber),
         };
         branchReference.TryAdd(new RootBuild(
-            rootJobName,
+            _refRootJob,
             rootBuild.Id,
             rootBuild.Number,
             rootBuild.TimestampUtc,
@@ -267,10 +298,9 @@ internal sealed class JenkinsSynchronizerTests
             DateTime.UtcNow,
             DateTime.UtcNow.AddMinutes(5),
             true,
-            new BuildReference(rootJobName, rootBuild.Number),
+            new BuildReference(_refRootJob, rootBuild.Number),
             []
         ));
-        var otherTestJobName = new JobName("MAIN-other-test");
         branchReference.TryAdd(new TestBuild(
             otherTestJobName,
             Guid.NewGuid().ToString(),
@@ -278,22 +308,21 @@ internal sealed class JenkinsSynchronizerTests
             DateTime.UtcNow,
             DateTime.UtcNow.AddMinutes(5),
             true,
-            new BuildReference(rootJobName, RandomData.NextBuildNumber),
+            new BuildReference(_refRootJob, RandomData.NextBuildNumber),
             []
         ));
         var testBuildReference = triggered[0];
         var testBuilds = RandomBuilds.Generate(1, [testBuildReference.BuildNumber]).ToArray();
         var testBuild = testBuilds[0];
         var failedTests = RandomFailedTests.Generate(2).ToArray();
-        var onDemandRootJobName = new JobName("CUSTOM-build");
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        client.Setup(x => x.GetLastBuilds(rootJobName, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetLastBuilds(_refRootJob, 100)).ReturnsAsync([]);
         client.Setup(x => x.GetLastBuilds(testJobName, 100)).ReturnsAsync(testBuilds);
         client.Setup(x => x.GetLastBuilds(otherTestJobName, 100)).ReturnsAsync([]);
-        client.Setup(x => x.GetLastBuilds(onDemandRootJobName, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
         var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
-        var workspace = NewWorkspace(branchReference, onDemandRootJobName);
+        var workspace = NewWorkspace(branchReference, _onDemandRootJob, onDemandStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
         var testCollection = branchReference.TestBuilds.Single(x => x.JobName == testJobName);
         Assert.That(testCollection, Has.Count.EqualTo(1));
@@ -304,17 +333,21 @@ internal sealed class JenkinsSynchronizerTests
     [Test]
     public async Task Update_BranchReference_IgnoreTestBuildsWithoutKnownRootBuild()
     {
-        var config = new JenkinsConfig("http://localhost:8080");
-        var rootJobName = new JobName("MAIN-build");
-        var branchReference = new BranchReference(new("main"), rootJobName);
+        using var mocks = StoreMocks.New()
+            .WithReferenceStore(_mainBranch, _refRootJob, out var referenceStore)
+            .WithNewRootBuilds(_refRootJob)
+            .WithNewTestBuilds(_refTestJob1)
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore);
+
+        var branchReference = new BranchReference(referenceStore);
+        branchReference.TryAddRoot(_refRootJob);
         var rootBuilds = RandomBuilds.Generate(1).ToArray();
-        var testJobName1 = new JobName("MAIN-test1");
         var triggered = new BuildReference[] {
-            new(testJobName1, RandomData.NextBuildNumber),
+            new(_refTestJob1, RandomData.NextBuildNumber),
         };
         var build = rootBuilds[0];
         branchReference.TryAdd(new RootBuild(
-            rootJobName,
+            _refRootJob,
             build.Id,
             build.Number,
             build.TimestampUtc,
@@ -324,16 +357,15 @@ internal sealed class JenkinsSynchronizerTests
             triggered
         ));
         var builds = RandomBuilds.Generate(1, [RandomData.NextBuildNumber]).ToArray();
-        var onDemandRootJobName = new JobName("CUSTOM-build");
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        client.Setup(x => x.GetLastBuilds(rootJobName, 100)).ReturnsAsync([]);
-        client.Setup(x => x.GetLastBuilds(testJobName1, 100)).ReturnsAsync(builds);
-        client.Setup(x => x.GetLastBuilds(onDemandRootJobName, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetLastBuilds(_refRootJob, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetLastBuilds(_refTestJob1, 100)).ReturnsAsync(builds);
+        client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
         var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
-        var workspace = NewWorkspace(branchReference, onDemandRootJobName);
+        var workspace = NewWorkspace(branchReference, _onDemandRootJob, onDemandStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
-        var testCollection = branchReference.TestBuilds.Single(x => x.JobName == testJobName1);
+        var testCollection = branchReference.TestBuilds.Single(x => x.JobName == _refTestJob1);
         var testBuilds = testCollection.ToList();
         Assert.That(testBuilds, Has.Count.EqualTo(0));
         client.VerifyAll();
@@ -343,26 +375,28 @@ internal sealed class JenkinsSynchronizerTests
     [Test]
     public async Task Update_OnDemand_AddNewRootBuilds()
     {
-        var config = new JenkinsConfig("http://localhost:8080");
-        var rootJobName = new JobName("CUSTOM-build");
-        var testJobName1 = new JobName("CUSTOM-test1");
-        var testJobName2 = new JobName("CUSTOM-test2");
-        var onDemandBuilds = new OnDemandBuilds(rootJobName);
-        onDemandBuilds.TryAdd(testJobName1);
-        onDemandBuilds.TryAdd(testJobName2);
+        using var mocks = StoreMocks.New()
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithNewRootBuilds(_onDemandRootJob)
+            .WithTestobs(_onDemandTestJob1, _onDemandTestJob2);
+
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAddRoot(_onDemandRootJob);
+        onDemandBuilds.TryAddTest(_onDemandTestJob1);
+        onDemandBuilds.TryAddTest(_onDemandTestJob2);
         var builds = RandomBuilds.Generate(1).ToArray();
         var build = builds[0];
         var triggered = new BuildReference[] {
-            new(testJobName1, RandomData.NextBuildNumber),
-            new(testJobName2, RandomData.NextBuildNumber),
+            new(_onDemandTestJob1, RandomData.NextBuildNumber),
+            new(_onDemandTestJob2, RandomData.NextBuildNumber),
         };
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        client.Setup(x => x.GetLastBuilds(rootJobName, 100)).ReturnsAsync(builds);
-        client.Setup(x => x.GetTriggeredBuilds(new(rootJobName, build.Number))).ReturnsAsync(triggered);
-        client.Setup(x => x.GetLastBuilds(testJobName1, 100)).ReturnsAsync([]);
-        client.Setup(x => x.GetLastBuilds(testJobName2, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync(builds);
+        client.Setup(x => x.GetTriggeredBuilds(new(_onDemandRootJob, build.Number))).ReturnsAsync(triggered);
+        client.Setup(x => x.GetLastBuilds(_onDemandTestJob1, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetLastBuilds(_onDemandTestJob2, 100)).ReturnsAsync([]);
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
-        handler.Setup(x => x.PostOnDemandRootBuild(new BuildReference(rootJobName, build.Number), build.Result == BuildResult.Success));
+        handler.Setup(x => x.PostOnDemandRootBuild(new BuildReference(_onDemandRootJob, build.Number), build.Result == BuildResult.Success));
         var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
         var workspace = NewWorkspace(onDemandBuilds);
         await synchronizer.Update(workspace).ConfigureAwait(false);
@@ -382,19 +416,21 @@ internal sealed class JenkinsSynchronizerTests
     [Test]
     public async Task Update_OnDemand_DoNotAddKnownRootBuilds()
     {
-        var config = new JenkinsConfig("http://localhost:8080");
-        var rootJobName = new JobName("MAIN-build");
-        var onDemandBuilds = new OnDemandBuilds(rootJobName);
+        using var mocks = StoreMocks.New()
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithNewRootBuilds(_onDemandRootJob)
+            .WithTestobs(_onDemandTestJob1, _onDemandTestJob2);
+
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAddRoot(_onDemandRootJob);
         var builds = RandomBuilds.Generate(1).ToArray();
         var build = builds[0];
-        var testJobName1 = new JobName("MAIN-test1");
-        var testJobName2 = new JobName("MAIN-test2");
         var triggered = new BuildReference[] {
-            new(testJobName1, RandomData.NextBuildNumber),
-            new(testJobName2, RandomData.NextBuildNumber),
+            new(_onDemandTestJob1, RandomData.NextBuildNumber),
+            new(_onDemandTestJob2, RandomData.NextBuildNumber),
         };
         onDemandBuilds.RootBuilds[0].TryAdd(new RootBuild(
-            rootJobName,
+            _onDemandRootJob,
             build.Id,
             build.Number,
             build.TimestampUtc,
@@ -404,7 +440,7 @@ internal sealed class JenkinsSynchronizerTests
             triggered
         ));
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        client.Setup(x => x.GetLastBuilds(rootJobName, 100)).ReturnsAsync(builds);
+        client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync(builds);
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
         var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
         var workspace = NewWorkspace(onDemandBuilds);
@@ -419,19 +455,22 @@ internal sealed class JenkinsSynchronizerTests
     [TestCase(2)]
     public async Task Update_OnDemand_AddNewTestBuilds(int failedTestCount)
     {
-        var config = new JenkinsConfig("http://localhost:8080");
-        var rootJobName = new JobName("CUSTOM-build");
-        var onDemandBuilds = new OnDemandBuilds(rootJobName);
+        using var mocks = StoreMocks.New()
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithNewRootBuilds(_onDemandRootJob)
+            .WithNewTestBuilds(_onDemandTestJob1)
+            .WithTestobs(_onDemandTestJob2);
+
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAddRoot(_onDemandRootJob);
         var rootBuilds = RandomBuilds.Generate(1).ToArray();
         var rootBuild = rootBuilds[0];
-        var testJobName1 = new JobName("CUSTOM-test1");
-        var testJobName2 = new JobName("CUSTOM-test2");
         var triggered = new BuildReference[] {
-            new(testJobName1, RandomData.NextBuildNumber),
-            new(testJobName2, RandomData.NextBuildNumber),
+            new(_onDemandTestJob1, RandomData.NextBuildNumber),
+            new(_onDemandTestJob2, RandomData.NextBuildNumber),
         };
         onDemandBuilds.TryAdd(new RootBuild(
-            rootJobName,
+            _onDemandRootJob,
             rootBuild.Id,
             rootBuild.Number,
             rootBuild.TimestampUtc,
@@ -445,21 +484,21 @@ internal sealed class JenkinsSynchronizerTests
         var testBuild = testBuilds[0];
         var failedTests = RandomFailedTests.Generate(failedTestCount).ToArray();
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        client.Setup(x => x.GetLastBuilds(rootJobName, 100)).ReturnsAsync([]);
-        client.Setup(x => x.GetLastBuilds(testJobName1, 100)).ReturnsAsync(testBuilds);
-        client.Setup(x => x.GetLastBuilds(testJobName2, 100)).ReturnsAsync([]);
-        client.Setup(x => x.TryGetRootBuild(new(testJobName1, testBuild.Number))).ReturnsAsync(onDemandBuilds.RootBuilds[0][0].Reference);
-        client.Setup(x => x.GetFailCount(new(testJobName1, testBuild.Number))).ReturnsAsync(failedTestCount);
+        client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetLastBuilds(_onDemandTestJob1, 100)).ReturnsAsync(testBuilds);
+        client.Setup(x => x.GetLastBuilds(_onDemandTestJob2, 100)).ReturnsAsync([]);
+        client.Setup(x => x.TryGetRootBuild(new(_onDemandTestJob1, testBuild.Number))).ReturnsAsync(onDemandBuilds.RootBuilds[0][0].Reference);
+        client.Setup(x => x.GetFailCount(new(_onDemandTestJob1, testBuild.Number))).ReturnsAsync(failedTestCount);
         if (failedTestCount > 0)
         {
-            client.Setup(x => x.GetFailedTests(new(testJobName1, testBuild.Number))).ReturnsAsync(failedTests);
+            client.Setup(x => x.GetFailedTests(new(_onDemandTestJob1, testBuild.Number))).ReturnsAsync(failedTests);
         }
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
-        handler.Setup(x => x.PostOnDemandTestBuild(new(rootJobName, rootBuild.Number), testBuildReference));
+        handler.Setup(x => x.PostOnDemandTestBuild(new(_onDemandRootJob, rootBuild.Number), testBuildReference));
         var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
         var workspace = NewWorkspace(onDemandBuilds);
         await synchronizer.Update(workspace).ConfigureAwait(false);
-        var testCollection = onDemandBuilds.TestBuilds.Single(x => x.JobName == testJobName1);
+        var testCollection = onDemandBuilds.TestBuilds.Single(x => x.JobName == _onDemandTestJob1);
         Assert.That(testCollection, Has.Count.EqualTo(1));
         client.VerifyAll();
         handler.VerifyAll();
@@ -468,19 +507,22 @@ internal sealed class JenkinsSynchronizerTests
     [Test]
     public async Task Update_OnDemand_DoNotGetFailedTestsForSuccessfulBuilds()
     {
-        var config = new JenkinsConfig("http://localhost:8080");
-        var rootJobName = new JobName("CUSTOM-build");
-        var onDemandBuilds = new OnDemandBuilds(rootJobName);
+        using var mocks = StoreMocks.New()
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithNewRootBuilds(_onDemandRootJob)
+            .WithNewTestBuilds(_onDemandTestJob1)
+            .WithTestobs(_onDemandTestJob2);
+
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAddRoot(_onDemandRootJob);
         var rootBuilds = RandomBuilds.Generate(1).ToArray();
         var rootBuild = rootBuilds[0];
-        var testJobName1 = new JobName("CUSTOM-test1");
-        var testJobName2 = new JobName("CUSTOM-test2");
         var triggered = new BuildReference[] {
-            new(testJobName1, RandomData.NextBuildNumber),
-            new(testJobName2, RandomData.NextBuildNumber),
+            new(_onDemandTestJob1, RandomData.NextBuildNumber),
+            new(_onDemandTestJob2, RandomData.NextBuildNumber),
         };
         onDemandBuilds.TryAdd(new RootBuild(
-            rootJobName,
+            _onDemandRootJob,
             rootBuild.Id,
             rootBuild.Number,
             rootBuild.TimestampUtc,
@@ -493,17 +535,17 @@ internal sealed class JenkinsSynchronizerTests
         var testBuilds = RandomBuilds.Generate(1, [testBuildReference.BuildNumber]).ToArray();
         var testBuild = testBuilds[0];
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        client.Setup(x => x.GetLastBuilds(rootJobName, 100)).ReturnsAsync([]);
-        client.Setup(x => x.GetLastBuilds(testJobName1, 100)).ReturnsAsync(testBuilds);
-        client.Setup(x => x.GetLastBuilds(testJobName2, 100)).ReturnsAsync([]);
-        client.Setup(x => x.TryGetRootBuild(new(testJobName1, testBuild.Number))).ReturnsAsync(onDemandBuilds.RootBuilds[0][0].Reference);
-        client.Setup(x => x.GetFailCount(new(testJobName1, testBuild.Number))).ReturnsAsync(0);
+        client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetLastBuilds(_onDemandTestJob1, 100)).ReturnsAsync(testBuilds);
+        client.Setup(x => x.GetLastBuilds(_onDemandTestJob2, 100)).ReturnsAsync([]);
+        client.Setup(x => x.TryGetRootBuild(new(_onDemandTestJob1, testBuild.Number))).ReturnsAsync(onDemandBuilds.RootBuilds[0][0].Reference);
+        client.Setup(x => x.GetFailCount(new(_onDemandTestJob1, testBuild.Number))).ReturnsAsync(0);
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
-        handler.Setup(x => x.PostOnDemandTestBuild(new(rootJobName, rootBuild.Number), testBuildReference));
+        handler.Setup(x => x.PostOnDemandTestBuild(new(_onDemandRootJob, rootBuild.Number), testBuildReference));
         var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
         var workspace = NewWorkspace(onDemandBuilds);
         await synchronizer.Update(workspace).ConfigureAwait(false);
-        var testCollection = onDemandBuilds.TestBuilds.Single(x => x.JobName == testJobName1);
+        var testCollection = onDemandBuilds.TestBuilds.Single(x => x.JobName == _onDemandTestJob1);
         Assert.That(testCollection, Has.Count.EqualTo(1));
         client.VerifyAll();
         handler.VerifyAll();
@@ -512,22 +554,24 @@ internal sealed class JenkinsSynchronizerTests
     [Test]
     public async Task Update_OnDemand_IgnoreTestBuildsWithoutKnownRootBuild()
     {
-        var config = new JenkinsConfig("http://localhost:8080");
-        var rootJobName = new JobName("CUSTOM-build");
-        var testJobName1 = new JobName("CUSTOM-test1");
-        var testJobName2 = new JobName("CUSTOM-test2");
-        var onDemandBuilds = new OnDemandBuilds(
-            new BuildCollection<RootBuild>(rootJobName),
-            [new BuildCollection<TestBuild>(testJobName1), new BuildCollection<TestBuild>(testJobName2)]
-        );
+        using var mocks = StoreMocks.New()
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithNewRootBuilds(_onDemandRootJob)
+            .WithNewTestBuilds(_onDemandTestJob1)
+            .WithTestobs(_onDemandTestJob2);
+
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAddRoot(_onDemandRootJob);
+        onDemandBuilds.TryAddTest(_onDemandTestJob1);
+        onDemandBuilds.TryAddTest(_onDemandTestJob2);
         var rootBuilds = RandomBuilds.Generate(1).ToArray();
         var rootBuild = rootBuilds[0];
         var triggered = new BuildReference[] {
-            new(testJobName1, RandomData.NextBuildNumber),
-            new(testJobName2, RandomData.NextBuildNumber),
+            new(_onDemandTestJob1, RandomData.NextBuildNumber),
+            new(_onDemandTestJob2, RandomData.NextBuildNumber),
         };
         onDemandBuilds.TryAdd(new RootBuild(
-            rootJobName,
+            _onDemandRootJob,
             rootBuild.Id,
             rootBuild.Number,
             rootBuild.TimestampUtc,
@@ -541,15 +585,15 @@ internal sealed class JenkinsSynchronizerTests
         var testBuild = testBuilds[0];
         var failedTests = RandomFailedTests.Generate(2).ToArray();
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        client.Setup(x => x.GetLastBuilds(rootJobName, 100)).ReturnsAsync([]);
-        client.Setup(x => x.GetLastBuilds(testJobName1, 100)).ReturnsAsync(testBuilds);
-        client.Setup(x => x.GetLastBuilds(testJobName2, 100)).ReturnsAsync([]);
-        client.Setup(x => x.TryGetRootBuild(new(testJobName1, testBuild.Number))).ReturnsAsync((BuildReference?)null);
+        client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetLastBuilds(_onDemandTestJob1, 100)).ReturnsAsync(testBuilds);
+        client.Setup(x => x.GetLastBuilds(_onDemandTestJob2, 100)).ReturnsAsync([]);
+        client.Setup(x => x.TryGetRootBuild(new(_onDemandTestJob1, testBuild.Number))).ReturnsAsync((BuildReference?)null);
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
         var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
         var workspace = NewWorkspace(onDemandBuilds);
         await synchronizer.Update(workspace).ConfigureAwait(false);
-        var testCollection = onDemandBuilds.TestBuilds.Single(x => x.JobName == testJobName1);
+        var testCollection = onDemandBuilds.TestBuilds.Single(x => x.JobName == _onDemandTestJob1);
         Assert.That(testCollection, Has.Count.EqualTo(0));
         client.VerifyAll();
         handler.VerifyAll();
@@ -558,17 +602,22 @@ internal sealed class JenkinsSynchronizerTests
     [Test]
     public async Task Update_OnDemand_DoNotAddKnownTestBuilds()
     {
-        var config = new JenkinsConfig("http://localhost:8080");
-        var rootJobName = new JobName("CUSTOM-build");
-        var onDemandBuilds = new OnDemandBuilds(rootJobName);
+        var testJobName = new JobName("CUSTOM-test");
+
+        using var mocks = StoreMocks.New()
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithNewRootBuilds(_onDemandRootJob)
+            .WithNewTestBuilds(testJobName);
+
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAddRoot(_onDemandRootJob);
         var rootBuilds = RandomBuilds.Generate(1).ToArray();
         var rootBuild = rootBuilds[0];
-        var testJobName = new JobName("CUSTOM-test");
         var triggered = new BuildReference[] {
             new(testJobName, RandomData.NextBuildNumber),
         };
         onDemandBuilds.TryAdd(new RootBuild(
-            rootJobName,
+            _onDemandRootJob,
             rootBuild.Id,
             rootBuild.Number,
             rootBuild.TimestampUtc,
@@ -584,7 +633,7 @@ internal sealed class JenkinsSynchronizerTests
             DateTime.UtcNow,
             DateTime.UtcNow.AddMinutes(5),
             true,
-            new BuildReference(rootJobName, rootBuild.Number),
+            new BuildReference(_onDemandRootJob, rootBuild.Number),
             []
         ));
         var testBuildReference = triggered[0];
@@ -592,7 +641,7 @@ internal sealed class JenkinsSynchronizerTests
         var testBuild = testBuilds[0];
         var failedTests = RandomFailedTests.Generate(2).ToArray();
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        client.Setup(x => x.GetLastBuilds(rootJobName, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
         client.Setup(x => x.GetLastBuilds(testJobName, 100)).ReturnsAsync(testBuilds);
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
         var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
@@ -607,17 +656,24 @@ internal sealed class JenkinsSynchronizerTests
     [Test]
     public async Task Update_OnDemand_WithUnexpectedOtherTestBuild()
     {
-        var config = new JenkinsConfig("http://localhost:8080");
-        var rootJobName = new JobName("CUSTOM-build");
-        var onDemandBuilds = new OnDemandBuilds(rootJobName);
+        var testJobName = new JobName("CUSTOM-test");
+        var otherTestJobName = new JobName("CUSTOM-other-test");
+
+        using var mocks = StoreMocks.New()
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithNewRootBuilds(_onDemandRootJob)
+            .WithNewTestBuilds(testJobName)
+            .WithNewTestBuilds(otherTestJobName);
+
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAddRoot(_onDemandRootJob);
         var rootBuilds = RandomBuilds.Generate(1).ToArray();
         var rootBuild = rootBuilds[0];
-        var testJobName = new JobName("CUSTOM-test");
         var triggered = new BuildReference[] {
             new(testJobName, RandomData.NextBuildNumber),
         };
         onDemandBuilds.TryAdd(new RootBuild(
-            rootJobName,
+            _onDemandRootJob,
             rootBuild.Id,
             rootBuild.Number,
             rootBuild.TimestampUtc,
@@ -633,10 +689,9 @@ internal sealed class JenkinsSynchronizerTests
             DateTime.UtcNow,
             DateTime.UtcNow.AddMinutes(5),
             true,
-            new BuildReference(rootJobName, rootBuild.Number),
+            new BuildReference(_onDemandRootJob, rootBuild.Number),
             []
         ));
-        var otherTestJobName = new JobName("CUSTOM-other-test");
         onDemandBuilds.TryAdd(new TestBuild(
             otherTestJobName,
             Guid.NewGuid().ToString(),
@@ -644,7 +699,7 @@ internal sealed class JenkinsSynchronizerTests
             DateTime.UtcNow,
             DateTime.UtcNow.AddMinutes(5),
             true,
-            new BuildReference(rootJobName, RandomData.NextBuildNumber),
+            new BuildReference(_onDemandRootJob, RandomData.NextBuildNumber),
             []
         ));
         var testBuildReference = triggered[0];
@@ -652,7 +707,7 @@ internal sealed class JenkinsSynchronizerTests
         var testBuild = testBuilds[0];
         var failedTests = RandomFailedTests.Generate(2).ToArray();
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        client.Setup(x => x.GetLastBuilds(rootJobName, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
         client.Setup(x => x.GetLastBuilds(testJobName, 100)).ReturnsAsync(testBuilds);
         client.Setup(x => x.GetLastBuilds(otherTestJobName, 100)).ReturnsAsync([]);
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);

@@ -12,7 +12,7 @@ internal sealed class JenkinsConfigTests
     [Test]
     public void SaveLoad_Works()
     {
-        using var tempDir = new TempDirectory();
+        using var temp = new TempDirectory();
         var jobs = new JobName[]
         {
             new("MAIN-build"),
@@ -38,7 +38,7 @@ internal sealed class JenkinsConfigTests
             new TestFilter("integration", "^integration-tests$", "tests"),
         };
         var config = JenkinsConfig.New("http://localhost:8080", jobNames: jobs, referenceJobs: refJobConfigs, onDemandJobs: onDemandJobConfigs, filters: filters);
-        var path = Path.Combine(tempDir.Directory.Path, "jenkins_config.json");
+        var path = Path.Combine(temp.Path, "jenkins_config.json");
         try
         {
             config.Save(path);
@@ -61,8 +61,8 @@ internal sealed class JenkinsConfigTests
     [Test]
     public void Load_NullConfig_ThrowsInvalidOperationException()
     {
-        using var tempDir = new TempDirectory();
-        var path = Path.Combine(tempDir.Directory.Path, "jenkins_config.json");
+        using var temp = new TempDirectory();
+        var path = Path.Combine(temp.Path, "jenkins_config.json");
         File.WriteAllText(path, JsonSerializer.Serialize((JenkinsConfig)null!), Encoding.UTF8);
         Assert.That(() => JenkinsConfig.Load(path), Throws.InvalidOperationException.And.Message.StartsWith("Cannot deserialize config from "));
     }

@@ -6,43 +6,59 @@ namespace Tod.Tests.Jenkins;
 [TestFixture]
 internal sealed class RequestReportBuilderTests
 {
+    private readonly BranchName mainBranch = new("main");
+
+    private readonly JobName mainBuildJob = new("MAIN-build");
+    private readonly JobName mainTestJob = new("MAIN-test");
+    private readonly JobName customBuildJob = new("CUSTOM-build");
+    private readonly JobName customTestJob = new("CUSTOM-test");
+
     // Helper method to create a simple RequestState
-    private static RequestState CreateRequestState(
+    private RequestState CreateRequestState(
         BuildReference? onDemandRoot = null,
         RequestBuildDiff[]? buildDiffs = null)
     {
         var request = Request.Create(
             RandomData.NextSha1(),
             RandomData.NextSha1(),
-            new BranchName("main"),
+            mainBranch,
             ["test"]);
         
         return RequestState.New(
             request,
-            new BuildReference("MAIN-build", RandomData.NextBuildNumber),
-            onDemandRoot ?? new BuildReference("CUSTOM-build", RandomData.NextBuildNumber),
-            buildDiffs?.ToList() ?? [new RequestBuildDiff(new("MAIN-test"), new("CUSTOM-test"))]);
+            new BuildReference(mainBuildJob, RandomData.NextBuildNumber),
+            onDemandRoot ?? new BuildReference(customBuildJob, RandomData.NextBuildNumber),
+            buildDiffs?.ToList() ?? [new RequestBuildDiff(mainTestJob, customTestJob)]);
     }
 
     [TestCase(true, BuildStatus.Success)]
     [TestCase(false, BuildStatus.Failed)]
     public void New_OnDemandRootDone_ReturnsRootResultWithDoneStatus(bool success, BuildStatus status)
     {
+        using var mocks = StoreMocks.New()
+            .WithReferenceStore(mainBranch, mainBuildJob, out var referenceStore)
+            .WithOnDemandStore(customBuildJob, out var onDemandStore)
+            .WithNewRootBuilds(customBuildJob)
+            .WithNewTestBuilds(customTestJob);
+
         // Arrange
-        var onDemandRoot = new BuildReference("CUSTOM-build", 100);
+        var onDemandRoot = new BuildReference(customBuildJob, 100);
         var requestState = CreateRequestState(onDemandRoot: onDemandRoot)
             .TriggerTests((job, commit) => Task.FromResult(RandomData.NextBuildNumber));
 
-        var branchReference = new BranchReference(new BranchName("main"), new JobName("MAIN-build"));
-        var onDemandBuilds = new OnDemandBuilds(new JobName("CUSTOM-build"));
-        var rootBuild = RandomData.NextRootBuild("CUSTOM-build", 100, isSuccessful: success);
+        var branchReference = new BranchReference(referenceStore);
+        branchReference.TryAddRoot(mainBuildJob);
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAddRoot(customBuildJob);
+
+        var rootBuild = RandomData.NextRootBuild(customBuildJob.Value, 100, isSuccessful: success, testJobNames: [ customTestJob.Value ]);
         onDemandBuilds.TryAdd(rootBuild);
 
         // Act
         var report = new RequestReportBuilder().Build(requestState, branchReference, onDemandBuilds);
 
         // Assert
-        Assert.That(report.ChainReports[0].RootResult.JobName.Value, Is.EqualTo("CUSTOM-build"));
+        Assert.That(report.ChainReports[0].RootResult.JobName.Value, Is.EqualTo(customBuildJob.Value));
         Assert.That(report.ChainReports[0].RootResult.Number, Is.EqualTo(100));
         Assert.That(report.ChainReports[0].RootResult.Status, Is.EqualTo(status));
     }
@@ -50,18 +66,24 @@ internal sealed class RequestReportBuilderTests
     [Test]
     public void New_OnDemandRootTriggered_ReturnsRootResultWithTriggeredStatus()
     {
+        using var mocks = StoreMocks.New()
+            .WithReferenceStore(mainBranch, mainBuildJob, out var referenceStore)
+            .WithOnDemandStore(customBuildJob, out var onDemandStore);
+
         // Arrange
-        var onDemandRoot = new BuildReference("CUSTOM-build", 100);
+        var onDemandRoot = new BuildReference(customBuildJob, 100);
         var requestState = CreateRequestState(onDemandRoot: onDemandRoot);
-        
-        var branchReference = new BranchReference(new BranchName("main"), new JobName("MAIN-build"));
-        var onDemandBuilds = new OnDemandBuilds(new JobName("CUSTOM-build"));
+
+        var branchReference = new BranchReference(referenceStore);
+        branchReference.TryAddRoot(mainBuildJob);
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAddRoot(customBuildJob);
 
         // Act
         var report = new RequestReportBuilder().Build(requestState, branchReference, onDemandBuilds);
 
         // Assert
-        Assert.That(report.ChainReports[0].RootResult.JobName.Value, Is.EqualTo("CUSTOM-build"));
+        Assert.That(report.ChainReports[0].RootResult.JobName.Value, Is.EqualTo(customBuildJob.Value));
         Assert.That(report.ChainReports[0].RootResult.Number, Is.EqualTo(100));
         Assert.That(report.ChainReports[0].RootResult.Status, Is.EqualTo(BuildStatus.Triggered));
     }
@@ -69,10 +91,16 @@ internal sealed class RequestReportBuilderTests
     [Test]
     public void New_OnDemandTestBuildPending_ReturnsOnDemandPendingDiff()
     {
+        using var mocks = StoreMocks.New()
+            .WithReferenceStore(mainBranch, mainBuildJob, out var referenceStore)
+            .WithOnDemandStore(customBuildJob, out var onDemandStore);
+
         // Arrange
         var requestState = CreateRequestState();
-        var branchReference = new BranchReference(new BranchName("main"), new JobName("MAIN-build"));
-        var onDemandBuilds = new OnDemandBuilds(new JobName("CUSTOM-build"));
+        var branchReference = new BranchReference(referenceStore);
+        branchReference.TryAddRoot(mainBuildJob);
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAddRoot(customBuildJob);
 
         // Act
         var report = new RequestReportBuilder().Build(requestState, branchReference, onDemandBuilds);
@@ -91,14 +119,20 @@ internal sealed class RequestReportBuilderTests
     [Test]
     public void New_OnDemandTestBuildTriggered_ReturnsOnDemandTriggeredDiff()
     {
+        using var mocks = StoreMocks.New()
+            .WithReferenceStore(mainBranch, mainBuildJob, out var referenceStore)
+            .WithOnDemandStore(customBuildJob, out var onDemandStore);
+
         // Arrange
         var testBuildNumber = RandomData.NextBuildNumber;
-        var buildDiff = new RequestBuildDiff(new JobName("MAIN-test"), new JobName("CUSTOM-test"))
+        var buildDiff = new RequestBuildDiff(mainTestJob, customTestJob)
             .TriggerOnDemand(testBuildNumber);
         var requestState = CreateRequestState(buildDiffs: [buildDiff]);
-        
-        var branchReference = new BranchReference(new BranchName("main"), new JobName("MAIN-build"));
-        var onDemandBuilds = new OnDemandBuilds(new JobName("CUSTOM-build"));
+
+        var branchReference = new BranchReference(referenceStore);
+        branchReference.TryAddRoot(mainBuildJob);
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAddRoot(customBuildJob);
 
         // Act
         var report = new RequestReportBuilder().Build(requestState, branchReference, onDemandBuilds);
@@ -118,19 +152,27 @@ internal sealed class RequestReportBuilderTests
     [Test]
     public void New_ReferenceTestBuildPending_ReturnsReferencePendingDiff()
     {
+        using var mocks = StoreMocks.New()
+            .WithReferenceStore(mainBranch, mainBuildJob, out var referenceStore)
+            .WithNewTestBuilds(mainTestJob)
+            .WithOnDemandStore(customBuildJob, out var onDemandStore)
+            .WithNewTestBuilds(customTestJob);
+
         // Arrange
         var onDemandBuildNumber = RandomData.NextBuildNumber;
-        var buildDiff = new RequestBuildDiff(new JobName("MAIN-test"), new JobName("CUSTOM-test"))
+        var buildDiff = new RequestBuildDiff(mainTestJob, customTestJob)
             .TriggerOnDemand(onDemandBuildNumber)
             .DoneOnDemand();
         var requestState = CreateRequestState(buildDiffs: [buildDiff]);
-        
-        var branchReference = new BranchReference(new BranchName("main"), new JobName("MAIN-build"));
-        branchReference.TryAdd(new JobName("MAIN-test"));
-        
-        var onDemandBuilds = new OnDemandBuilds(new JobName("CUSTOM-build"));
-        onDemandBuilds.TryAdd(new JobName("CUSTOM-test"));
-        var testBuild = RandomData.NextTestBuild("CUSTOM-test", onDemandBuildNumber);
+
+        var branchReference = new BranchReference(referenceStore);
+        branchReference.TryAddRoot(mainBuildJob);
+        branchReference.TryAddTest(mainTestJob);
+
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAddRoot(customBuildJob);
+        onDemandBuilds.TryAddTest(customTestJob);
+        var testBuild = RandomData.NextTestBuild(customTestJob.Value, onDemandBuildNumber);
         onDemandBuilds.TryAdd(testBuild);
 
         // Act
@@ -150,24 +192,32 @@ internal sealed class RequestReportBuilderTests
     [Test]
     public void New_BothTestBuildsDone_ReturnsComparableDiff()
     {
+        using var mocks = StoreMocks.New()
+            .WithReferenceStore(mainBranch, mainBuildJob, out var referenceStore)
+            .WithNewTestBuilds(mainTestJob)
+            .WithOnDemandStore(customBuildJob, out var onDemandStore)
+            .WithNewTestBuilds(customTestJob);
+
         // Arrange
         var onDemandBuildNumber = RandomData.NextBuildNumber;
         var referenceBuildNumber = RandomData.NextBuildNumber;
         
-        var buildDiff = new RequestBuildDiff(new JobName("MAIN-test"), new JobName("CUSTOM-test"))
+        var buildDiff = new RequestBuildDiff(mainTestJob, customTestJob)
             .DoneReference(referenceBuildNumber)
             .TriggerOnDemand(onDemandBuildNumber)
             .DoneOnDemand();
         var requestState = CreateRequestState(buildDiffs: [buildDiff]);
-        
-        var branchReference = new BranchReference(new BranchName("main"), new JobName("MAIN-build"));
-        branchReference.TryAdd(new JobName("MAIN-test"));
-        var refTestBuild = RandomData.NextTestBuild("MAIN-test", referenceBuildNumber);
+
+        var branchReference = new BranchReference(referenceStore);
+        branchReference.TryAddRoot(mainBuildJob);
+        branchReference.TryAddTest(mainTestJob);
+        var refTestBuild = RandomData.NextTestBuild(mainTestJob.Value, referenceBuildNumber);
         branchReference.TryAdd(refTestBuild);
-        
-        var onDemandBuilds = new OnDemandBuilds(new JobName("CUSTOM-build"));
-        onDemandBuilds.TryAdd(new JobName("CUSTOM-test"));
-        var onDemandTestBuild = RandomData.NextTestBuild("CUSTOM-test", onDemandBuildNumber);
+
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAddRoot(customBuildJob);
+        onDemandBuilds.TryAddTest(customTestJob);
+        var onDemandTestBuild = RandomData.NextTestBuild(customTestJob.Value, onDemandBuildNumber);
         onDemandBuilds.TryAdd(onDemandTestBuild);
 
         // Act
@@ -187,39 +237,47 @@ internal sealed class RequestReportBuilderTests
     [Test]
     public void New_BothTestBuildsDoneWithNewFailures_ReturnsDiffWithAddedTests()
     {
+        using var mocks = StoreMocks.New()
+            .WithReferenceStore(mainBranch, mainBuildJob, out var referenceStore)
+            .WithNewTestBuilds(mainTestJob)
+            .WithOnDemandStore(customBuildJob, out var onDemandStore)
+            .WithNewTestBuilds(customTestJob);
+
         // Arrange
         var onDemandBuildNumber = RandomData.NextBuildNumber;
         var referenceBuildNumber = RandomData.NextBuildNumber;
         
-        var buildDiff = new RequestBuildDiff(new JobName("MAIN-test"), new JobName("CUSTOM-test"))
+        var buildDiff = new RequestBuildDiff(mainTestJob, customTestJob)
             .DoneReference(referenceBuildNumber)
             .TriggerOnDemand(onDemandBuildNumber)
             .DoneOnDemand();
         var requestState = CreateRequestState(buildDiffs: [buildDiff]);
-        
-        var branchReference = new BranchReference(new BranchName("main"), new JobName("MAIN-build"));
-        branchReference.TryAdd(new JobName("MAIN-test"));
+
+        var branchReference = new BranchReference(referenceStore);
+        branchReference.TryAddRoot(mainBuildJob);
+        branchReference.TryAddTest(mainTestJob);
         var refTestBuild = new TestBuild(
-            new JobName("MAIN-test"),
+            mainTestJob,
             "ref-id",
             referenceBuildNumber,
             DateTime.UtcNow.AddHours(-1),
             DateTime.UtcNow,
             false,
-            new BuildReference("MAIN-build", 1),
+            new BuildReference(mainBuildJob, 1),
             [new FailedTest("ClassA", "Test1", "Old error")]);
         branchReference.TryAdd(refTestBuild);
-        
-        var onDemandBuilds = new OnDemandBuilds(new JobName("CUSTOM-build"));
-        onDemandBuilds.TryAdd(new JobName("CUSTOM-test"));
+
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAddRoot(customBuildJob);
+        onDemandBuilds.TryAddTest(customTestJob);
         var onDemandTestBuild = new TestBuild(
-            new JobName("CUSTOM-test"),
+            customTestJob,
             "custom-id",
             onDemandBuildNumber,
             DateTime.UtcNow.AddHours(-1),
             DateTime.UtcNow,
             false,
-            new BuildReference("CUSTOM-build", 1),
+            new BuildReference(customBuildJob, 1),
             [
                 new FailedTest("ClassA", "Test1", "Old error"),
                 new FailedTest("ClassB", "Test2", "New error")
@@ -247,13 +305,20 @@ internal sealed class RequestReportBuilderTests
     [Test]
     public void New_MultipleTestBuilds_ReturnsMultipleBuildDiffs()
     {
+        using var mocks = StoreMocks.New()
+            .WithReferenceStore(mainBranch, mainBuildJob, out var referenceStore)
+            .WithOnDemandStore(customBuildJob, out var onDemandStore)
+            .WithNewTestBuilds(customTestJob);
+
         // Arrange
         var buildDiff1 = new RequestBuildDiff(new JobName("MAIN-test1"), new JobName("CUSTOM-test1"));
         var buildDiff2 = new RequestBuildDiff(new JobName("MAIN-test2"), new JobName("CUSTOM-test2"));
         var requestState = CreateRequestState(buildDiffs: [buildDiff1, buildDiff2]);
-        
-        var branchReference = new BranchReference(new BranchName("main"), new JobName("MAIN-build"));
-        var onDemandBuilds = new OnDemandBuilds(new JobName("CUSTOM-build"));
+
+        var branchReference = new BranchReference(referenceStore);
+        branchReference.TryAddRoot(mainBuildJob);
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAddRoot(customBuildJob);
 
         // Act
         var report = new RequestReportBuilder().Build(requestState, branchReference, onDemandBuilds);
@@ -268,8 +333,13 @@ internal sealed class RequestReportBuilderTests
     [Test]
     public void New_UnexpectedTriggeredRef_Throws()
     {
+        using var mocks = StoreMocks.New()
+            .WithReferenceStore(mainBranch, mainBuildJob, out var referenceStore)
+            .WithOnDemandStore(customBuildJob, out var onDemandStore)
+            .WithNewTestBuilds(customTestJob);
+
         var onDemandBuildNumber = RandomData.NextBuildNumber;
-        var builDiff = new RequestBuildDiff(new JobName("MAIN-test"), new JobName("CUSTOM-test"))
+        var builDiff = new RequestBuildDiff(mainTestJob, customTestJob)
             .TriggerOnDemand(onDemandBuildNumber)
             .DoneOnDemand();
         
@@ -278,9 +348,11 @@ internal sealed class RequestReportBuilderTests
         var corruptedBuildDiff = serializable.FromSerializable();
 
         var requestState = CreateRequestState(buildDiffs: [corruptedBuildDiff]);
-        var branchReference = new BranchReference(new BranchName("main"), new JobName("MAIN-build"));
-        var onDemandBuilds = new OnDemandBuilds(new JobName("CUSTOM-build"));
-        var testBuild = RandomData.NextTestBuild("CUSTOM-test", onDemandBuildNumber);
+        var branchReference = new BranchReference(referenceStore);
+        branchReference.TryAddRoot(mainBuildJob);
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAddRoot(customBuildJob);
+        var testBuild = RandomData.NextTestBuild(customTestJob.Value, onDemandBuildNumber);
         onDemandBuilds.TryAdd(testBuild);
 
         Assert.That(() => new RequestReportBuilder().Build(requestState, branchReference, onDemandBuilds), Throws.InvalidOperationException);

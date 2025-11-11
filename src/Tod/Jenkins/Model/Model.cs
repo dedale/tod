@@ -54,6 +54,8 @@ internal sealed record JobName(string Value) : IComparable<JobName>
     {
         return Value;
     }
+
+    public KeyValuePair<string, object?> Tag => KeyValuePair.Create<string, object?>(nameof(JobName), this);
 }
 
 [DebuggerStepThrough]

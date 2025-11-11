@@ -1,17 +1,40 @@
-﻿using NUnit.Framework;
-using System.Text.Json;
+﻿using Moq;
+using NUnit.Framework;
 using Tod.Jenkins;
+using Tod.Tests.IO;
 
 namespace Tod.Tests.Jenkins;
 
 [TestFixture]
 internal sealed class BuildCollectionTests
 {
+    private Mock<IByJobNameStore> _store;
+
+    [SetUp]
+    public void SetUp()
+    {
+        _store = new Mock<IByJobNameStore>(MockBehavior.Strict);
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        _store.VerifyAll();
+    }
+
+    private void StoreSetupLoad(JobName jobName)
+    {
+        _store.Setup(s => s.BuildBranch).Returns(BuildBranch.Create(new BranchName("main")));
+        _store.Setup(s => s.Load(jobName, It.IsAny<Func<JobName, BuildCollection<RootBuild>.InnerCollection.Serializable>>()))
+            .Returns((JobName j, Func<JobName, BuildCollection<RootBuild>.InnerCollection.Serializable> f) => f(j));
+    }
+
     [Test]
     public void Constructor_WithJobName_CreatesEmptyCollection()
     {
-        var jobName = new JobName("TestJob");
-        var collection = new BuildCollection<RootBuild>(jobName);
+        var jobName = new JobName("MyJob");
+        StoreSetupLoad(jobName);
+        var collection = new BuildCollection<RootBuild>(jobName, _store.Object);
 
         using (Assert.EnterMultipleScope())
         {
@@ -24,40 +47,39 @@ internal sealed class BuildCollectionTests
     [Test]
     public void Constructor_WithBuilds_AddsAllBuilds()
     {
+        using var temp = new TempDirectory();
+        var jsonPath = Path.Combine(temp.Path, "Builds.json");
+        var storeFactory = new ByJobNameStoreFactory(BuildBranch.Create(new BranchName("main")), jsonPath);
+
         var jobName = new JobName("TestJob");
         var builds = new[] {
             RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 1),
             RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 2)
         };
 
-        var collection = new BuildCollection<RootBuild>(jobName, builds);
+        var store = storeFactory.New();
+        store.Add(jobName);
+        var collection = new BuildCollection<RootBuild>(jobName, store);
+        collection.TryAdd(builds[0]);
+        collection.TryAdd(builds[1]);
+
+        store = storeFactory.New();
+        collection = new BuildCollection<RootBuild>(jobName, store);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(collection.Count, Is.EqualTo(2));
-            Assert.That(collection, Is.EquivalentTo(builds));
+            Assert.That(collection.Select(b => b.Reference), Is.EquivalentTo(builds.Select(b => b.Reference)));
         }
-    }
-
-    [Test]
-    public void Constructor_WithDuplicateBuilds_ThrowsArgumentException()
-    {
-        var jobName = new JobName("TestJob");
-        var buildNumber = RandomData.NextBuildNumber;
-        var builds = new[] {
-            RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: buildNumber),
-            RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: buildNumber)
-        };
-
-        Assert.That(() => new BuildCollection<RootBuild>(jobName, builds),
-            Throws.ArgumentException.With.Message.EqualTo("Duplicate builds in the initial collection. (Parameter 'builds')"));
     }
 
     [Test]
     public void TryAdd_WithValidBuild_ReturnsTrue()
     {
         var jobName = new JobName("TestJob");
-        var collection = new BuildCollection<RootBuild>(jobName);
+        StoreSetupLoad(jobName);
+        _store.Setup(s => s.Save(jobName, It.IsAny<BuildCollection<RootBuild>.InnerCollection.Serializable>()));
+        var collection = new BuildCollection<RootBuild>(jobName, _store.Object);
         var build = RandomData.NextRootBuild(jobName: jobName.Value);
 
         var result = collection.TryAdd(build);
@@ -75,7 +97,9 @@ internal sealed class BuildCollectionTests
     public void TryAdd_WithDuplicateBuildNumber_ReturnsFalse()
     {
         var jobName = new JobName("TestJob");
-        var collection = new BuildCollection<RootBuild>(jobName);
+        StoreSetupLoad(jobName);
+        _store.Setup(s => s.Save(jobName, It.IsAny<BuildCollection<RootBuild>.InnerCollection.Serializable>()));
+        var collection = new BuildCollection<RootBuild>(jobName, _store.Object);
         var buildNumber = RandomData.NextBuildNumber;
         var build1 = RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: buildNumber);
         var build2 = RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: buildNumber);
@@ -95,7 +119,8 @@ internal sealed class BuildCollectionTests
     public void TryAdd_WithDifferentJobName_ThrowsArgumentException()
     {
         var jobName = new JobName("TestJob");
-        var collection = new BuildCollection<RootBuild>(jobName);
+        StoreSetupLoad(jobName);
+        var collection = new BuildCollection<RootBuild>(jobName, _store.Object);
         var build = RandomData.NextRootBuild(jobName: "OtherJob");
 
         Assert.That(() => collection.TryAdd(build),
@@ -106,7 +131,9 @@ internal sealed class BuildCollectionTests
     public void TryAdd_WithDecreasingBuildNumber_ThrowsInvalidOperationException()
     {
         var jobName = new JobName("TestJob");
-        var collection = new BuildCollection<RootBuild>(jobName);
+        StoreSetupLoad(jobName);
+        _store.Setup(s => s.Save(jobName, It.IsAny<BuildCollection<RootBuild>.InnerCollection.Serializable>()));
+        var collection = new BuildCollection<RootBuild>(jobName, _store.Object);
         var build1 = RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 2);
         var build2 = RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 1);
 
@@ -119,17 +146,23 @@ internal sealed class BuildCollectionTests
     [Test]
     public void Serialization_Roundtrip_PreservesAllData()
     {
+        using var temp = new TempDirectory();
+        var jsonPath = Path.Combine(temp.Path, "Builds.json");
+        var storeFactory = new ByJobNameStoreFactory(BuildBranch.Create(new BranchName("main")), jsonPath);
+
         var jobName = new JobName("TestJob");
         var builds = new[] {
             RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 1),
             RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 2)
         };
-        var original = new BuildCollection<RootBuild>(jobName, builds);
+        var store = storeFactory.New();
+        store.Add(jobName);
+        var original = new BuildCollection<RootBuild>(jobName, store);
+        original.TryAdd(builds[0]);
+        original.TryAdd(builds[1]);
 
-        var serializable = new BuildCollection<RootBuild>.Serializable(original);
-        var json = JsonSerializer.Serialize(serializable);
-        var deserialized = JsonSerializer.Deserialize<BuildCollection<RootBuild>.Serializable>(json);
-        var roundtrip = deserialized!.ToBuildCollection();
+        store = storeFactory.New();
+        var roundtrip = new BuildCollection<RootBuild>(jobName, store);
 
         using (Assert.EnterMultipleScope())
         {
@@ -147,7 +180,9 @@ internal sealed class BuildCollectionTests
     [Test]
     public void Indexer_WithBadJobName_ThrowsArgumentException()
     {
-        var collection = new BuildCollection<RootBuild>(new JobName("TestJob"));
+        var jobName = new JobName("TestJob");
+        StoreSetupLoad(jobName);
+        var collection = new BuildCollection<RootBuild>(jobName, _store.Object);
         var build = new BuildReference("OtherJob", RandomData.NextBuildNumber);
         Assert.That(() => collection[build],
             Throws.ArgumentException.With.Message.EqualTo($"Build job name 'OtherJob' does not match collection job name 'TestJob'. (Parameter 'buildReference')"));

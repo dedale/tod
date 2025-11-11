@@ -4,10 +4,12 @@ namespace Tod.Tests.IO;
 
 internal sealed class TempDirectory([CallerMemberName] string caller = "") : IDisposable
 {
-    public DirectoryPath Directory { get; } = DirectoryPath.Temp.CreateUnique(caller);
+    private readonly DirectoryPath _directory = DirectoryPath.Temp.CreateUnique(caller);
+
+    public string Path => _directory.Path;
 
     public void Dispose()
     {
-        Directory.DeleteIgnoringErrors();
+        _directory.DeleteIgnoringErrors();
     }
 }
