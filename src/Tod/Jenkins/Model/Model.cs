@@ -144,17 +144,11 @@ internal abstract class BaseBuild(JobName jobName, string id, int buildNumber, D
     public BuildReference Reference => _reference;
 }
 
-internal sealed class RootBuild : BaseBuild
+internal sealed class RootBuild(JobName jobName, string id, int buildNumber, DateTime startTimeUtc, DateTime endTimeUtc, bool isSuccessful, Sha1[] commits, JobName[] scheduled)
+    : BaseBuild(jobName, id, buildNumber, startTimeUtc, endTimeUtc, isSuccessful)
 {
-    public RootBuild(JobName jobName, string id, int buildNumber, DateTime startTimeUtc, DateTime endTimeUtc, bool isSuccessful, Sha1[] commits, BuildReference[] triggered)
-        : base(jobName, id, buildNumber, startTimeUtc, endTimeUtc, isSuccessful)
-    {
-        Commits = commits;
-        Triggered = triggered;
-    }
-
-    public Sha1[] Commits { get; }
-    public BuildReference[] Triggered { get; }
+    public Sha1[] Commits { get; } = commits;
+    public JobName[] Scheduled { get; } = scheduled;
 
     [ExcludeFromCodeCoverage]
     public override string ToString()
@@ -163,23 +157,29 @@ internal sealed class RootBuild : BaseBuild
     }
 }
 
-internal sealed class TestBuild : BaseBuild
+[method: JsonConstructor]
+internal sealed class TestBuild(JobName jobName, string id, int buildNumber, DateTime startTimeUtc, DateTime endTimeUtc, bool isSuccessful, BuildReference[] rootBuilds, FailedTest[] failedTests)
+    : BaseBuild(jobName, id, buildNumber, startTimeUtc, endTimeUtc, isSuccessful)
 {
     public TestBuild(JobName jobName, string id, int buildNumber, DateTime startTimeUtc, DateTime endTimeUtc, bool isSuccessful, BuildReference rootBuild, FailedTest[] failedTests)
-        : base(jobName, id, buildNumber, startTimeUtc, endTimeUtc, isSuccessful)
+        : this(jobName, id, buildNumber, startTimeUtc, endTimeUtc, isSuccessful, [rootBuild], failedTests)
     {
-        RootBuild = rootBuild;
-        FailedTests = failedTests;
     }
 
-    public BuildReference RootBuild { get; }
-    public FailedTest[] FailedTests { get; }
+    public BuildReference[] RootBuilds { get; } = rootBuilds;
+    public FailedTest[] FailedTests { get; } = failedTests;
 
     [ExcludeFromCodeCoverage]
     public override string ToString()
     {
         return Reference.ToString();
     }
+}
+
+internal sealed class TestBuildData(int failCount, BuildReference[] upstreamBuilds)
+{
+    public int FailCount { get; } = failCount;
+    public BuildReference[] UpstreamBuilds { get; } = upstreamBuilds;
 }
 
 internal interface IWithCustomSerialization<TSerializable>

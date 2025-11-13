@@ -26,9 +26,9 @@ internal sealed class OnDemandBuilds(BuildCollections<RootBuild> rootBuilds, Bui
     {
         if (RootBuilds[rootBuild.JobName].TryAdd(rootBuild))
         {
-            foreach (var triggered in rootBuild.Triggered)
+            foreach (var scheduled in rootBuild.Scheduled)
             {
-                TestBuilds.GetOrAdd(triggered.JobName);
+                TestBuilds.GetOrAdd(scheduled);
             }
             return true;
         }
@@ -56,7 +56,7 @@ internal sealed class OnDemandBuilds(BuildCollections<RootBuild> rootBuilds, Bui
         for (var i = 0; i < builds.Count; i++)
         {
             var candidate = builds[i];
-            if (candidate.RootBuild.JobName.Equals(rootBuild.JobName) && candidate.RootBuild.Equals(rootBuild))
+            if (candidate.RootBuilds.Any(r => r.JobName.Equals(rootBuild.JobName) && r.Equals(rootBuild)))
             {
                 testBuild = candidate;
                 return true;

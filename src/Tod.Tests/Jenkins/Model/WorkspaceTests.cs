@@ -24,8 +24,8 @@ internal sealed class WorkspaceTests
                 true,
                 [RandomData.NextSha1()],
                 [
-                    new BuildReference(new JobName("MAIN-test"), 1),
-                    new BuildReference(new JobName("MAIN-test2"), 1),
+                    new JobName("MAIN-test"),
+                    new JobName("MAIN-test2"),
                 ]
             );
             var testBuild = new TestBuild(

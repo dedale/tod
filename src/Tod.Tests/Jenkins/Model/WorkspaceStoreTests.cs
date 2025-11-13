@@ -92,7 +92,7 @@ internal sealed class WorkspaceStoreTests
                         DateTime.UtcNow,
                         true,
                         [RandomData.NextSha1()],
-                        [.. testJobs.Select(job => new BuildReference(job, testFirstNumbers[job] + i))]
+                        [.. testJobs]
                     );
                     branchReference.TryAdd(rootBuild);
 

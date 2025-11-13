@@ -45,17 +45,14 @@ internal sealed class JenkinsSynchronizerTests
             branchReference.TryAddTest(_refTestJob2);
             var buildCount = 2;
             var builds = RandomBuilds.Generate(buildCount).ToArray();
-            var triggered = Enumerable.Range(0, buildCount)
-                .Select(_ => new BuildReference[] {
-                new(_refTestJob1, RandomData.NextBuildNumber),
-                new(_refTestJob2, RandomData.NextBuildNumber),
-                })
+            var scheduled = Enumerable.Range(0, buildCount)
+                .Select(_ => new JobName[] { _refTestJob1, _refTestJob2 })
                 .ToArray();
             var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
             client.Setup(x => x.GetLastBuilds(_refRootJob, 100)).ReturnsAsync(builds);
             for (var i = 0; i < buildCount; i++)
             {
-                client.Setup(x => x.GetTriggeredBuilds(new(_refRootJob, builds[i].Number))).ReturnsAsync(triggered[i]);
+                client.Setup(x => x.GetScheduledJobs(new(_refRootJob, builds[i].Number))).ReturnsAsync(scheduled[i]);
             }
             client.Setup(x => x.GetLastBuilds(_refTestJob1, 100)).ReturnsAsync([]);
             client.Setup(x => x.GetLastBuilds(_refTestJob2, 100)).ReturnsAsync([]);
@@ -76,7 +73,7 @@ internal sealed class JenkinsSynchronizerTests
                 Assert.That(rootBuilds[j].StartTimeUtc, Is.EqualTo(builds[i].TimestampUtc));
                 Assert.That(rootBuilds[j].EndTimeUtc, Is.EqualTo(builds[i].TimestampUtc.AddMilliseconds(builds[i].DurationInMs)));
                 Assert.That(rootBuilds[j].Commits, Is.EqualTo(builds[i].GetCommits()));
-                Assert.That(rootBuilds[j].Triggered, Is.EqualTo(triggered[i]));
+                Assert.That(rootBuilds[j].Scheduled, Is.EqualTo(scheduled[i]));
             }
             Assert.That(branchReference.TestBuilds, Has.Count.EqualTo(2));
             Assert.That(branchReference.TestBuilds[0].JobName.Value, Is.EqualTo("MAIN-test1"));
@@ -99,10 +96,7 @@ internal sealed class JenkinsSynchronizerTests
         branchReference.TryAddRoot(_refRootJob);
         var builds = RandomBuilds.Generate(1).ToArray();
         var build = builds[0];
-        var triggered = new BuildReference[] {
-            new(_refTestJob1, RandomData.NextBuildNumber),
-            new(_refTestJob2, RandomData.NextBuildNumber),
-        };
+        var scheduled = new JobName[] { _refTestJob1, _refTestJob2 };
         // TryAdd on RootBuilds not branchReference as we do not care about triggered builds here
         branchReference.RootBuilds[0].TryAdd(new RootBuild(
             _refRootJob,
@@ -112,7 +106,7 @@ internal sealed class JenkinsSynchronizerTests
             build.TimestampUtc.AddMilliseconds(build.DurationInMs),
             build.Result == BuildResult.Success,
             build.GetCommits(),
-            triggered
+            scheduled
         ));
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
         client.Setup(x => x.GetLastBuilds(_refRootJob, 100)).ReturnsAsync(builds);
@@ -139,7 +133,7 @@ internal sealed class JenkinsSynchronizerTests
         var branchReference = new BranchReference(referenceStore);
         branchReference.TryAddRoot(_refRootJob);
         var buildCount = 2;
-        var rootBuilds = RandomBuilds.Generate(2).ToArray();
+        var rootBuilds = RandomBuilds.Generate(buildCount).ToArray();
         var triggeredNumbers = Enumerable.Range(0, buildCount).Select(_ => RandomData.NextBuildNumber).ToArray();
         var triggered = Enumerable.Range(0, buildCount)
             .Select(i => new BuildReference[] {
@@ -159,7 +153,7 @@ internal sealed class JenkinsSynchronizerTests
                 build.TimestampUtc.AddMilliseconds(build.DurationInMs),
                 build.Result == BuildResult.Success,
                 build.GetCommits(),
-                triggered[j]
+                [.. triggered[j].Select(r => r.JobName)]
             ));
         }
         var builds = RandomBuilds.Generate(
@@ -178,7 +172,7 @@ internal sealed class JenkinsSynchronizerTests
         {
             var build = builds[i];
             var failCount = failCounts[i];
-            client.Setup(x => x.GetFailCount(new(_refTestJob1, build.Number))).ReturnsAsync(failCount);
+            client.Setup(x => x.GetTestData(new(_refTestJob1, build.Number))).ReturnsAsync(new TestBuildData(failCount, [new(_refRootJob, rootBuilds[i].Number)]));
             if (failCount > 0)
             {
                 client.Setup(x => x.GetFailedTests(new(_refTestJob1, build.Number))).ReturnsAsync(failedTests);
@@ -231,7 +225,7 @@ internal sealed class JenkinsSynchronizerTests
             rootBuild.TimestampUtc.AddMilliseconds(rootBuild.DurationInMs),
             rootBuild.Result == BuildResult.Success,
             rootBuild.GetCommits(),
-            triggered
+            [.. triggered.Select(r => r.JobName)]
         ));
         branchReference.TryAdd(new TestBuild(
             testJobName,
@@ -289,7 +283,7 @@ internal sealed class JenkinsSynchronizerTests
             rootBuild.TimestampUtc.AddMilliseconds(rootBuild.DurationInMs),
             rootBuild.Result == BuildResult.Success,
             rootBuild.GetCommits(),
-            triggered
+            [.. triggered.Select(r => r.JobName)]
         ));
         branchReference.TryAdd(new TestBuild(
             testJobName,
@@ -331,7 +325,7 @@ internal sealed class JenkinsSynchronizerTests
     }
 
     [Test]
-    public async Task Update_BranchReference_IgnoreTestBuildsWithoutKnownRootBuild()
+    public async Task Update_BranchReference_KeepTestBuildsWithoutKnownRootBuild()
     {
         using var mocks = StoreMocks.New()
             .WithReferenceStore(_mainBranch, _refRootJob, out var referenceStore)
@@ -354,20 +348,25 @@ internal sealed class JenkinsSynchronizerTests
             build.TimestampUtc.AddMilliseconds(build.DurationInMs),
             build.Result == BuildResult.Success,
             build.GetCommits(),
-            triggered
+            [.. triggered.Select(r => r.JobName)]
         ));
         var builds = RandomBuilds.Generate(1, [RandomData.NextBuildNumber]).ToArray();
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
         client.Setup(x => x.GetLastBuilds(_refRootJob, 100)).ReturnsAsync([]);
         client.Setup(x => x.GetLastBuilds(_refTestJob1, 100)).ReturnsAsync(builds);
         client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
+        var rootRef = new BuildReference(_refRootJob, build.Number);
+        var testRef = new BuildReference(_refTestJob1, builds[0].Number);
+        client.Setup(x => x.GetTestData(testRef))
+            .ReturnsAsync(new TestBuildData(0, [rootRef]));
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
+        handler.Setup(x => x.PostReferenceTestBuild(rootRef, testRef));
         var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
         var workspace = NewWorkspace(branchReference, _onDemandRootJob, onDemandStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
         var testCollection = branchReference.TestBuilds.Single(x => x.JobName == _refTestJob1);
         var testBuilds = testCollection.ToList();
-        Assert.That(testBuilds, Has.Count.EqualTo(0));
+        Assert.That(testBuilds, Has.Count.EqualTo(1));
         client.VerifyAll();
         handler.VerifyAll();
     }
@@ -386,13 +385,10 @@ internal sealed class JenkinsSynchronizerTests
         onDemandBuilds.TryAddTest(_onDemandTestJob2);
         var builds = RandomBuilds.Generate(1).ToArray();
         var build = builds[0];
-        var triggered = new BuildReference[] {
-            new(_onDemandTestJob1, RandomData.NextBuildNumber),
-            new(_onDemandTestJob2, RandomData.NextBuildNumber),
-        };
+        var scheduled = new JobName[] { _onDemandTestJob1, _onDemandTestJob2 };
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
         client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync(builds);
-        client.Setup(x => x.GetTriggeredBuilds(new(_onDemandRootJob, build.Number))).ReturnsAsync(triggered);
+        client.Setup(x => x.GetScheduledJobs(new(_onDemandRootJob, build.Number))).ReturnsAsync(scheduled);
         client.Setup(x => x.GetLastBuilds(_onDemandTestJob1, 100)).ReturnsAsync([]);
         client.Setup(x => x.GetLastBuilds(_onDemandTestJob2, 100)).ReturnsAsync([]);
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
@@ -408,7 +404,7 @@ internal sealed class JenkinsSynchronizerTests
         Assert.That(rootBuild.StartTimeUtc, Is.EqualTo(build.TimestampUtc));
         Assert.That(rootBuild.EndTimeUtc, Is.EqualTo(build.TimestampUtc.AddMilliseconds(build.DurationInMs)));
         Assert.That(rootBuild.Commits, Is.EqualTo(build.GetCommits()));
-        Assert.That(rootBuild.Triggered, Is.EqualTo(triggered));
+        Assert.That(rootBuild.Scheduled, Is.EqualTo(scheduled));
         client.VerifyAll();
         handler.VerifyAll();
     }
@@ -425,10 +421,7 @@ internal sealed class JenkinsSynchronizerTests
         onDemandBuilds.TryAddRoot(_onDemandRootJob);
         var builds = RandomBuilds.Generate(1).ToArray();
         var build = builds[0];
-        var triggered = new BuildReference[] {
-            new(_onDemandTestJob1, RandomData.NextBuildNumber),
-            new(_onDemandTestJob2, RandomData.NextBuildNumber),
-        };
+        var scheduled = new JobName[] { _onDemandTestJob1, _onDemandTestJob2 };
         onDemandBuilds.RootBuilds[0].TryAdd(new RootBuild(
             _onDemandRootJob,
             build.Id,
@@ -437,7 +430,7 @@ internal sealed class JenkinsSynchronizerTests
             build.TimestampUtc.AddMilliseconds(build.DurationInMs),
             build.Result == BuildResult.Success,
             build.GetCommits(),
-            triggered
+            scheduled
         ));
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
         client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync(builds);
@@ -477,7 +470,7 @@ internal sealed class JenkinsSynchronizerTests
             rootBuild.TimestampUtc.AddMilliseconds(rootBuild.DurationInMs),
             true,
             rootBuild.GetCommits(),
-            triggered
+            [.. triggered.Select(r => r.JobName)]
         ));
         var testBuildReference = triggered[0];
         var testBuilds = RandomBuilds.Generate(1, [testBuildReference.BuildNumber], [failedTestCount == 0]).ToArray();
@@ -529,7 +522,7 @@ internal sealed class JenkinsSynchronizerTests
             rootBuild.TimestampUtc.AddMilliseconds(rootBuild.DurationInMs),
             true,
             rootBuild.GetCommits(),
-            triggered
+            [.. triggered.Select(r => r.JobName)]
         ));
         var testBuildReference = triggered[0];
         var testBuilds = RandomBuilds.Generate(1, [testBuildReference.BuildNumber]).ToArray();
@@ -578,7 +571,7 @@ internal sealed class JenkinsSynchronizerTests
             rootBuild.TimestampUtc.AddMilliseconds(rootBuild.DurationInMs),
             rootBuild.Result == BuildResult.Success,
             rootBuild.GetCommits(),
-            triggered
+            [.. triggered.Select(r => r.JobName)]
         ));
         var testBuildReference = triggered[0];
         var testBuilds = RandomBuilds.Generate(1).ToArray();
@@ -624,7 +617,7 @@ internal sealed class JenkinsSynchronizerTests
             rootBuild.TimestampUtc.AddMilliseconds(rootBuild.DurationInMs),
             rootBuild.Result == BuildResult.Success,
             rootBuild.GetCommits(),
-            triggered
+            [.. triggered.Select(r => r.JobName)]
         ));
         onDemandBuilds.TryAdd(new TestBuild(
             testJobName,
@@ -680,7 +673,7 @@ internal sealed class JenkinsSynchronizerTests
             rootBuild.TimestampUtc.AddMilliseconds(rootBuild.DurationInMs),
             rootBuild.Result == BuildResult.Success,
             rootBuild.GetCommits(),
-            triggered
+            [.. triggered.Select(r => r.JobName)]
         ));
         onDemandBuilds.TryAdd(new TestBuild(
             testJobName,

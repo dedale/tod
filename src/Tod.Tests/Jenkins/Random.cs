@@ -85,7 +85,7 @@ internal static class RandomData
             DateTime.UtcNow,
             isSuccessful,
             [.. Enumerable.Range(0, commits).Select(_ => NextSha1())],
-            (testJobNames ?? ["MyTestJob1", "MyTestJob2"]).Select(j => new BuildReference(j, NextBuildNumber)).ToArray()
+            [.. (testJobNames ?? ["MyTestJob1", "MyTestJob2"]).Select(j => new JobName(j))]
         );
     }
 

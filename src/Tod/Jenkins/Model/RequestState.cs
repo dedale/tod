@@ -75,7 +75,7 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
                 {
                     var diff = buildDiffs[i];
                     var testBuilds = testBuildsByJobName[diff.OnDemandBuild.JobName];
-                    var testBuild = testBuilds.FirstOrDefault(b => b.RootBuild == onDemandRootBuild.Reference);
+                    var testBuild = testBuilds.FirstOrDefault(b => b.RootBuilds.Contains(onDemandRootBuild.Reference));
                     if (testBuild != null)
                     {
                         Log.Information("Reusing on-demand build {TestBuild}", testBuild);

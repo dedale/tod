@@ -7,8 +7,9 @@ namespace Tod.Jenkins;
 internal interface IJenkinsClient
 {
     Task<Build[]> GetLastBuilds(JobName jobName, int count = 100);
-    Task<BuildReference[]> GetTriggeredBuilds(BuildReference buildReference);
+    Task<JobName[]> GetScheduledJobs(BuildReference buildReference);
     Task<int> GetFailCount(BuildReference buildReference);
+    Task<TestBuildData> GetTestData(BuildReference buildReference);
     Task<FailedTest[]> GetFailedTests(BuildReference buildReference);
     Task<int> TriggerBuild(JobName jobName, Sha1 commit, int retryDelayMs = 2000);
     Task<BuildReference?> TryGetRootBuild(BuildReference buildReference);
@@ -36,8 +37,29 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
         return [.. builds];
     }
 
+    private static readonly Regex s_scheduling = new(@"Scheduling project:\s+(?<project>.*)", RegexOptions.Compiled);
+
+    public async Task<JobName[]> GetScheduledJobs(BuildReference buildReference)
+    {
+        var logUrl = $"{config.Url}/{buildReference.JobName.UrlPath}/{buildReference.BuildNumber}/consoleText";
+        var logText = await _apiClient.GetStringAsync(logUrl).ConfigureAwait(false);
+        var scheduledJobs = new List<JobName>();
+        foreach (var line in logText.Split('\n'))
+        {
+            var match = s_scheduling.Match(line.Trim('\r'));
+            if (match.Success)
+            {
+                var project = match.Groups["project"].Value;
+                project = project.Replace(" » ", "/");
+                scheduledJobs.Add(new JobName(project));
+            }
+        }
+        return [.. scheduledJobs];
+    }
+
     private static readonly Regex s_triggering = new(@"Triggering a new build of\s+(?<jobName>.*)\s+#(?<buildNumber>\d+)", RegexOptions.Compiled);
 
+    // Not reliable, it is better to analyze causes in triggered builds. Moreover, two different builds can trigger the same one...
     public async Task<BuildReference[]> GetTriggeredBuilds(BuildReference buildReference)
     {
         var logUrl = $"{config.Url}/{buildReference.JobName.UrlPath}/{buildReference.BuildNumber}/consoleText";
@@ -68,6 +90,39 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
             }
         }
         return 0;
+    }
+
+    public async Task<TestBuildData> GetTestData(BuildReference buildReference)
+    {
+        var url = $"{config.Url}/{buildReference.JobName.UrlPath}/{buildReference.BuildNumber}/api/json?tree=actions[failCount,causes[upstreamBuild,upstreamProject]]";
+        var doc = await _apiClient.GetAsync(url).ConfigureAwait(false);
+        int? failCount = null;
+        var upstreamBuilds = new List<BuildReference>();
+        foreach (var action in doc.RootElement.GetProperty("actions").EnumerateArray())
+        {
+            if (action.TryGetProperty("failCount", out var failCountProperty))
+            {
+                failCount = failCountProperty.GetInt32();
+            }
+            if (action.TryGetProperty("causes", out var causesProperty))
+            {
+                foreach (var cause in causesProperty.EnumerateArray())
+                {
+                    if (cause.TryGetProperty("upstreamProject", out var upstreamProjectProperty) &&
+                        cause.TryGetProperty("upstreamBuild", out var upstreamBuildProperty))
+                    {
+                        var upstreamJobName = new JobName(upstreamProjectProperty.GetString()!);
+                        var upstreamBuildNumber = upstreamBuildProperty.GetInt32();
+                        upstreamBuilds.Add(new BuildReference(upstreamJobName, upstreamBuildNumber));
+                    }
+                }
+            }
+            if (failCount.HasValue && upstreamBuilds.Count > 0)
+            {
+                break;
+            }
+        }
+        return new TestBuildData(failCount ?? 0, [.. upstreamBuilds]);
     }
 
     public async Task<FailedTest[]> GetFailedTests(BuildReference buildReference)

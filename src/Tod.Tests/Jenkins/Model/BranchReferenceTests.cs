@@ -444,7 +444,7 @@ internal sealed class BranchReferenceTests
                 rootBuild2.EndTimeUtc,
                 rootBuild2.IsSuccessful,
                 rootBuild1.Commits,
-                rootBuild2.Triggered);
+                rootBuild2.Scheduled);
             branchReference.TryAdd(rootBuild2);
 
             var branchReferences = new[] { branchReference };

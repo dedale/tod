@@ -110,7 +110,38 @@ internal sealed class JenkinsClientTests
     }
 
     [Test]
-    public async Task TestGetTriggeredBuilds()
+    public async Task GetScheduledJobs_WithJobs_Parsed()
+    {
+        var jobName = new JobName("MyBuild");
+        var buildNumber = 42;
+        var scheduledJobs = new JobName[] {
+            new("JobA/JobA1"),
+            new("JobB"),
+        };
+        var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
+        apiClient
+            .Setup(c => c.GetStringAsync($"{s_url}/{jobName.UrlPath}/{buildNumber}/consoleText"))
+            .ReturnsAsync(
+                string.Join(Environment.NewLine,
+                [
+                    "Some log output...",
+                    "... time stamp ... Scheduling project: JobA » JobA1",
+                    "[Pipeline] build",
+                    "... time stamp ... Scheduling project: JobB",
+                    "[Pipeline] build",
+                ])
+            );
+        apiClient.Setup(c => c.Dispose());
+        using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
+        {
+            var jobs = await client.GetScheduledJobs(new(jobName, buildNumber)).ConfigureAwait(false);
+            Assert.That(jobs, Is.EquivalentTo(scheduledJobs));
+        }
+        apiClient.VerifyAll();
+    }
+
+    [Test]
+    public async Task GetTriggeredBuilds_WithBuilds_Parsed()
     {
         var jobName = new JobName("MyBuild");
         var buildNumber = 42;
@@ -141,7 +172,7 @@ internal sealed class JenkinsClientTests
     }
 
     [Test]
-    public async Task TestGetFailCount()
+    public async Task GetFailCount_Defined()
     {
         var jobName = new JobName("MyTests");
         var buildNumber = 17;
@@ -159,19 +190,104 @@ internal sealed class JenkinsClientTests
     }
 
     [Test]
-    public async Task TestGetFailCountUndefined()
+    public async Task GetFailCount_Undefined_ReturnsZero()
     {
         var jobName = new JobName("MyTests");
         var buildNumber = 17;
         var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
         apiClient
             .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/{buildNumber}/api/json?tree=actions[failCount]"))
-            .ReturnsAsync(new { actions = new[] { new { foo = "bar" } } }.Serialize());
+            .ReturnsAsync(new { actions = new[] {
+                new { foo = "bar" }
+            } }.Serialize());
         apiClient.Setup(c => c.Dispose());
         using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
         {
             var failCount = await client.GetFailCount(new(jobName, buildNumber)).ConfigureAwait(false);
             Assert.That(failCount, Is.EqualTo(0));
+        }
+        apiClient.VerifyAll();
+    }
+
+    [Test]
+    public async Task GetTestData_Defined_ReturnsExpectedValues()
+    {
+        var jobName = new JobName("MyTests");
+        var buildNumber = 17;
+        var timestamp = DateTimeOffset.UtcNow.AddHours(-5);
+        var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
+        apiClient
+            .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/{buildNumber}/api/json?tree=actions[failCount,causes[upstreamBuild,upstreamProject]]"))
+            .ReturnsAsync(new { actions = new[] {
+                new {
+                    failCount = 3,
+                    causes = new[] {
+                        new {
+                            upstreamBuild = 42,
+                            upstreamProject = "MyUpstreamProject" } } } } }.Serialize());
+        apiClient.Setup(c => c.Dispose());
+        using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
+        {
+            var buildData = await client.GetTestData(new(jobName, buildNumber)).ConfigureAwait(false);
+            Assert.That(buildData.FailCount, Is.EqualTo(3));
+            Assert.That(buildData.UpstreamBuilds, Has.Length.EqualTo(1));
+            Assert.That(buildData.UpstreamBuilds[0], Is.EqualTo(new BuildReference("MyUpstreamProject", 42)));
+        }
+        apiClient.VerifyAll();
+    }
+
+    [Test]
+    public async Task GetTestData_NoUpstream_ReturnsOnlyFailCount()
+    {
+        var jobName = new JobName("MyTests");
+        var buildNumber = 17;
+        var timestamp = DateTimeOffset.UtcNow.AddHours(-5);
+        var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
+        apiClient
+            .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/{buildNumber}/api/json?tree=actions[failCount,causes[upstreamBuild,upstreamProject]]"))
+            .ReturnsAsync(new {
+                actions = new[] {
+                new {
+                    failCount = 7,
+                    causes = new[] {
+                        new {
+                            foo = "bar" } } } }
+            }.Serialize());
+        apiClient.Setup(c => c.Dispose());
+        using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
+        {
+            var buildData = await client.GetTestData(new(jobName, buildNumber)).ConfigureAwait(false);
+            Assert.That(buildData.FailCount, Is.EqualTo(7));
+            Assert.That(buildData.UpstreamBuilds, Has.Length.EqualTo(0));
+        }
+        apiClient.VerifyAll();
+    }
+
+    [Test]
+    public async Task GetTestData_NoFailCount_ReturnsExpectedValues()
+    {
+        var jobName = new JobName("MyTests");
+        var buildNumber = 17;
+        var timestamp = DateTimeOffset.UtcNow.AddHours(-5);
+        var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
+        apiClient
+            .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/{buildNumber}/api/json?tree=actions[failCount,causes[upstreamBuild,upstreamProject]]"))
+            .ReturnsAsync(new
+            {
+                actions = new[] {
+                new {
+                    causes = new[] {
+                        new {
+                            upstreamBuild = 42,
+                            upstreamProject = "MyUpstreamProject" } } } }
+            }.Serialize());
+        apiClient.Setup(c => c.Dispose());
+        using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
+        {
+            var buildData = await client.GetTestData(new(jobName, buildNumber)).ConfigureAwait(false);
+            Assert.That(buildData.FailCount, Is.EqualTo(0));
+            Assert.That(buildData.UpstreamBuilds, Has.Length.EqualTo(1));
+            Assert.That(buildData.UpstreamBuilds[0], Is.EqualTo(new BuildReference("MyUpstreamProject", 42)));
         }
         apiClient.VerifyAll();
     }

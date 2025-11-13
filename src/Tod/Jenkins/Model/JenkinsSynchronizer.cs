@@ -16,7 +16,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                 {
                     continue;
                 }
-                var triggered = await jenkinsClient.GetTriggeredBuilds(new(rootBuilds.JobName, build.Number)).ConfigureAwait(false);
+                var scheduled = await jenkinsClient.GetScheduledJobs(new(rootBuilds.JobName, build.Number)).ConfigureAwait(false);
                 var rootBuild = new RootBuild(
                     rootBuilds.JobName,
                     build.Id,
@@ -25,7 +25,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     build.TimestampUtc.AddMilliseconds(build.DurationInMs),
                     build.Result == BuildResult.Success,
                     build.GetCommits(),
-                    triggered
+                    scheduled
                 );
                 // Reference root builds are always done when creating requests
                 if (onDemand)
@@ -44,17 +44,8 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
 
         await UpdateRootBuilds(branchReference.RootBuilds, false).ConfigureAwait(false);
 
-        var rootByTestNumberByJobName = branchReference.RootBuilds
-            .SelectMany(rootBuilds => rootBuilds.SelectMany(root => root.Triggered.Select(triggered => new { triggered.JobName, Root = root.Reference, TestNumber = triggered.BuildNumber })))
-            .GroupBy(x => x.JobName)
-            .ToDictionary(g => g.Key, g => g.ToDictionary(x => x.TestNumber, x => x.Root));
-
         foreach (var testBuilds in branchReference.TestBuilds)
         {
-            if (!rootByTestNumberByJobName.TryGetValue(testBuilds.JobName, out var rootByTestNumber))
-            {
-                rootByTestNumber = [];
-            }
             var builds = await jenkinsClient.GetLastBuilds(testBuilds.JobName).ConfigureAwait(false);
             foreach (var build in builds.Reverse())
             {
@@ -62,14 +53,9 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                 {
                     continue;
                 }
-                if (!rootByTestNumber.ContainsKey(build.Number))
-                {
-                    // No matching root build
-                    continue;
-                }
-                var failCount = await jenkinsClient.GetFailCount(new(testBuilds.JobName, build.Number)).ConfigureAwait(false);
+                var testData = await jenkinsClient.GetTestData(new(testBuilds.JobName, build.Number)).ConfigureAwait(false);
                 FailedTest[] failedTests;
-                if (failCount > 0)
+                if (testData.FailCount > 0)
                 {
                     failedTests = await jenkinsClient.GetFailedTests(new(testBuilds.JobName, build.Number)).ConfigureAwait(false);
                 }
@@ -84,12 +70,15 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     build.TimestampUtc,
                     build.TimestampUtc.AddMilliseconds(build.DurationInMs),
                     build.Result == BuildResult.Success,
-                    rootByTestNumber[build.Number],
+                    testData.UpstreamBuilds,
                     failedTests
                 );
-                postBuildHandler.PostReferenceTestBuild(testBuild.RootBuild, testBuild.Reference);
+                foreach (var rootBuild in testBuild.RootBuilds)
+                {
+                    postBuildHandler.PostReferenceTestBuild(rootBuild, testBuild.Reference);
+                }
                 Log.Information("Adding test build {JobName} #{BuildNumber} ({IsSuccessful})",
-                    testBuild.JobName, testBuild.BuildNumber, testBuild.IsSuccessful ? "Success" : $"{failCount} failed tests");
+                    testBuild.JobName, testBuild.BuildNumber, testBuild.IsSuccessful ? "Success" : $"{testData.FailCount} failed tests");
                 testBuilds.TryAdd(testBuild);
             }
         }
@@ -132,7 +121,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     build.TimestampUtc,
                     build.TimestampUtc.AddMilliseconds(build.DurationInMs),
                     build.Result == BuildResult.Success,
-                    rootBuild,
+                    [rootBuild],
                     failedTests
                 );
                 postBuildHandler.PostOnDemandTestBuild(rootBuild, testBuild.Reference);

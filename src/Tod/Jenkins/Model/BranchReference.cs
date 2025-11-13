@@ -36,9 +36,9 @@ internal sealed class BranchReference
     {
         if (RootBuilds.GetOrAdd(rootBuild.JobName).TryAdd(rootBuild))
         {
-            foreach (var triggered in rootBuild.Triggered)
+            foreach (var job in rootBuild.Scheduled)
             {
-                TestBuilds.GetOrAdd(triggered.JobName);
+                TestBuilds.GetOrAdd(job);
             }
             return true;
         }
@@ -88,7 +88,7 @@ internal sealed class BranchReference
         for (var i = 0; i < builds.Count; i++)
         {
             var candidate = builds[i];
-            if (candidate.RootBuild.JobName.Equals(rootBuild.JobName) && candidate.RootBuild.CompareTo(rootBuild) >= 0)
+            if (candidate.RootBuilds.Any(r => r.JobName.Equals(rootBuild.JobName) && r.CompareTo(rootBuild) >= 0))
             {
                 testBuild = candidate;
                 return true;
