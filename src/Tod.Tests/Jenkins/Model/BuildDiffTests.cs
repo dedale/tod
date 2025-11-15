@@ -26,20 +26,20 @@ internal sealed class BuildDiffTests
     [Test]
     public void OnDemandTriggered_Match_CallsOnNotComparable()
     {
-        var buildNumber = RandomData.NextBuildNumber;
-        BuildDiff.OnDemandTriggered(buildNumber).Match(
-            onNotComparable: msg => Assert.That(msg, Is.EqualTo($"Build #{buildNumber} not done")),
+        var jobName = new JobName(Guid.NewGuid().ToString());
+        BuildDiff.OnDemandTriggered(jobName).Match(
+            onNotComparable: msg => Assert.That(msg, Is.EqualTo($"Build {jobName} not done")),
             onComparable: _ => Assert.Fail("Should not be comparable"));
     }
 
     [Test]
     public void OnDemandTriggered_MatchWithReturn_ReturnsNotComparableResult()
     {
-        var buildNumber = RandomData.NextBuildNumber;
-        var result = BuildDiff.OnDemandTriggered(buildNumber).Match(
+        var jobName = new JobName(Guid.NewGuid().ToString());
+        var result = BuildDiff.OnDemandTriggered(jobName).Match(
             onNotComparable: msg => msg.Length,
             onComparable: _ => 0);
-        Assert.That(result, Is.EqualTo($"Build #{buildNumber} not done".Length));
+        Assert.That(result, Is.EqualTo($"Build {jobName} not done".Length));
     }
 
     [Test]
@@ -124,12 +124,14 @@ internal sealed class BuildDiffTests
     [Test]
     public void OnDemandTriggered_WithDifferentBuildNumbers_ProducesDifferentMessages()
     {
-        var buildDiff1 = BuildDiff.OnDemandTriggered(10);
-        var buildDiff2 = BuildDiff.OnDemandTriggered(999);
+        var jobName1 = new JobName("Job1");
+        var jobName2 = new JobName("Job2");
+        var buildDiff1 = BuildDiff.OnDemandTriggered(jobName1);
+        var buildDiff2 = BuildDiff.OnDemandTriggered(jobName2);
         var message1 = buildDiff1.Match(onNotComparable: msg => msg, onComparable: _ => "");
         var message2 = buildDiff2.Match(onNotComparable: msg => msg, onComparable: _ => "");
-        Assert.That(message1, Is.EqualTo("Build #10 not done"));
-        Assert.That(message2, Is.EqualTo("Build #999 not done"));
+        Assert.That(message1, Is.EqualTo($"Build {jobName1} not done"));
+        Assert.That(message2, Is.EqualTo($"Build {jobName2} not done"));
         Assert.That(message1, Is.Not.EqualTo(message2));
     }
 }

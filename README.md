@@ -26,6 +26,7 @@ Tests On-Demand for Jenkins &amp; GitHub Actions
 
 ## Workspace
 - Serialization UT: ensure that json converters are needed
+- Auto save branch references when adding new ones
 
 ## Requests
 - Transactional triggering of requests, safe resuming without double triggering
@@ -38,6 +39,7 @@ Tests On-Demand for Jenkins &amp; GitHub Actions
 - Improve performance (if needed) when looking for requests to update
 - Force new root build for a request (retrigger all its builds)
 - Include stack, output in failed test? (and reports?)
+- Storage abstraction for on-demand requests
 
 ## git
 - Sha1 validation in ctor

@@ -1,5 +1,4 @@
-﻿using Microsoft.VisualStudio.TestPlatform.ObjectModel;
-using NUnit.Framework;
+﻿using NUnit.Framework;
 using System.Diagnostics.Metrics;
 using Tod.Jenkins;
 using Tod.Tests.IO;

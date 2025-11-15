@@ -380,7 +380,7 @@ internal sealed class FilterManagerTests
     {
         var testBuildDiffs = s_complexManager.GetTestBuildDiffs(["FrontEnd"], _mainBranch);
         Assert.That(testBuildDiffs, Has.Length.EqualTo(4));
-        var jobNames = testBuildDiffs.Select(d => d.OnDemandBuild.JobName);
+        var jobNames = testBuildDiffs.Select(d => d.OnDemandJob);
         Assert.That(jobNames, Is.EquivalentTo(new JobName[]
         {
             new("CUSTOM-FrontEnd-dev-tests-net6"),
@@ -395,7 +395,7 @@ internal sealed class FilterManagerTests
     {
         var testBuildDiffs = s_complexManager.GetTestBuildDiffs(["Core", "net6"], _mainBranch);
         Assert.That(testBuildDiffs, Has.Length.EqualTo(2));
-        var jobNames = testBuildDiffs.Select(d => d.OnDemandBuild.JobName);
+        var jobNames = testBuildDiffs.Select(d => d.OnDemandJob);
         Assert.That(jobNames, Is.EquivalentTo(new JobName[]
         {
             new("CUSTOM-Core-dev-tests-net6"),
@@ -408,7 +408,7 @@ internal sealed class FilterManagerTests
     {
         var testBuildDiffs = s_complexManager.GetTestBuildDiffs(["dev", "net6"], _mainBranch);
         Assert.That(testBuildDiffs, Has.Length.EqualTo(3));
-        var jobNames = testBuildDiffs.Select(d => d.OnDemandBuild.JobName);
+        var jobNames = testBuildDiffs.Select(d => d.OnDemandJob);
         Assert.That(jobNames, Is.EquivalentTo(new JobName[]
         {
             new("CUSTOM-FrontEnd-dev-tests-net6"),

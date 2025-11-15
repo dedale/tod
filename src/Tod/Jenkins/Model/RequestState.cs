@@ -32,44 +32,42 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
         return chainDiff != null;
     }
 
-    public bool TryGetChainOnDemand(BuildReference onDemandRoot, [NotNullWhen(true)] out ChainDiff? chainDiff)
+    public bool TryGetChainOnDemand(JobName onDemandRootJob, Sha1 commit, [NotNullWhen(true)] out ChainDiff? chainDiff)
     {
         chainDiff = ChainDiffs.FirstOrDefault(c => c.OnDemandRoot.Match(
-            onPending: _ => false,
-            onTriggered: buildRef => buildRef.Equals(onDemandRoot),
-            onDone: buildRef => buildRef.Equals(onDemandRoot)
+            onQueued: (j, c) => j.Equals(onDemandRootJob) && c.Equals(commit),
+            onDone: _ => false
         ));
         return chainDiff != null;
     }
 
-    public static RequestState New(Request request, BuildReference referenceRoot, BuildReference onDemandRoot, List<RequestBuildDiff> buildDiffs)
-    {
-        // fix status when reusing ondemand builds
-        var chainDiff = new ChainDiff(ChainStatus.RootTriggered, referenceRoot, RequestBuildReference.Create(onDemandRoot.JobName).Trigger(onDemandRoot.BuildNumber), buildDiffs);
-        return new RequestState(request, [chainDiff]);
-    }
-
-    public static async Task<RequestState> New(Request request, RequestChain[] requestChains, OnDemandBuilds onDemandBuilds, Func<JobName, Sha1, Task<int>> triggerBuild)
+    public static async Task<RequestState> New(
+        Request request,
+        RequestChain[] requestChains,
+        OnDemandBuilds onDemandBuilds,
+        Func<JobName, Sha1, Task> triggerRootBuild,
+        Func<JobName, int, Task> triggerTestBuild
+    )
     {
         var chainDiffs = new List<ChainDiff>();
         foreach (var requestChain in requestChains)
         {
             ChainStatus status;
-            RequestBuildReference onDemandRoot;
+            RequestRootBuildReference onDemandRoot;
             var rootJobName = requestChain.OnDemandRoot.JobName;
             var buildDiffs = requestChain.TestBuildDiffs.ToList();
             var onDemandRootBuilds = onDemandBuilds.RootBuilds[rootJobName];
             var onDemandRootBuild = onDemandRootBuilds.FirstOrDefault(r => r.IsSuccessful && r.Commits.Contains(request.Commit));
             if (onDemandRootBuild == null)
             {
-                int rootBuildNumber = await triggerBuild(rootJobName, request.Commit).ConfigureAwait(false);
-                onDemandRoot = requestChain.OnDemandRoot.Trigger(rootBuildNumber);
+                await triggerRootBuild(rootJobName, request.Commit).ConfigureAwait(false);
+                onDemandRoot = requestChain.OnDemandRoot;
                 status = ChainStatus.RootTriggered;
             }
             else
             {
                 int rootBuildNumber = onDemandRootBuild.BuildNumber;
-                onDemandRoot = requestChain.OnDemandRoot.Trigger(rootBuildNumber).DoneTriggered();
+                onDemandRoot = requestChain.OnDemandRoot.DoneQueued(rootBuildNumber);
                 var testBuildsByJobName = onDemandBuilds.TestBuilds.ToDictionary(x => x.JobName);
                 for (var i = 0; i < buildDiffs.Count; i++)
                 {
@@ -79,12 +77,12 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
                     if (testBuild != null)
                     {
                         Log.Information("Reusing on-demand build {TestBuild}", testBuild);
-                        buildDiffs[i] = buildDiffs[i].TriggerOnDemand(testBuild.BuildNumber).DoneOnDemand();
+                        buildDiffs[i] = buildDiffs[i].RecycleOnDemand(testBuild.BuildNumber);
                     }
                     else
                     {
-                        var testBuildNumber = await triggerBuild(diff.OnDemandBuild.JobName, request.Commit).ConfigureAwait(false);
-                        buildDiffs[i] = buildDiffs[i].TriggerOnDemand(testBuildNumber);
+                        await triggerTestBuild(diff.OnDemandBuild.JobName, onDemandRootBuild.BuildNumber).ConfigureAwait(false);
+                        buildDiffs[i] = buildDiffs[i].QueueOnDemand();
                     }
                 }
                 status = buildDiffs.All(d => d.IsDone) ? ChainStatus.Done : ChainStatus.TestsTriggered;
@@ -111,9 +109,9 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
         return new RequestState(Request, [.. newChains]);
     }
 
-    public RequestState TriggerTests(Func<JobName, Sha1, Task<int>> triggerBuild)
+    public RequestState TriggerTests(int rootBuildNumber, Func<JobName, int, Task> triggerTestBuild)
     {
-        var newChains = ChainDiffs.Select(chainDiff => chainDiff.TriggerTests(Request.Commit, triggerBuild));
+        var newChains = ChainDiffs.Select(chainDiff => chainDiff.TriggerTests(rootBuildNumber, triggerTestBuild));
         return new RequestState(Request, [.. newChains]);
     }
 
@@ -123,8 +121,7 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
         foreach (var chainDiff in ChainDiffs)
         {
             chainDiff.OnDemandRoot.Match(
-                onPending: _ => newChains.Add(chainDiff),
-                onTriggered: _ => newChains.Add(chainDiff),
+                onQueued: (_, _) => newChains.Add(chainDiff),
                 onDone: buildRef => newChains.Add(buildRef.Equals(rootBuild) ? chainDiff.DoneOnDemandTestBuild(testBuild) : chainDiff)
             );
         }

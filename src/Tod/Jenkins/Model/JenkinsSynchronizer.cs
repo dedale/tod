@@ -1,4 +1,5 @@
 ﻿using Serilog;
+using Tod.Git;
 
 namespace Tod.Jenkins;
 
@@ -16,7 +17,8 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                 {
                     continue;
                 }
-                var scheduled = await jenkinsClient.GetScheduledJobs(new(rootBuilds.JobName, build.Number)).ConfigureAwait(false);
+                // Test jobs are scheduled only for reference root builds
+                var scheduled = onDemand ? [] : await jenkinsClient.GetScheduledJobs(new(rootBuilds.JobName, build.Number)).ConfigureAwait(false);
                 var rootBuild = new RootBuild(
                     rootBuilds.JobName,
                     build.Id,
@@ -27,10 +29,18 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     build.GetCommits(),
                     scheduled
                 );
-                // Reference root builds are always done when creating requests
+                // Reference root builds are always done when creating requests, so no need to post them here
                 if (onDemand)
                 {
-                    postBuildHandler.PostOnDemandRootBuild(rootBuild.Reference, rootBuild.IsSuccessful);
+                    var parameters = await jenkinsClient.GetBuildParameters(new(rootBuilds.JobName, build.Number)).ConfigureAwait(false);
+                    if (parameters.TryGetValue("REFSPEC", out var value))
+                    {
+                        postBuildHandler.PostOnDemandRootBuild(rootBuild.Reference, new Sha1(value), rootBuild.IsSuccessful);
+                    }
+                    else
+                    {
+                        Log.Warning("On-demand root build {RootBuild} is missing REFSPEC parameter (cannot trigger test builds)", rootBuild.Reference);
+                    }
                 }
                 Log.Information("Adding root build {RootBuild} ({IsSuccessful})", rootBuild, rootBuild.IsSuccessful ? "Success" : "Failure");
                 rootBuilds.TryAdd(rootBuild);

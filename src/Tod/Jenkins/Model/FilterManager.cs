@@ -2,15 +2,15 @@
 
 internal interface IFilterManager
 {
-    RootDiff[] GetRootDiffs(RootName[] rootNames, BranchName referenceBranch);
-    RequestBuildDiff[] GetTestBuildDiffs(string[] requestFilters, BranchName referenceBranch);
+    JobDiff[] GetRootDiffs(RootName[] rootNames, BranchName referenceBranch);
+    JobDiff[] GetTestBuildDiffs(string[] requestFilters, BranchName referenceBranch);
 }
 
 internal sealed class FilterManager(JenkinsConfig config, JobGroups jobGroups) : IFilterManager
 {
-    public RootDiff[] GetRootDiffs(RootName[] rootNames, BranchName referenceBranch)
+    public JobDiff[] GetRootDiffs(RootName[] rootNames, BranchName referenceBranch)
     {
-        var rootDiffs = new List<RootDiff>();
+        var rootDiffs = new List<JobDiff>();
         foreach (var (name, group) in jobGroups.ByRoot)
         {
             if (!rootNames.Contains(name))
@@ -21,12 +21,12 @@ internal sealed class FilterManager(JenkinsConfig config, JobGroups jobGroups) :
             {
                 throw new InvalidOperationException($"No reference job for '{referenceBranch}' branch in test group");
             }
-            rootDiffs.Add(new RootDiff(referenceJob, group.OnDemandJob));
+            rootDiffs.Add(new JobDiff(referenceJob, group.OnDemandJob));
         }
         return [.. rootDiffs];
     }
 
-    public RequestBuildDiff[] GetTestBuildDiffs(string[] requestFilters, BranchName referenceBranch)
+    public JobDiff[] GetTestBuildDiffs(string[] requestFilters, BranchName referenceBranch)
     {
         var filters = new List<TestFilter>();
         var unknownFilters = new List<string>();
@@ -63,16 +63,15 @@ internal sealed class FilterManager(JenkinsConfig config, JobGroups jobGroups) :
         {
             throw new InvalidOperationException($"No test groups for the request filter{(filters.Count > 1 ? "s" : "")}: {string.Join(", ", filters.Select(f => $"'{f.Name}'"))}");
         }
-        var testBuildDiffs = new List<RequestBuildDiff>();
+        var testDiffs = new List<JobDiff>();
         foreach (var group in testGroups)
         {
             if (!group.ReferenceJobByBranch.TryGetValue(referenceBranch, out var referenceJob))
             {
                 throw new InvalidOperationException($"No reference job for '{referenceBranch}' branch in test group");
             }
-            var testBuildDiff = new RequestBuildDiff(referenceJob, group.OnDemandJob);
-            testBuildDiffs.Add(testBuildDiff);
+            testDiffs.Add(new JobDiff(referenceJob, group.OnDemandJob));
         }
-        return [.. testBuildDiffs];
+        return [.. testDiffs];
     }
 }

@@ -1,5 +1,6 @@
 ﻿using Moq;
 using NUnit.Framework;
+using Tod.Git;
 using Tod.Jenkins;
 
 namespace Tod.Tests.Jenkins;
@@ -385,14 +386,17 @@ internal sealed class JenkinsSynchronizerTests
         onDemandBuilds.TryAddTest(_onDemandTestJob2);
         var builds = RandomBuilds.Generate(1).ToArray();
         var build = builds[0];
-        var scheduled = new JobName[] { _onDemandTestJob1, _onDemandTestJob2 };
+        var commit = RandomData.NextSha1();
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
         client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync(builds);
-        client.Setup(x => x.GetScheduledJobs(new(_onDemandRootJob, build.Number))).ReturnsAsync(scheduled);
         client.Setup(x => x.GetLastBuilds(_onDemandTestJob1, 100)).ReturnsAsync([]);
         client.Setup(x => x.GetLastBuilds(_onDemandTestJob2, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetBuildParameters(new(_onDemandRootJob, build.Number))).ReturnsAsync(new Dictionary<string, string>()
+        {
+            ["REFSPEC"] = commit.Value,
+        });
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
-        handler.Setup(x => x.PostOnDemandRootBuild(new BuildReference(_onDemandRootJob, build.Number), build.Result == BuildResult.Success));
+        handler.Setup(x => x.PostOnDemandRootBuild(new BuildReference(_onDemandRootJob, build.Number), commit, build.Result == BuildResult.Success));
         var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
         var workspace = NewWorkspace(onDemandBuilds);
         await synchronizer.Update(workspace).ConfigureAwait(false);
@@ -404,7 +408,44 @@ internal sealed class JenkinsSynchronizerTests
         Assert.That(rootBuild.StartTimeUtc, Is.EqualTo(build.TimestampUtc));
         Assert.That(rootBuild.EndTimeUtc, Is.EqualTo(build.TimestampUtc.AddMilliseconds(build.DurationInMs)));
         Assert.That(rootBuild.Commits, Is.EqualTo(build.GetCommits()));
-        Assert.That(rootBuild.Scheduled, Is.EqualTo(scheduled));
+        Assert.That(rootBuild.Scheduled, Is.Empty);
+        client.VerifyAll();
+        handler.VerifyAll();
+    }
+
+    [Test]
+    public async Task Update_OnDemandMissingParameter_CannotPost()
+    {
+        using var mocks = StoreMocks.New()
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithNewRootBuilds(_onDemandRootJob)
+            .WithTestobs(_onDemandTestJob1, _onDemandTestJob2);
+
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAddRoot(_onDemandRootJob);
+        onDemandBuilds.TryAddTest(_onDemandTestJob1);
+        onDemandBuilds.TryAddTest(_onDemandTestJob2);
+        var builds = RandomBuilds.Generate(1).ToArray();
+        var build = builds[0];
+        var commit = RandomData.NextSha1();
+        var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
+        client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync(builds);
+        client.Setup(x => x.GetLastBuilds(_onDemandTestJob1, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetLastBuilds(_onDemandTestJob2, 100)).ReturnsAsync([]);
+        client.Setup(x => x.GetBuildParameters(new(_onDemandRootJob, build.Number))).ReturnsAsync(new Dictionary<string, string>());
+        var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
+        var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
+        var workspace = NewWorkspace(onDemandBuilds);
+        await synchronizer.Update(workspace).ConfigureAwait(false);
+        Assert.That(onDemandBuilds.RootBuilds, Has.Count.EqualTo(1));
+        var rootBuild = onDemandBuilds.RootBuilds[0].First();
+        Assert.That(rootBuild.Id, Is.EqualTo(build.Id));
+        Assert.That(rootBuild.BuildNumber, Is.EqualTo(build.Number));
+        Assert.That(rootBuild.IsSuccessful, Is.EqualTo(build.Result == BuildResult.Success));
+        Assert.That(rootBuild.StartTimeUtc, Is.EqualTo(build.TimestampUtc));
+        Assert.That(rootBuild.EndTimeUtc, Is.EqualTo(build.TimestampUtc.AddMilliseconds(build.DurationInMs)));
+        Assert.That(rootBuild.Commits, Is.EqualTo(build.GetCommits()));
+        Assert.That(rootBuild.Scheduled, Is.Empty);
         client.VerifyAll();
         handler.VerifyAll();
     }

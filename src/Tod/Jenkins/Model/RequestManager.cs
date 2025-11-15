@@ -5,14 +5,14 @@ namespace Tod.Jenkins;
 
 internal interface IPostBuildHandler
 {
-    void PostOnDemandRootBuild(BuildReference rootBuild, bool success);
+    void PostOnDemandRootBuild(BuildReference rootBuild, Sha1 commit, bool success);
     void PostOnDemandTestBuild(BuildReference rootBuild, BuildReference testBuild);
     void PostReferenceTestBuild(BuildReference rootBuild, BuildReference testBuild);
 }
 
 internal sealed class RequestManager(Workspace workspace, IFilterManager filterManager, IJenkinsClient jenkinsClient, IReportSender reportSender) : IPostBuildHandler
 {
-    public async Task Register(Request request, RootDiff[] rootDiffs)
+    public async Task Register(Request request, JobDiff[] rootDiffs)
     {
         Log.Information("Registering new request {RequestId} for commit {Commit} on branch {Branch}",
             request.Id, request.Commit, request.ReferenceBranchName);
@@ -43,20 +43,22 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
         var requestChains = new List<RequestChain>();
         foreach (var (refRootJob, refRootBuild, onDemandJob) in roots)
         {
-            var testBuildDiffs = filterManager.GetTestBuildDiffs(request.GetFilters(), request.ReferenceBranchName);
-            for (var i = 0; i < testBuildDiffs.Length; i++)
+            var testJobDiffs = filterManager.GetTestBuildDiffs(request.GetFilters(), request.ReferenceBranchName);
+            var testBuildDiffs = new List<RequestBuildDiff>(testJobDiffs.Length);
+            for (var i = 0; i < testJobDiffs.Length; i++)
             {
-                if (branchReference.TryFindTestBuild(testBuildDiffs[i].ReferenceBuild.JobName, refRootBuild, out var refTestBuild))
+                var buildDiff = new RequestBuildDiff(testJobDiffs[i].ReferenceJob, testJobDiffs[i].OnDemandJob);
+                if (branchReference.TryFindTestBuild(testJobDiffs[i].ReferenceJob, refRootBuild, out var refTestBuild))
                 {
                     Log.Debug("Reusing reference test build {TestBuild}", refTestBuild);
-                    testBuildDiffs[i] = testBuildDiffs[i].DoneReference(refTestBuild.BuildNumber);
+                    buildDiff = buildDiff.DoneReference(refTestBuild.BuildNumber);
                 }
+                testBuildDiffs.Add(buildDiff);
             }
-            requestChains.Add(new RequestChain(refRootBuild, RequestBuildReference.Create(onDemandJob), testBuildDiffs));
+            requestChains.Add(new RequestChain(refRootBuild, RequestRootBuildReference.Queue(onDemandJob, request.Commit), [.. testBuildDiffs]));
         }
 
-        Func<JobName, Sha1, Task<int>> triggerBuild = (jobName, refSpec) => jenkinsClient.TriggerBuild(jobName, refSpec);
-        var requestState = await RequestState.New(request, [.. requestChains], workspace.OnDemandBuilds, triggerBuild).ConfigureAwait(false);
+        var requestState = await RequestState.New(request, [.. requestChains], workspace.OnDemandBuilds, jenkinsClient.TriggerRootBuild, jenkinsClient.TriggerTestBuild).ConfigureAwait(false);
         workspace.OnDemandRequests.Add(requestState);
 
         Log.Information("Request {RequestId} registered", request.Id);
@@ -69,10 +71,10 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
         }
     }
 
-    public void PostOnDemandRootBuild(BuildReference onDemandRoot, bool success)
+    public void PostOnDemandRootBuild(BuildReference onDemandRoot, Sha1 commit, bool success)
     {
         // Protection to handle custom builds triggered manually outside requests
-        if (workspace.OnDemandRequests.TryGetRootTriggered(onDemandRoot, out var lockedRequest))
+        if (workspace.OnDemandRequests.TryGetRootQueued(onDemandRoot.JobName, commit, out var lockedRequest))
         {
             try
             {
@@ -83,7 +85,7 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
                 if (success)
                 {
                     Log.Information("{OnDemandBuild} succeeded; Triggering test builds", onDemandRoot);
-                    update = lockedRequest.Update(r => r.TriggerTests((jobName, commit) => jenkinsClient.TriggerBuild(jobName, commit)));
+                    update = lockedRequest.Update(r => r.TriggerTests(onDemandRoot.BuildNumber, jenkinsClient.TriggerTestBuild));
                 }
                 else
                 {
@@ -125,7 +127,7 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
 
     public void PostOnDemandTestBuild(BuildReference rootBuild, BuildReference testBuild)
     {
-        if (workspace.OnDemandRequests.TryGetTestTriggered(rootBuild, testBuild, out var lockedRequest))
+        if (workspace.OnDemandRequests.TryGetTestQueued(rootBuild, testBuild.JobName, out var lockedRequest))
         {
             try
             {

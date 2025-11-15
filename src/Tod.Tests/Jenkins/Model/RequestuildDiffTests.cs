@@ -25,12 +25,12 @@ internal sealed class RequestuildDiffTests
             Assert.That(diff.TryGetPendingReference(out var jobName), Is.True);
             Assert.That(jobName, Is.EqualTo(refJob));
 
-            var buildNumber = RandomData.NextBuildNumber;
-            diff = diff.TriggerOnDemand(buildNumber);
+            diff = diff.QueueOnDemand();
             Assert.That(diff.TryGetPendingReference(out jobName), Is.True);
             Assert.That(jobName, Is.EqualTo(refJob));
 
-            diff = diff.DoneOnDemand();
+            var buildNumber = RandomData.NextBuildNumber;
+            diff = diff.DoneOnDemand(buildNumber);
             Assert.That(diff.TryGetPendingReference(out jobName), Is.True);
             Assert.That(jobName, Is.EqualTo(refJob));
 
@@ -54,7 +54,7 @@ internal sealed class RequestuildDiffTests
     public void TriggerOnDemand_WithPendingBuild_IsTriggered()
     {
         var diff = new RequestBuildDiff(new("MainTest"), new("OnDemandTest"));
-        diff = diff.TriggerOnDemand(RandomData.NextBuildNumber);
+        diff = diff.QueueOnDemand();
         Assert.That(diff.ReferenceBuild.IsDone, Is.False);
         Assert.That(diff.OnDemandBuild.IsDone, Is.False);
         Assert.That(diff.IsDone, Is.False);
@@ -66,20 +66,20 @@ internal sealed class RequestuildDiffTests
         using (Assert.EnterMultipleScope())
         {
             var diff = new RequestBuildDiff(new("MainTest"), new("OnDemandTest"));
-            Assert.That(diff.TryGetTriggered(out var testBuild), Is.False);
+            Assert.That(diff.TryGetQueued(out var testBuild), Is.False);
             Assert.That(testBuild, Is.Null);
 
-            var buildNumber = RandomData.NextBuildNumber;
-            diff = diff.TriggerOnDemand(buildNumber);
-            Assert.That(diff.TryGetTriggered(out testBuild), Is.True);
-            Assert.That(testBuild, Is.EqualTo(new BuildReference("OnDemandTest", buildNumber)));
+            diff = diff.QueueOnDemand();
+            Assert.That(diff.TryGetQueued(out var testJob), Is.True);
+            Assert.That(testJob, Is.EqualTo(new JobName("OnDemandTest")));
 
-            diff = diff.DoneOnDemand();
-            Assert.That(diff.TryGetTriggered(out testBuild), Is.False);
+            var buildNumber = RandomData.NextBuildNumber;
+            diff = diff.DoneOnDemand(buildNumber);
+            Assert.That(diff.TryGetQueued(out testBuild), Is.False);
             Assert.That(testBuild, Is.Null);
 
             diff = new RequestBuildDiff(new("MainTest"), new("OnDemandTest")).DoneReference(RandomData.NextBuildNumber);
-            Assert.That(diff.TryGetTriggered(out testBuild), Is.False);
+            Assert.That(diff.TryGetQueued(out testBuild), Is.False);
             Assert.That(testBuild, Is.Null);
         }
     }
@@ -90,13 +90,13 @@ internal sealed class RequestuildDiffTests
         using (Assert.EnterMultipleScope())
         {
             var diff = new RequestBuildDiff(new("MainTest"), new("OnDemandTest"));
-            Assert.That(() => diff.DoneOnDemand(), Throws.InvalidOperationException.And.Message.EqualTo("Not triggered"));
-            diff = diff.TriggerOnDemand(RandomData.NextBuildNumber);
-            diff = diff.DoneOnDemand();
+            Assert.That(() => diff.DoneOnDemand(RandomData.NextBuildNumber), Throws.InvalidOperationException.And.Message.EqualTo("Not triggered"));
+            diff = diff.QueueOnDemand();
+            diff = diff.DoneOnDemand(RandomData.NextBuildNumber);
             Assert.That(diff.ReferenceBuild.IsDone, Is.False);
             Assert.That(diff.OnDemandBuild.IsDone, Is.True);
             Assert.That(diff.IsDone, Is.False);
-            Assert.That(() => diff.DoneOnDemand(), Throws.InvalidOperationException.And.Message.EqualTo("Already done"));
+            Assert.That(() => diff.DoneOnDemand(RandomData.NextBuildNumber), Throws.InvalidOperationException.And.Message.EqualTo("Already done"));
         }
     }
 
@@ -110,17 +110,17 @@ internal sealed class RequestuildDiffTests
             Assert.That(clone.ReferenceBuild.IsDone, Is.False);
             Assert.That(clone.OnDemandBuild.IsDone, Is.False);
 
-            diff = diff.TriggerOnDemand(42);
+            diff = diff.QueueOnDemand();
             clone = diff.SerializationRoundTrip<RequestBuildDiff, RequestBuildDiff.Serializable>();
             Assert.That(clone.ReferenceBuild.IsDone, Is.False);
             Assert.That(clone.OnDemandBuild.IsDone, Is.False);
             Assert.That(clone.OnDemandBuild.Match(
                 onPending: _ => false,
-                onTriggered: build => build == new BuildReference("OnDemandTest", 42),
+                onQueued: job => job == new JobName("OnDemandTest"),
                 onDone: _ => false
             ), Is.True);
 
-            diff = diff.DoneOnDemand();
+            diff = diff.DoneOnDemand(RandomData.NextBuildNumber);
             clone = diff.SerializationRoundTrip<RequestBuildDiff, RequestBuildDiff.Serializable>();
             Assert.That(clone.ReferenceBuild.IsDone, Is.False);
             Assert.That(clone.OnDemandBuild.IsDone, Is.True);

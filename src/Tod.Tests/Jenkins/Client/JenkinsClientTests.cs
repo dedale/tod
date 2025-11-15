@@ -2,6 +2,7 @@
 using NUnit.Framework;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Tod.Git;
 using Tod.Jenkins;
 
 namespace Tod.Tests.Jenkins;
@@ -47,6 +48,19 @@ internal sealed class TestSuite(TestCase[] cases)
 internal sealed class TestReport(TestSuite[] suites)
 {
     public TestSuite[] Suites { get; } = suites;
+}
+
+internal static class JenkinsMocks
+{
+    public static Dictionary<string, string> RefSpecParameter(Sha1 commit)
+    {
+        return It.Is<Dictionary<string, string>>(d => d.Count == 1 && d["REFSPEC"] == commit.Value);
+    }
+
+    public static Dictionary<string, string> SelectorParameter(int rootNumber)
+    {
+        return It.Is<Dictionary<string, string>>(d => d.Count == 1 && d["UPSTREAM_BUILD_SELECTOR"] == $"<SpecificBuildSelector><buildNumber>{rootNumber}</buildNumber></SpecificBuildSelector>");
+    }
 }
 
 [TestFixture]
@@ -324,18 +338,13 @@ internal sealed class JenkinsClientTests
         var location = $"{s_url}/queue/item/123/";
         var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
         apiClient
-            .Setup(c => c.PostAsync($"{s_url}/crumbIssuer/api/json", $"{s_url}/{jobName.UrlPath}/buildWithParameters?BUILD_REF_SPEC={Uri.EscapeDataString(commit.Value)}"))
+            .Setup(c => c.PostAsync($"{s_url}/crumbIssuer/api/json", $"{s_url}/{jobName.UrlPath}/buildWithParameters?REFSPEC={Uri.EscapeDataString(commit.Value)}"))
             .ReturnsAsync(location);
         var queueUrl = location + "api/json";
-        var expectedBuildNumber = 77;
-        apiClient
-            .Setup(c => c.GetAsync(queueUrl))
-            .ReturnsAsync(new { executable = new { number = expectedBuildNumber } }.Serialize());
         apiClient.Setup(c => c.Dispose());
         using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
         {
-            var buildNumber = await client.TriggerBuild(jobName, commit, 1).ConfigureAwait(false);
-            Assert.That(buildNumber, Is.EqualTo(expectedBuildNumber));
+            await client.TriggerRootBuild(jobName, commit).ConfigureAwait(false);
         }
         apiClient.VerifyAll();
     }
@@ -347,37 +356,13 @@ internal sealed class JenkinsClientTests
         var commit = RandomData.NextSha1();
         var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
         apiClient
-            .Setup(c => c.PostAsync($"{s_url}/crumbIssuer/api/json", $"{s_url}/{jobName.UrlPath}/buildWithParameters?BUILD_REF_SPEC={Uri.EscapeDataString(commit.Value)}"))
+            .Setup(c => c.PostAsync($"{s_url}/crumbIssuer/api/json", $"{s_url}/{jobName.UrlPath}/buildWithParameters?REFSPEC={Uri.EscapeDataString(commit.Value)}"))
             .ReturnsAsync("");
         apiClient.Setup(c => c.Dispose());
         using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
         {
-            Assert.That(async () => await client.TriggerBuild(jobName, commit, 1).ConfigureAwait(false),
+            Assert.That(async () => await client.TriggerRootBuild(jobName, commit).ConfigureAwait(false),
                 Throws.InvalidOperationException.With.Message.EqualTo("Missing queue local header in response"));
-        }
-        apiClient.VerifyAll();
-    }
-
-    [Test]
-    public void TestTriggerBuild_Timeout()
-    {
-        var jobName = new JobName("MyBuild");
-        var commit = RandomData.NextSha1();
-        var location = $"{s_url}/queue/item/123/";
-        var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
-        apiClient
-            .Setup(c => c.PostAsync($"{s_url}/crumbIssuer/api/json", $"{s_url}/{jobName.UrlPath}/buildWithParameters?BUILD_REF_SPEC={Uri.EscapeDataString(commit.Value)}"))
-            .ReturnsAsync(location);
-        var queueUrl = location + "api/json";
-        var emptyDoc = JsonDocument.Parse("{}");
-        apiClient
-            .Setup(c => c.GetAsync(queueUrl))
-            .ReturnsAsync(emptyDoc);
-        apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
-        {
-            Assert.That(async () => await client.TriggerBuild(jobName, commit, 1).ConfigureAwait(false),
-                Throws.InstanceOf<TimeoutException>().With.Message.EqualTo("Timed out waiting for build to be scheduled."));
         }
         apiClient.VerifyAll();
     }
@@ -494,6 +479,39 @@ internal sealed class JenkinsClientTests
                 new JobName("Folder2/SubFolder2/Job222"),
                 new JobName("ZJob2"),
             ]));
+        }
+        apiClient.VerifyAll();
+    }
+
+    [Test]
+    public async Task GetBuildParameters_WithParameters_Parsed()
+    {
+        var jobName = new JobName("MyBuild");
+        var buildNumber = 42;
+        var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
+        apiClient
+            .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/{buildNumber}/api/json?tree=actions[parameters[name,value]]"))
+            .ReturnsAsync(new
+            {
+                actions = new[] {
+                    new {
+                        parameters = new[] {
+                            new { name = "PARAM1", value = "Value1" },
+                            new { name = "PARAM2", value = "Value2" },
+                        }
+                    }
+                }
+            }.Serialize());
+        apiClient.Setup(c => c.Dispose());
+        using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
+        {
+            var parameters = await client.GetBuildParameters(new(jobName, buildNumber)).ConfigureAwait(false);
+            var expectedParameters = new Dictionary<string, string>
+            {
+                { "PARAM1", "Value1" },
+                { "PARAM2", "Value2" },
+            };
+            Assert.That(parameters, Is.EquivalentTo(expectedParameters));
         }
         apiClient.VerifyAll();
     }

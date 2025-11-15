@@ -14,7 +14,7 @@ internal sealed record BuildReferenceResult(JobName JobName, int Number, BuildSt
 {
     public static BuildReferenceResult Pending(JobName job) => new(job, 0, BuildStatus.Pending);
 
-    public static BuildReferenceResult Triggered(BuildReference build) => new(build.JobName, build.BuildNumber, BuildStatus.Triggered);
+    public static BuildReferenceResult Queued(JobName job) => new(job, 0, BuildStatus.Triggered);
 
     public static BuildReferenceResult Done(BuildReference build, bool isSuccessful) => new(build.JobName, build.BuildNumber, isSuccessful ? BuildStatus.Success : BuildStatus.Failed);
 
@@ -39,7 +39,7 @@ internal abstract class BuildDiff
     }
 
     public static readonly BuildDiff OnDemandPending = new NotComparable("Build not run");
-    public static BuildDiff OnDemandTriggered(int buildNumber) => new NotComparable($"Build #{buildNumber} not done");
+    public static BuildDiff OnDemandTriggered(JobName job) => new NotComparable($"Build {job} not done");
     public static readonly BuildDiff ReferencePending = new NotComparable("No reference build");
     public static BuildDiff Diff(FailedTestDiff diff) => new Comparable(diff);
 }
@@ -74,8 +74,7 @@ internal sealed class RequestReportBuilder : IRequestReportBuilder
         foreach (var chainDiff in requestState.ChainDiffs)
         {
             var rootResult = chainDiff.OnDemandRoot.Match(
-                onPending: BuildReferenceResult.Pending, // BUG
-                onTriggered: BuildReferenceResult.Triggered,
+                onQueued: (job, _) => BuildReferenceResult.Queued(job),
                 onDone: buildRef => BuildReferenceResult.Done(onDemandBuilds.RootBuilds.GetOrAdd(buildRef.JobName)[buildRef]));
 
             var buildDiffs = new List<BuildDiffResult>();
@@ -83,13 +82,12 @@ internal sealed class RequestReportBuilder : IRequestReportBuilder
             {
                 diff.OnDemandBuild.Match(
                     onPending: jobName => buildDiffs.Add(new(BuildReferenceResult.Pending(jobName), BuildDiff.OnDemandPending)),
-                    onTriggered: buildRef => buildDiffs.Add(new(BuildReferenceResult.Triggered(buildRef), BuildDiff.OnDemandTriggered(buildRef.BuildNumber))),
+                    onQueued: jobName => buildDiffs.Add(new(BuildReferenceResult.Queued(jobName), BuildDiff.OnDemandTriggered(jobName))),
                     onDone: onDemandBuildRef =>
                     {
                         var onDemandTestBuild = onDemandBuilds.GetTestBuild(onDemandBuildRef);
                         diff.ReferenceBuild.Match(
                             onPending: jobName => buildDiffs.Add(new(BuildReferenceResult.Done(onDemandBuildRef, onDemandTestBuild.IsSuccessful), BuildDiff.ReferencePending)),
-                            onTriggered: buildRef => throw new InvalidOperationException("Ref builds should be pending or done"),
                             onDone: referenceBuildRef =>
                             {
                                 var referenceTestBuild = branchReference.GetTestBuild(referenceBuildRef);

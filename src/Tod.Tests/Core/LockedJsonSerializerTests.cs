@@ -90,20 +90,20 @@ internal sealed class LockedJsonSerializerTests
         Assert.That(Directory.GetFiles(temp.Path), Is.Empty);
     }
 
-    private static bool AreEqual(RequestBuildReference x, RequestBuildReference y)
+    private static bool AreEqual(RequestTestBuildReference x, RequestTestBuildReference y)
     {
         return x.Match(
             onPending: jobNameX => y.Match(
                 onPending: jobNameY => jobNameX.Equals(jobNameY),
-                onTriggered: _ => false,
+                onQueued: _ => false,
                 onDone: _ => false),
-            onTriggered: referenceX => y.Match(
+            onQueued: jobX => y.Match(
                 onPending: _ => false,
-                onTriggered: referenceY => referenceX.JobName.Equals(referenceY.JobName) && referenceX.BuildNumber == referenceY.BuildNumber,
+                onQueued: jobY => jobX.Equals(jobY),
                 onDone: _ => false),
             onDone: referenceX => y.Match(
                 onPending: _ => false,
-                onTriggered: _ => false,
+                onQueued: _ => false,
                 onDone: referenceY => referenceX.JobName.Equals(referenceY.JobName) && referenceX.BuildNumber == referenceY.BuildNumber)
         );
     }
@@ -166,9 +166,9 @@ internal sealed class LockedJsonSerializerTests
             Thread.Sleep(10); // Ensure timestamp difference
             lockedJson.Value.Update(d =>
             {
-                var newReferences = new List<RequestBuildReference>(d.References)
+                var newReferences = new List<RequestTestBuildReference>(d.References)
                 {
-                    RequestBuildReference.Create(new JobName("AdditionalJob"))
+                    RequestTestBuildReference.Create(new JobName("AdditionalJob"))
                 };
                 return new Dummy(newReferences);
             });

@@ -61,9 +61,9 @@ internal sealed class CachedTests
         // Modify the file
         Thread.Sleep(10); // Ensure timestamp difference
         var newDummy = new Dummy([
-            RequestBuildReference.Create(new JobName("Job1")),
-            RequestBuildReference.Create(new JobName("Job2")),
-            RequestBuildReference.Create(new JobName("Job3"))
+            RequestTestBuildReference.Create(new JobName("Job1")),
+            RequestTestBuildReference.Create(new JobName("Job2")),
+            RequestTestBuildReference.Create(new JobName("Job3"))
         ]);
         newDummy.SaveNew(testFilePath);
 
@@ -107,7 +107,7 @@ internal sealed class CachedTests
         for (int i = 0; i < 3; i++)
         {
             Thread.Sleep(10); // Ensure timestamp difference
-            var newDummy = new Dummy([RequestBuildReference.Create(new JobName($"Job{i}"))]);
+            var newDummy = new Dummy([RequestTestBuildReference.Create(new JobName($"Job{i}"))]);
             newDummy.SaveNew(testFilePath);
 
             var currentValue = cached.Value;
@@ -128,7 +128,7 @@ internal sealed class CachedTests
         var jobName = new JobName("TestJob");
         var buildNumber = RandomData.NextBuildNumber;
         var originalDummy = new Dummy([
-            RequestBuildReference.Create(jobName).Trigger(buildNumber).DoneTriggered()
+            RequestTestBuildReference.Create(jobName).Queue().DoneQueued(buildNumber)
         ]);
         originalDummy.SaveNew(testFilePath);
 

@@ -52,7 +52,7 @@ internal static class Program
         Debug.Assert(jobGroups is not null);
         var filterManager = new FilterManager(config, jobGroups);
 
-        RootDiff[] rootDiffs;
+        JobDiff[] rootDiffs;
         BranchName refBranch;
         Sha1 refCommit;
         if (wantedBranch != null)

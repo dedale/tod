@@ -7,11 +7,12 @@ namespace Tod.Jenkins;
 internal interface IJenkinsClient
 {
     Task<Build[]> GetLastBuilds(JobName jobName, int count = 100);
+    Task<Dictionary<string, string>> GetBuildParameters(BuildReference buildReference);
     Task<JobName[]> GetScheduledJobs(BuildReference buildReference);
     Task<int> GetFailCount(BuildReference buildReference);
     Task<TestBuildData> GetTestData(BuildReference buildReference);
     Task<FailedTest[]> GetFailedTests(BuildReference buildReference);
-    Task<int> TriggerBuild(JobName jobName, Sha1 commit, int retryDelayMs = 2000);
+    Task TriggerBuild(JobName jobName, Dictionary<string, string> parameters);
     Task<BuildReference?> TryGetRootBuild(BuildReference buildReference);
     Task<JobName[]> GetJobNames(string[] multiBranchFolders);
 }
@@ -35,6 +36,26 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
             builds.Add(Build.FromJson(buildElement));
         }
         return [.. builds];
+    }
+
+    public async Task<Dictionary<string, string>> GetBuildParameters(BuildReference buildReference)
+    {
+        var url = $"{config.Url}/{buildReference.JobName.UrlPath}/{buildReference.BuildNumber}/api/json?tree=actions[parameters[name,value]]";
+        var doc = await _apiClient.GetAsync(url).ConfigureAwait(false);
+        var parameters = new Dictionary<string, string>();
+        foreach (var action in doc.RootElement.GetProperty("actions").EnumerateArray())
+        {
+            if (action.TryGetProperty("parameters", out var parametersProperty))
+            {
+                foreach (var parameter in parametersProperty.EnumerateArray())
+                {
+                    var name = parameter.GetProperty("name").GetString()!;
+                    var value = parameter.GetProperty("value").GetString()!;
+                    parameters.Add(name, value);
+                }
+            }
+        }
+        return parameters;
     }
 
     private static readonly Regex s_scheduling = new(@"Scheduling project:\s+(?<project>.*)", RegexOptions.Compiled);
@@ -147,29 +168,15 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
         return [.. failedTests];
     }
 
-    public async Task<int> TriggerBuild(JobName jobName, Sha1 commit, int retryDelayMs = 2000)
+    public async Task TriggerBuild(JobName jobName, Dictionary<string, string> parameters)
     {
-        Log.Information("Triggering {JobName} build with commit {Commit}", jobName, commit);
         var crumbUrl = $"{config.Url}/crumbIssuer/api/json";
-        var triggerUrl = $"{config.Url}/{jobName.UrlPath}/buildWithParameters?BUILD_REF_SPEC={Uri.EscapeDataString(commit.Value)}";
+        var triggerUrl = $"{config.Url}/{jobName.UrlPath}/buildWithParameters?{string.Join("&", parameters.Select(kvp => $"{Uri.EscapeDataString(kvp.Key)}={Uri.EscapeDataString(kvp.Value)}"))}";
         var location = await _apiClient.PostAsync(crumbUrl, triggerUrl).ConfigureAwait(false);
         if (!location.Contains("/queue/item/"))
         {
             throw new InvalidOperationException("Missing queue local header in response");
         }
-        string queueUrl = location + "api/json";
-        for (int i = 0; i < 30; i++)
-        {
-            await Task.Delay(retryDelayMs).ConfigureAwait(false);
-            var queueDoc = await _apiClient.GetAsync(queueUrl).ConfigureAwait(false);
-            if (queueDoc.RootElement.TryGetProperty("executable", out var executable))
-            {
-                var buildNumber = executable.GetProperty("number").GetInt32();
-                Log.Information("Triggered {JobName} #{BuildNumber}", jobName, buildNumber);
-                return buildNumber;
-            }
-        }
-        throw new TimeoutException("Timed out waiting for build to be scheduled.");
     }
 
     private static readonly Regex s_copiedArtifacts = new(@"Copied \d+ artifacts from \""(?<jobName>.*)\"" build number (?<buildNumber>\d+)", RegexOptions.Compiled);
@@ -216,90 +223,27 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
     {
         _apiClient.Dispose();
     }
+}
 
-#if false
-
-    public async Task GetTestBuilds2()
+internal static class IJenkinsClientExtensions
+{
+    public static Task TriggerRootBuild(this IJenkinsClient jenkinsClient, JobName jobName, Sha1 commit)
     {
-        string jenkinsUrl = "http://your-jenkins-url";
-        string jobName = "MAIN-build";
-        int buildNumber = 123;
-
-        var handler = new HttpClientHandler
+        Log.Information("Triggering {JobName} build with commit {Commit}", jobName, commit);
+        var parameters = new Dictionary<string, string>()
         {
-            UseDefaultCredentials = true // Uses Windows identity
+            ["REFSPEC"] = commit.Value,
         };
-
-        using var client = new HttpClient(handler);
-        var apiUrl = $"{jenkinsUrl}/{jobName.UrlPath}/{buildNumber}/api/json";
-        var logUrl = ...;
-
-        var triggeredBuilds = new List<(string job, int number, string url)>();
-
-        try
-        {
-            var response = await client.GetAsync(apiUrl);
-            response.EnsureSuccessStatusCode();
-            var json = await response.Content.ReadAsStringAsync();
-            var doc = JsonDocument.Parse(json);
-
-            bool foundViaApi = false;
-
-            // Check for subBuilds
-            foreach (var action in doc.RootElement.GetProperty("actions").EnumerateArray())
-            {
-                if (action.TryGetProperty("subBuilds", out var subBuilds))
-                {
-                    foreach (var subBuild in subBuilds.EnumerateArray())
-                    {
-                        string job = subBuild.GetProperty("jobName").GetString();
-                        int number = subBuild.GetProperty("buildNumber").GetInt32();
-                        string url = subBuild.GetProperty("url").GetString();
-                        triggeredBuilds.Add((job, number, url));
-                    }
-                    foundViaApi = true;
-                    break;
-                }
-            }
-
-            // Fallback: parse console log
-            if (!foundViaApi)
-            {
-                ...
-            }
-
-            // Output results
-            Console.WriteLine("Triggered Builds:");
-            foreach (var build in triggeredBuilds)
-            {
-                Console.WriteLine($"- {build.job} #{build.number} → {build.url}");
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error: {ex.Message}");
-        }
+        return jenkinsClient.TriggerBuild(jobName, parameters);
     }
 
-    public async Task GetParentCommit()
+    public static Task TriggerTestBuild(this IJenkinsClient jenkinsClient, JobName jobName, int rootBuildNumber)
     {
-        string gerritApiUrl = "https://your-gerrit-url/a/projects/your-project/commits/";
-        string commitSha = "abc123..."; // SHA1 of the ref spec
-
-        using var client = new HttpClient();
-        var url = $"{gerritApiUrl}{commitSha}";
-
-        var response = await client.GetAsync(url);
-        response.EnsureSuccessStatusCode();
-
-        var rawJson = await response.Content.ReadAsStringAsync();
-        var json = rawJson.TrimStart(")]}'\n".ToCharArray()); // Gerrit prepends anti-XSSI chars
-
-        var doc = JsonDocument.Parse(json);
-        var parentSha = doc.RootElement.GetProperty("parents")[0].GetProperty("commit").GetString();
-
-        Console.WriteLine($"Parent SHA1: {parentSha}");
+        Log.Information("Triggering {JobName} build with upstream build number #{RootBuildNumber}", jobName, rootBuildNumber);
+        var parameters = new Dictionary<string, string>()
+        {
+            ["UPSTREAM_BUILD_SELECTOR"] = $"<SpecificBuildSelector><buildNumber>{rootBuildNumber}</buildNumber></SpecificBuildSelector>",
+        };
+        return jenkinsClient.TriggerBuild(jobName, parameters);
     }
-#endif
-
 }

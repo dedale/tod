@@ -1,9 +1,10 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
+using System.Threading.Tasks;
 
 namespace Tod.Jenkins;
 
-internal sealed class RootDiff(JobName referenceJob, JobName onDemandJob)
+internal sealed class JobDiff(JobName referenceJob, JobName onDemandJob)
 {
     public JobName ReferenceJob { get; } = referenceJob;
     public JobName OnDemandJob { get; } = onDemandJob;
@@ -12,18 +13,18 @@ internal sealed class RootDiff(JobName referenceJob, JobName onDemandJob)
 internal sealed class RequestBuildDiff : IWithCustomSerialization<RequestBuildDiff.Serializable>
 {
     public RequestBuildDiff(JobName referenceJobName, JobName onDemandJobName)
-        : this(RequestBuildReference.Create(referenceJobName), RequestBuildReference.Create(onDemandJobName))
+        : this(RefTestBuildReference.Create(referenceJobName), RequestTestBuildReference.Create(onDemandJobName))
     {
     }
 
-    private RequestBuildDiff(RequestBuildReference referenceBuild, RequestBuildReference onDemandBuild)
+    private RequestBuildDiff(RefTestBuildReference referenceBuild, RequestTestBuildReference onDemandBuild)
     {
         ReferenceBuild = referenceBuild;
         OnDemandBuild = onDemandBuild;
     }
 
-    public RequestBuildReference ReferenceBuild { get; }
-    public RequestBuildReference OnDemandBuild { get; }
+    public RefTestBuildReference ReferenceBuild { get; }
+    public RequestTestBuildReference OnDemandBuild { get; }
 
     public bool IsDone => ReferenceBuild.IsDone && OnDemandBuild.IsDone;
 
@@ -37,25 +38,31 @@ internal sealed class RequestBuildDiff : IWithCustomSerialization<RequestBuildDi
         return new RequestBuildDiff(ReferenceBuild.DoneReference(buildNumber), OnDemandBuild);
     }
 
-    public RequestBuildDiff TriggerOnDemand(int buildNumber)
+    public RequestBuildDiff QueueOnDemand()
     {
-        return new RequestBuildDiff(ReferenceBuild, OnDemandBuild.Trigger(buildNumber));
+        return new RequestBuildDiff(ReferenceBuild, OnDemandBuild.Queue());
     }
 
-    public bool TryGetTriggered([NotNullWhen(true)] out BuildReference? testBuild)
+    public bool TryGetQueued([NotNullWhen(true)] out JobName? testJob)
     {
-        return OnDemandBuild.TryGetTriggered(out testBuild);
+        return OnDemandBuild.TryGetQueued(out testJob);
     }
 
-    public RequestBuildDiff DoneOnDemand()
+    public RequestBuildDiff DoneOnDemand(int buildNumber)
     {
-        return new RequestBuildDiff(ReferenceBuild, OnDemandBuild.DoneTriggered());
+        return new RequestBuildDiff(ReferenceBuild, OnDemandBuild.DoneQueued(buildNumber));
+    }
+
+    public RequestBuildDiff RecycleOnDemand(int buildNumber)
+    {
+        return new RequestBuildDiff(ReferenceBuild, OnDemandBuild.Queue().DoneQueued(buildNumber));
+
     }
 
     internal sealed class Serializable : ICustomSerializable<RequestBuildDiff>
     {
         [JsonConstructor]
-        private Serializable(RequestBuildReference.Serializable referenceBuild, RequestBuildReference.Serializable onDemandBuild)
+        private Serializable(RefTestBuildReference.Serializable referenceBuild, RequestTestBuildReference.Serializable onDemandBuild)
         {
             ReferenceBuild = referenceBuild;
             OnDemandBuild = onDemandBuild;
@@ -65,8 +72,8 @@ internal sealed class RequestBuildDiff : IWithCustomSerialization<RequestBuildDi
             ReferenceBuild = buildDiff.ReferenceBuild.ToSerializable();
             OnDemandBuild = buildDiff.OnDemandBuild.ToSerializable();
         }
-        public RequestBuildReference.Serializable ReferenceBuild { get; set; }
-        public RequestBuildReference.Serializable OnDemandBuild { get; set; }
+        public RefTestBuildReference.Serializable ReferenceBuild { get; set; }
+        public RequestTestBuildReference.Serializable OnDemandBuild { get; set; }
 
         public RequestBuildDiff FromSerializable()
         {

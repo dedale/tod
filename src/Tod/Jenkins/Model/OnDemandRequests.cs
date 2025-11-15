@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
 using Tod.Core;
+using Tod.Git;
 
 namespace Tod.Jenkins;
 
@@ -68,14 +69,14 @@ internal sealed class OnDemandRequests
         return requests;
     }
 
-    public bool TryGetRootTriggered(BuildReference onDemandRoot, [NotNullWhen(true)] out ILockedJson<RequestState>? lockedRequest)
+    public bool TryGetRootQueued(JobName onDemandRootJob, Sha1 commit, [NotNullWhen(true)] out ILockedJson<RequestState>? lockedRequest)
     {
         foreach (var cached in _requestById.Values)
         {
             var request = cached.Value;
-            if (request.TryGetChainOnDemand(onDemandRoot, out var chainDiff) && chainDiff.Status == ChainStatus.RootTriggered)
+            if (request.TryGetChainOnDemand(onDemandRootJob, commit, out var chainDiff) && chainDiff.Status == ChainStatus.RootTriggered)
             {
-                lockedRequest = cached.Lock(nameof(TryGetRootTriggered));
+                lockedRequest = cached.Lock(nameof(TryGetRootQueued));
                 return true;
             }
         }
@@ -83,7 +84,7 @@ internal sealed class OnDemandRequests
         return false;
     }
 
-    public bool TryGetTestTriggered(BuildReference rootBuild, BuildReference testBuild, [NotNullWhen(true)] out ILockedJson<RequestState>? lockedRequest)
+    public bool TryGetTestQueued(BuildReference rootBuild, JobName testJob, [NotNullWhen(true)] out ILockedJson<RequestState>? lockedRequest)
     {
         foreach (var cached in _requestById.Values)
         {
@@ -91,8 +92,7 @@ internal sealed class OnDemandRequests
             foreach (var chainDiff in request.ChainDiffs)
             {
                 var sameRoot = chainDiff.OnDemandRoot.Match(
-                    onPending: _ => false,
-                    onTriggered: _ => false,
+                    onQueued: (_, _) => false,
                     onDone: buildRef => buildRef.Equals(rootBuild)
                 );
                 if (!sameRoot)
@@ -101,9 +101,9 @@ internal sealed class OnDemandRequests
                 }
                 foreach (var buildDiff in chainDiff.TestBuildDiffs)
                 {
-                    if (buildDiff.OnDemandBuild.TryGetTriggered(out var triggeredBuild) && triggeredBuild.Equals(testBuild))
+                    if (buildDiff.OnDemandBuild.TryGetQueued(out var triggeredBuild) && triggeredBuild.Equals(testJob))
                     {
-                        lockedRequest = cached.Lock(nameof(TryGetTestTriggered));
+                        lockedRequest = cached.Lock(nameof(TryGetTestQueued));
                         return true;
                     }
                 }

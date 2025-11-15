@@ -1,5 +1,4 @@
 ﻿using System.Text.Json.Serialization;
-using Tod.Git;
 
 namespace Tod.Jenkins;
 
@@ -10,18 +9,18 @@ internal enum ChainStatus
     Done
 }
 
-internal sealed class RequestChain(BuildReference referenceRoot, RequestBuildReference ondemandRoot, RequestBuildDiff[] testBuildDiffs)
+internal sealed class RequestChain(BuildReference referenceRoot, RequestRootBuildReference ondemandRoot, RequestBuildDiff[] testBuildDiffs)
 {
     public BuildReference ReferenceRoot { get; } = referenceRoot;
-    public RequestBuildReference OnDemandRoot { get; } = ondemandRoot;
+    public RequestRootBuildReference OnDemandRoot { get; } = ondemandRoot;
     public IEnumerable<RequestBuildDiff> TestBuildDiffs { get; } = testBuildDiffs;
 }
 
-internal sealed class ChainDiff(ChainStatus status, BuildReference referenceRoot, RequestBuildReference onDemandRoot, List<RequestBuildDiff> testBuildDiffs) : IWithCustomSerialization<ChainDiff.Serializable>
+internal sealed class ChainDiff(ChainStatus status, BuildReference referenceRoot, RequestRootBuildReference onDemandRoot, List<RequestBuildDiff> testBuildDiffs) : IWithCustomSerialization<ChainDiff.Serializable>
 {
     public ChainStatus Status { get; } = status;
     public BuildReference ReferenceRoot { get; } = referenceRoot;
-    public RequestBuildReference OnDemandRoot { get; } = onDemandRoot;
+    public RequestRootBuildReference OnDemandRoot { get; } = onDemandRoot;
     public IEnumerable<RequestBuildDiff> TestBuildDiffs { get; } = testBuildDiffs;
 
     public ChainDiff DoneReferenceTestBuild(BuildReference referenceBuild)
@@ -42,19 +41,19 @@ internal sealed class ChainDiff(ChainStatus status, BuildReference referenceRoot
         return new ChainDiff(newStatus, ReferenceRoot, OnDemandRoot, newTestDiffs);
     }
 
-    public ChainDiff TriggerTests(Sha1 commit, Func<JobName, Sha1, Task<int>> triggerBuild)
+    public ChainDiff TriggerTests(int rootBuildNumber, Func<JobName, int, Task> triggerTestBuild)
     {
-        var newOnDemandRoot = OnDemandRoot.DoneTriggered();
+        var newOnDemandRoot = OnDemandRoot.DoneQueued(rootBuildNumber);
         var newTestDiffs = new List<RequestBuildDiff>();
         foreach (var buildDiff in testBuildDiffs)
         {
             buildDiff.OnDemandBuild.Match(
                 onPending: async jobName =>
                 {
-                    var buildNumber = await triggerBuild(jobName, commit).ConfigureAwait(false);
-                    newTestDiffs.Add(buildDiff.TriggerOnDemand(buildNumber));
+                    await triggerTestBuild(jobName, rootBuildNumber).ConfigureAwait(false);
+                    newTestDiffs.Add(buildDiff.QueueOnDemand());
                 },
-                onTriggered: _ => newTestDiffs.Add(buildDiff),
+                onQueued: _ => newTestDiffs.Add(buildDiff),
                 onDone: _ => newTestDiffs.Add(buildDiff)
             );
         }
@@ -66,9 +65,9 @@ internal sealed class ChainDiff(ChainStatus status, BuildReference referenceRoot
         var newTestDiffs = new List<RequestBuildDiff>();
         foreach (var buildDiff in testBuildDiffs)
         {
-            if (buildDiff.OnDemandBuild.TryGetTriggered(out var triggeredBuild) && triggeredBuild.Equals(onDemandBuild))
+            if (buildDiff.OnDemandBuild.TryGetQueued(out var jobName) && jobName.Equals(onDemandBuild.JobName))
             {
-                newTestDiffs.Add(buildDiff.DoneOnDemand());
+                newTestDiffs.Add(buildDiff.DoneOnDemand(onDemandBuild.BuildNumber));
             }
             else
             {
@@ -87,7 +86,7 @@ internal sealed class ChainDiff(ChainStatus status, BuildReference referenceRoot
     internal sealed class Serializable : ICustomSerializable<ChainDiff>
     {
         [JsonConstructor]
-        private Serializable(ChainStatus status, BuildReference referenceRoot, RequestBuildReference.Serializable onDemandRoot, List<RequestBuildDiff.Serializable> testBuildDiffs)
+        private Serializable(ChainStatus status, BuildReference referenceRoot, RequestRootBuildReference.Serializable onDemandRoot, List<RequestBuildDiff.Serializable> testBuildDiffs)
         {
             Status = status;
             ReferenceRoot = referenceRoot;
@@ -98,14 +97,14 @@ internal sealed class ChainDiff(ChainStatus status, BuildReference referenceRoot
             : this(
                 chainDiff.Status,
                 chainDiff.ReferenceRoot,
-                new RequestBuildReference.Serializable(chainDiff.OnDemandRoot),
+                new RequestRootBuildReference.Serializable(chainDiff.OnDemandRoot),
                 [.. chainDiff.TestBuildDiffs.Select(d => new RequestBuildDiff.Serializable(d))]
             )
         {
         }
         public ChainStatus Status { get; set; }
         public BuildReference ReferenceRoot { get; set; }
-        public RequestBuildReference.Serializable OnDemandRoot { get; set; }
+        public RequestRootBuildReference.Serializable OnDemandRoot { get; set; }
         public List<RequestBuildDiff.Serializable> TestBuildDiffs { get; set; }
 
         public ChainDiff FromSerializable()

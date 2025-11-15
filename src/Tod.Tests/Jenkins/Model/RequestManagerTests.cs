@@ -11,7 +11,7 @@ internal sealed class RequestManagerTests
 {
     private readonly BranchName _mainBranch = new("main");
     private readonly JobName _referenceRootJob = new("MAIN-build");
-    private readonly JobName _referencTestJob = new("MAIN-test");
+    private readonly JobName _referenceTestJob = new("MAIN-test");
     private readonly JobName _onDemandRootJob = new("CUSTOM-build");
     private readonly JobName _onDemandTestJob = new("CUSTOM-test");
     private TempDirectory _temp;
@@ -42,7 +42,7 @@ internal sealed class RequestManagerTests
         var jobName = $"{branchName.Value.ToUpperInvariant()}-build";
         var branchReference = new BranchReference(referenceStore);
         branchReference.TryAddRoot(new(jobName));
-        rootBuild = RandomData.NextRootBuild(jobName: jobName, testJobNames: [_referencTestJob.Value]);
+        rootBuild = RandomData.NextRootBuild(jobName: jobName, testJobNames: [_referenceTestJob.Value]);
         branchReference.TryAdd(rootBuild);
         sha1 = rootBuild.Commits[1];
         return branchReference;
@@ -80,13 +80,30 @@ internal sealed class RequestManagerTests
         return new RequestManager(workspace, _filterManager.Object, _jenkinsClient.Object, _requestReport.Object);
     }
 
+    private Task<RequestState> CreateRequestState(IOnDemandStore onDemandStore, BuildReference? referenceRoot = null)
+    {
+        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _mainBranch, ["test"]);
+        var onDemandRoot = RequestRootBuildReference.Queue(_onDemandRootJob, request.Commit);
+        var chains = new RequestChain[] {
+            new(
+                referenceRoot ?? new BuildReference(_referenceRootJob, RandomData.NextBuildNumber),
+                onDemandRoot,
+                [ new RequestBuildDiff(_referenceTestJob, _onDemandTestJob) ]
+            )
+        };
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        Func<JobName, Sha1, Task> triggerRootBuild = (job, commit) => Task.CompletedTask;
+        Func<JobName, int, Task> triggerTestBuild = (job, buildNumber) => Task.CompletedTask;
+        return RequestState.New(request, chains, onDemandBuilds, triggerRootBuild, triggerTestBuild);
+    }
+
     [Test]
     public async Task Register_ValidRequest_AddsToWorkspace()
     {
         using var mocks = StoreMocks.New()
             .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
             .WithNewRootBuilds(_referenceRootJob)
-            .WithTestobs(_referencTestJob)
+            .WithTestobs(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithRootJobs(_onDemandRootJob);
 
@@ -97,10 +114,11 @@ internal sealed class RequestManagerTests
         var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[1], _mainBranch, requestFilters);
 
         var expectedBuildNumber = RandomData.NextBuildNumber;
-        _jenkinsClient.Setup(c => c.TriggerBuild(_onDemandRootJob, request.Commit, It.IsAny<int>())).ReturnsAsync(expectedBuildNumber);
+        _jenkinsClient.Setup(c => c.TriggerBuild(_onDemandRootJob, JenkinsMocks.RefSpecParameter(request.Commit)))
+            .Returns(Task.CompletedTask);
 
         _filterManager.Setup(m => m.GetTestBuildDiffs(requestFilters, _mainBranch))
-            .Returns([new(_referencTestJob, _onDemandTestJob)]);
+            .Returns([new(_referenceTestJob, _onDemandTestJob)]);
 
         var workspace = GetWorkspace(branchReference, onDemandStore);
 
@@ -119,7 +137,7 @@ internal sealed class RequestManagerTests
         using var mocks = StoreMocks.New()
             .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
             .WithNewRootBuilds(_referenceRootJob)
-            .WithTestobs(_referencTestJob)
+            .WithTestobs(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore);
 
         var branchReference = AddMainBranchReference(referenceStore);
@@ -139,7 +157,7 @@ internal sealed class RequestManagerTests
         using var mocks = StoreMocks.New()
             .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
             .WithNewRootBuilds(_referenceRootJob)
-            .WithTestobs(_referencTestJob)
+            .WithTestobs(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore);
 
         var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _mainBranch, ["integration"]);
@@ -159,13 +177,13 @@ internal sealed class RequestManagerTests
         using var mocks = StoreMocks.New()
             .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
             .WithNewRootBuilds(_referenceRootJob)
-            .WithNewTestBuilds(_referencTestJob)
+            .WithNewTestBuilds(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithRootJobs(_onDemandRootJob);
 
         var branchReference = AddBranchReference(_mainBranch, referenceStore, out Sha1 sha1, out RootBuild rootBuild);
 
-        var refTestBuild = new BuildReference(_referencTestJob, RandomData.NextBuildNumber);
+        var refTestBuild = new BuildReference(_referenceTestJob, RandomData.NextBuildNumber);
         Assert.That(branchReference.TryAdd(new TestBuild(
             refTestBuild.JobName,
             Guid.NewGuid().ToString(),
@@ -180,11 +198,11 @@ internal sealed class RequestManagerTests
         var requestFilters = new[] { "integration" };
         var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[1], _mainBranch, requestFilters);
 
-        _jenkinsClient.Setup(c => c.TriggerBuild(_onDemandRootJob, request.Commit, It.IsAny<int>()))
-            .ReturnsAsync(RandomData.NextBuildNumber);
+        _jenkinsClient.Setup(c => c.TriggerBuild(_onDemandRootJob, JenkinsMocks.RefSpecParameter(request.Commit)))
+            .Returns(Task.CompletedTask);
 
         _filterManager.Setup(m => m.GetTestBuildDiffs(requestFilters, _mainBranch))
-            .Returns([new RequestBuildDiff(_referencTestJob, _onDemandTestJob)]);
+            .Returns([new JobDiff(_referenceTestJob, _onDemandTestJob)]);
 
         var workspace = GetWorkspace(branchReference, onDemandStore);
         var requestManager = GetRequestManager(workspace);
@@ -201,14 +219,14 @@ internal sealed class RequestManagerTests
         using var mocks = StoreMocks.New()
             .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
             .WithNewRootBuilds(_referenceRootJob)
-            .WithNewTestBuilds(_referencTestJob)
+            .WithNewTestBuilds(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandRootJob)
             .WithNewTestBuilds(_onDemandTestJob);
 
         var branchReference = AddBranchReference(_mainBranch, referenceStore, out Sha1 sha1, out RootBuild rootBuild);
 
-        var refTestBuild = new BuildReference(_referencTestJob, RandomData.NextBuildNumber);
+        var refTestBuild = new BuildReference(_referenceTestJob, RandomData.NextBuildNumber);
         Assert.That(branchReference.TryAdd(new TestBuild(
             refTestBuild.JobName,
             Guid.NewGuid().ToString(),
@@ -250,11 +268,11 @@ internal sealed class RequestManagerTests
         ));
 
         _filterManager.Setup(m => m.GetTestBuildDiffs(requestFilters, _mainBranch))
-            .Returns([new RequestBuildDiff(_referencTestJob, _onDemandTestJob)]);
+            .Returns([new JobDiff(_referenceTestJob, _onDemandTestJob)]);
 
         _requestReport.Setup(x => x.Send(It.Is<RequestState>(r => r.Request.Id == request.Id && r.IsDone == true), It.IsAny<Workspace>()));
 
-        var rootDiffs = new RootDiff[] { new(_referenceRootJob, _onDemandRootJob) };
+        var rootDiffs = new JobDiff[] { new(_referenceRootJob, _onDemandRootJob) };
 
         var requestManager = GetRequestManager(workspace);
 
@@ -267,13 +285,13 @@ internal sealed class RequestManagerTests
         using var mocks = StoreMocks.New()
             .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
             .WithNewRootBuilds(_referenceRootJob)
-            .WithNewTestBuilds(_referencTestJob)
+            .WithNewTestBuilds(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandRootJob);
 
         var branchReference = AddBranchReference(_mainBranch, referenceStore, out Sha1 sha1, out RootBuild rootBuild);
 
-        var refTestBuild = new BuildReference(_referencTestJob, RandomData.NextBuildNumber);
+        var refTestBuild = new BuildReference(_referenceTestJob, RandomData.NextBuildNumber);
         Assert.That(branchReference.TryAdd(new TestBuild(
             refTestBuild.JobName,
             Guid.NewGuid().ToString(),
@@ -302,11 +320,11 @@ internal sealed class RequestManagerTests
         );
         workspace.OnDemandBuilds.TryAdd(onDemandRootBuild);
 
-        _jenkinsClient.Setup(c => c.TriggerBuild(_onDemandRootJob, request.Commit, It.IsAny<int>()))
-            .ReturnsAsync(RandomData.NextBuildNumber);
+        _jenkinsClient.Setup(c => c.TriggerBuild(_onDemandRootJob, JenkinsMocks.RefSpecParameter(request.Commit)))
+            .Returns(Task.CompletedTask);
 
         _filterManager.Setup(m => m.GetTestBuildDiffs(requestFilters, _mainBranch))
-            .Returns([new RequestBuildDiff(_referencTestJob, _onDemandTestJob)]);
+            .Returns([new JobDiff(_referenceTestJob, _onDemandTestJob)]);
 
         var requestManager = GetRequestManager(workspace);
 
@@ -319,14 +337,14 @@ internal sealed class RequestManagerTests
         using var mocks = StoreMocks.New()
             .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
             .WithNewRootBuilds(_referenceRootJob)
-            .WithNewTestBuilds(_referencTestJob)
+            .WithNewTestBuilds(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandRootJob)
             .WithNewTestBuilds(_onDemandTestJob);
 
         var branchReference = AddBranchReference(_mainBranch, referenceStore, out Sha1 sha1, out RootBuild rootBuild);
 
-        var refTestBuild = new BuildReference(_referencTestJob, RandomData.NextBuildNumber);
+        var refTestBuild = new BuildReference(_referenceTestJob, RandomData.NextBuildNumber);
         Assert.That(branchReference.TryAdd(new TestBuild(
             refTestBuild.JobName,
             Guid.NewGuid().ToString(),
@@ -367,10 +385,10 @@ internal sealed class RequestManagerTests
         ));
 
         _filterManager.Setup(m => m.GetTestBuildDiffs(requestFilters, _mainBranch))
-            .Returns([new RequestBuildDiff(_referencTestJob, _onDemandTestJob)]);
+            .Returns([new JobDiff(_referenceTestJob, _onDemandTestJob)]);
 
-        _jenkinsClient.Setup(c => c.TriggerBuild(_onDemandTestJob, request.Commit, It.IsAny<int>()))
-            .ReturnsAsync(RandomData.NextBuildNumber);
+        _jenkinsClient.Setup(c => c.TriggerBuild(_onDemandTestJob, JenkinsMocks.SelectorParameter(onDemandRootBuild.BuildNumber)))
+            .Returns(Task.CompletedTask);
 
         var requestManager = GetRequestManager(workspace);
 
@@ -378,89 +396,83 @@ internal sealed class RequestManagerTests
     }
 
     [Test]
-    public void TriggerOnDemandTests_ValidRequest_TriggersTests()
+    public async Task TriggerOnDemandTests_ValidRequest_TriggersTests()
     {
         using var mocks = StoreMocks.New()
-            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore);
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithRootJobs(_onDemandRootJob);
 
         var onDemandRoot = new BuildReference(_onDemandRootJob, RandomData.NextBuildNumber);
-        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _mainBranch, ["integration"]);
 
-        var diffs = new List<RequestBuildDiff> {
-            new(_referencTestJob, _onDemandTestJob)
-        };
-        var requestState = RequestState.New(request, new BuildReference(_referenceRootJob, RandomData.NextBuildNumber), onDemandRoot, diffs);
+        var diffs = new List<JobDiff> { new(_referenceTestJob, _onDemandTestJob) };
+        var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
 
         var workspace = GetWorkspace(onDemandStore);
         workspace.OnDemandRequests.Add(requestState);
 
-        _jenkinsClient.Setup(c => c.TriggerBuild(_onDemandTestJob, request.Commit, It.IsAny<int>()))
-            .ReturnsAsync(RandomData.NextBuildNumber);
+        _jenkinsClient.Setup(c => c.TriggerBuild(_onDemandTestJob, JenkinsMocks.SelectorParameter(onDemandRoot.BuildNumber)))
+            .Returns(Task.CompletedTask);
 
         var requestManager = GetRequestManager(workspace);
-        requestManager.PostOnDemandRootBuild(onDemandRoot, true);
+        requestManager.PostOnDemandRootBuild(onDemandRoot, requestState.Request.Commit, true);
 
         Assert.That(workspace.OnDemandRequests.ActiveRequests.Single().Value.ChainDiffs[0].Status, Is.EqualTo(ChainStatus.TestsTriggered));
     }
 
     [Test]
-    public void TriggerOnDemandTests_FailedRootBuild_TriggersNone()
+    public async Task TriggerOnDemandTests_FailedRootBuild_TriggersNone()
     {
         using var mocks = StoreMocks.New()
-            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore);
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithRootJobs(_onDemandRootJob);
 
         var onDemandRoot = new BuildReference(_onDemandRootJob, RandomData.NextBuildNumber);
-        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _mainBranch, ["integration"]);
 
         var diffs = new List<RequestBuildDiff> {
-            new(_referencTestJob, _onDemandTestJob)
+            new(_referenceTestJob, _onDemandTestJob)
         };
-        var requestState = RequestState.New(request, new BuildReference(_referenceRootJob, RandomData.NextBuildNumber), onDemandRoot, diffs);
+        var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
 
         var workspace = GetWorkspace(onDemandStore);
         workspace.OnDemandRequests.Add(requestState);
 
         var requestManager = GetRequestManager(workspace);
-        requestManager.PostOnDemandRootBuild(onDemandRoot, false);
+        requestManager.PostOnDemandRootBuild(onDemandRoot, requestState.Request.Commit, false);
 
         Assert.That(workspace.OnDemandRequests.ActiveRequests, Is.Empty);
     }
 
     [TestCase("MAIN-test", "CUSTOM-test")]
     [TestCase("CUSTOM-test", "MAIN-test")]
-    public void UpdateRequests_WithActiveRequests_UpdatesStates(string job1, string job2)
+    public async Task UpdateRequests_WithActiveRequests_UpdatesStates(string job1, string job2)
     {
         using var mocks = StoreMocks.New()
             .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
             .WithNewRootBuilds(_referenceRootJob)
-            .WithNewTestBuilds(_referencTestJob)
+            .WithNewTestBuilds(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithRootJobs(_onDemandRootJob)
             .WithNewTestBuilds(_onDemandTestJob);
 
         var branchReference = AddMainBranchReference(referenceStore, out Sha1 sha1);
 
         var referenceRoot = new BuildReference(_referenceRootJob, RandomData.NextBuildNumber);
-        var onDemandRoot = new BuildReference(_onDemandRootJob, RandomData.NextBuildNumber);
-        var request = Request.Create(RandomData.NextSha1(), sha1, _mainBranch, ["integration"]);
-
-        var diffs = new List<RequestBuildDiff> {
-            new(_referencTestJob, _onDemandTestJob)
-        };
-        var requestState = RequestState.New(request, referenceRoot, onDemandRoot, diffs);
+        var requestState = await CreateRequestState(onDemandStore, referenceRoot: referenceRoot).ConfigureAwait(false);
         var testBuildNumber = RandomData.NextBuildNumber;
-        requestState = requestState.TriggerTests((job, refSpec) => Task.FromResult(testBuildNumber));
+        var onDemandRoot = new BuildReference(_onDemandRootJob, RandomData.NextBuildNumber);
+        requestState = requestState.TriggerTests(onDemandRoot.BuildNumber, (job, refSpec) => Task.FromResult(testBuildNumber));
 
         var workspace = GetWorkspace(branchReference, onDemandStore);
 
         workspace.OnDemandRequests.Add(requestState);
 
-        _requestReport.Setup(x => x.Send(It.Is<RequestState>(r => r.Request.Id == request.Id && r.IsDone == true), It.IsAny<Workspace>()));
+        _requestReport.Setup(x => x.Send(It.Is<RequestState>(r => r.Request.Id == requestState.Request.Id && r.IsDone == true), It.IsAny<Workspace>()));
 
         var requestManager = GetRequestManager(workspace);
 
         foreach (var job in new[] { job1, job2 })
         {
-            if (job == _referencTestJob.Value)
+            if (job == _referenceTestJob.Value)
             {
                 var refTestBuild = RandomData.NextTestBuild(testJobName: job, rootBuild: referenceRoot);
                 Assert.That(workspace.BranchReferences.First().TryAdd(refTestBuild), Is.True);

@@ -4,9 +4,9 @@ using Tod.Tests.Jenkins;
 
 namespace Tod.Tests.Core;
 
-internal sealed class Dummy(List<RequestBuildReference> references) : IWithCustomSerialization<Dummy.Serializable>
+internal sealed class Dummy(List<RequestTestBuildReference> references) : IWithCustomSerialization<Dummy.Serializable>
 {
-    public List<RequestBuildReference> References { get; } = references;
+    public List<RequestTestBuildReference> References { get; } = references;
 
     public Serializable ToSerializable()
     {
@@ -18,7 +18,7 @@ internal sealed class Dummy(List<RequestBuildReference> references) : IWithCusto
 
     internal sealed class Serializable : ICustomSerializable<Dummy>
     {
-        public RequestBuildReference.Serializable[] References { get; set; } = [];
+        public RequestTestBuildReference.Serializable[] References { get; set; } = [];
 
         public Dummy FromSerializable()
         {
@@ -29,8 +29,8 @@ internal sealed class Dummy(List<RequestBuildReference> references) : IWithCusto
     public static Dummy New()
     {
         return new Dummy([
-            RequestBuildReference.Create(new JobName("MyJob")).Trigger(RandomData.NextBuildNumber).DoneTriggered(),
-            RequestBuildReference.Create(new JobName("MyTestJob")),
+            RequestTestBuildReference.Create(new JobName("MyJob")).Queue().DoneQueued(RandomData.NextBuildNumber),
+            RequestTestBuildReference.Create(new JobName("MyTestJob")),
         ]);
     }
 

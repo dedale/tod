@@ -1,5 +1,6 @@
 ﻿using Moq;
 using NUnit.Framework;
+using Tod.Git;
 using Tod.Jenkins;
 using Tod.Tests.IO;
 
@@ -10,6 +11,7 @@ internal sealed class ReportSenderTests
 {
     private readonly BranchName _mainBranch = new("main");
     private readonly JobName _referenceRootJob = new("MAIN-build");
+    private readonly JobName _referenceTestJob = new("MAIN-test");
     private readonly JobName _onDemandRootJob = new("CUSTOM-build");
     private readonly JobName _onDemandTestJob = new("CUSTOM-test");
 
@@ -32,19 +34,21 @@ internal sealed class ReportSenderTests
         _mockBuilder.VerifyAll();
     }
 
-    private RequestState CreateRequestState(BranchName? branchName = null)
+    private Task<RequestState> CreateRequestState(IOnDemandStore onDemandStore, BranchName? refBranch = null)
     {
-        var request = Request.Create(
-            RandomData.NextSha1(),
-            RandomData.NextSha1(),
-            branchName ?? _mainBranch,
-            ["test"]);
-
-        return RequestState.New(
-            request,
-            new BuildReference("REF-build", RandomData.NextBuildNumber),
-            new BuildReference(_onDemandRootJob, RandomData.NextBuildNumber),
-            [new RequestBuildDiff(new JobName("REF-test"), _onDemandTestJob)]);
+        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), refBranch ?? _mainBranch, ["test"]);
+        var onDemandRoot = RequestRootBuildReference.Queue(_onDemandRootJob, request.Commit);
+        var chains = new RequestChain[] {
+            new(
+                new BuildReference(_referenceRootJob, RandomData.NextBuildNumber),
+                onDemandRoot,
+                [ new RequestBuildDiff(_referenceTestJob, _onDemandTestJob) ]
+            )
+        };
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        Func<JobName, Sha1, Task> triggerRootBuild = (job, commit) => Task.CompletedTask;
+        Func<JobName, int, Task> triggerTestBuild = (job, buildNumber) => Task.CompletedTask;
+        return RequestState.New(request, chains, onDemandBuilds, triggerRootBuild, triggerTestBuild);
     }
 
     private Workspace GetWorkspace(IReferenceStore referenceStore, IOnDemandStore onDemandStore)
@@ -59,14 +63,14 @@ internal sealed class ReportSenderTests
     }
 
     [Test]
-    public void Send_ValidRequest_CallsBuilderWithCorrectParameters()
+    public async Task Send_ValidRequest_CallsBuilderWithCorrectParameters()
     {
-        var requestState = CreateRequestState(_mainBranch);
-
         using var mocks = StoreMocks.New()
             .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
-            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore);
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithRootJobs(_onDemandRootJob);
 
+        var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
         var workspace = GetWorkspace(referenceStore, onDemandStore);
 
         var expectedReport = new RequestReport([new ChainReport(
@@ -84,20 +88,20 @@ internal sealed class ReportSenderTests
     }
 
     [Test]
-    public void Send_MultipleBranchReferences_SelectsCorrectBranch()
+    public async Task Send_MultipleBranchReferences_SelectsCorrectBranch()
     {
         var featureBranch = new BranchName("feature");
 
         var featureBuildJob = new JobName("FEATURE-build");
         var mainBuildJob = new JobName("MAIN-build");
-        var customBuildJob = _onDemandRootJob;
 
         using var mocks = StoreMocks.New()
             .WithReferenceStore(featureBranch, featureBuildJob, out var featureReferenceStore)
             .WithReferenceStore(_mainBranch, mainBuildJob, out var mainReferenceStore)
-            .WithOnDemandStore(customBuildJob, out var onDemandStore);
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithRootJobs(_onDemandRootJob);
 
-        var requestState = CreateRequestState(featureBranch);
+        var requestState = await CreateRequestState(onDemandStore, refBranch: featureBranch).ConfigureAwait(false);
 
         var featureBranchRef = new BranchReference(featureReferenceStore);
         featureBranchRef.TryAddRoot(featureBuildJob);
@@ -106,58 +110,58 @@ internal sealed class ReportSenderTests
         mainBranchRef.TryAddRoot(mainBuildJob);
 
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
-        onDemandBuilds.TryAddRoot(customBuildJob);
+        onDemandBuilds.TryAddRoot(_onDemandRootJob);
 
         var workspace = new Workspace(
             [featureBranchRef, mainBranchRef],
             onDemandBuilds,
             new OnDemandRequests(_temp.Path));
 
-        var expectedReport = new RequestReport([new ChainReport(BuildReferenceResult.Pending(customBuildJob), [])]);
+        var expectedReport = new RequestReport([new ChainReport(BuildReferenceResult.Pending(_onDemandRootJob), [])]);
 
         _mockBuilder
             .Setup(b => b.Build(
                 requestState,
                 It.Is<BranchReference>(br => br.BranchName == featureBranch),
-                workspace.OnDemandBuilds))
+                onDemandBuilds))
             .Returns(expectedReport);
 
         _reportSender.Send(requestState, workspace);
     }
 
     [Test]
-    public void Send_NoMatchingBranchReference_ThrowsInvalidOperationException()
+    public async Task Send_NoMatchingBranchReference_ThrowsInvalidOperationException()
     {
         var requestBranch = new BranchName("feature");
 
-        var requestState = CreateRequestState(requestBranch);
-
         using var mocks = StoreMocks.New()
             .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
-            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore);
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithRootJobs(_onDemandRootJob);
 
+        var requestState = await CreateRequestState(onDemandStore, refBranch: requestBranch).ConfigureAwait(false);
         var workspace = GetWorkspace(referenceStore, onDemandStore);
 
         Assert.Throws<InvalidOperationException>(() => _reportSender.Send(requestState, workspace));
     }
 
     [Test]
-    public void Send_BuilderReturnsReport_CompletesSuccessfully()
+    public async Task Send_BuilderReturnsReport_CompletesSuccessfully()
     {
-        var requestState = CreateRequestState(_mainBranch);
-
         using var mocks = StoreMocks.New()
             .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
-            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore);
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithRootJobs(_onDemandRootJob);
 
+        var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
         var workspace = GetWorkspace(referenceStore, onDemandStore);
 
         var buildDiffResult = new BuildDiffResult(
-            BuildReferenceResult.Triggered(new BuildReference(_onDemandTestJob, 42)),
-            BuildDiff.OnDemandTriggered(42));
+            BuildReferenceResult.Queued(_onDemandTestJob),
+            BuildDiff.OnDemandTriggered(_onDemandTestJob));
 
         var report = new RequestReport([new ChainReport(
-            BuildReferenceResult.Triggered(new BuildReference(_onDemandRootJob, 100)),
+            BuildReferenceResult.Queued(_onDemandRootJob),
             [buildDiffResult])]);
 
         _mockBuilder

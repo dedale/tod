@@ -7,15 +7,17 @@ namespace Tod.Tests.Jenkins;
 internal sealed class ChainDiffTests
 {
     [Test]
-    public void TriggerTests_AlreadyTriggered_NoChange()
+    public void TriggerTests_AlreadyTriggered_Throws()
     {
         // Arrange
         var referenceRoot = new BuildReference("REF-build", 100);
-        var onDemandRoot = RequestBuildReference.Create(new JobName("CUSTOM-build"))
-            .Trigger(200);
+        var commit = RandomData.NextSha1();
+        var rootBuildNumber = RandomData.NextBuildNumber;
+        var onDemandRoot = RequestRootBuildReference.Queue(new JobName("CUSTOM-build"), commit)
+            .DoneQueued(rootBuildNumber);
         
         var buildDiff = new RequestBuildDiff(new JobName("REF-test"), new JobName("CUSTOM-test"))
-            .TriggerOnDemand(300);
+            .QueueOnDemand();
         
         var chainDiff = new ChainDiff(
             ChainStatus.TestsTriggered,
@@ -23,75 +25,55 @@ internal sealed class ChainDiffTests
             onDemandRoot,
             [buildDiff]);
 
-        var commit = RandomData.NextSha1();
-        var triggerCalled = false;
-        
         // Act
-        var result = chainDiff.TriggerTests(commit, (jobName, sha) =>
-        {
-            triggerCalled = true;
-            return Task.FromResult(RandomData.NextBuildNumber);
-        });
-
-        // Assert
-        Assert.That(triggerCalled, Is.False, "Trigger function should not be called for already triggered builds");
-        Assert.That(result.Status, Is.EqualTo(ChainStatus.TestsTriggered));
-        
-        // Verify the build diff remains unchanged
-        var testBuildDiff = result.TestBuildDiffs.Single();
-        testBuildDiff.OnDemandBuild.Match(
-            onPending: _ => Assert.Fail("Build should not be pending"),
-            onTriggered: build =>
-            {
-                Assert.That(build.JobName.Value, Is.EqualTo("CUSTOM-test"));
-                Assert.That(build.BuildNumber, Is.EqualTo(300));
-            },
-            onDone: _ => Assert.Fail("Build should still be triggered, not done"));
+        Assert.That(() => chainDiff.TriggerTests(rootBuildNumber, (_, _) => Task.FromException<int>(new NotImplementedException())),
+            Throws.InvalidOperationException.And.Message.EqualTo("Already done"));
     }
 
     [Test]
-    public void TriggerTests_AlreadyDone_NoChange()
+    public void TriggerTests_AlreadyDone_Throws()
     {
         // Arrange
         var referenceRoot = new BuildReference("REF-build", 100);
-        var onDemandRoot = RequestBuildReference.Create(new JobName("CUSTOM-build"))
-            .Trigger(200);
+        var commit = RandomData.NextSha1();
+        var rootBuildNumber = RandomData.NextBuildNumber;
+        var onDemandRoot = RequestRootBuildReference.Queue(new JobName("CUSTOM-build"), commit)
+            .DoneQueued(rootBuildNumber);
         // Should be DoneTriggered but we need invalid state for full code coverage
 
         var buildDiff = new RequestBuildDiff(new JobName("REF-test"), new JobName("CUSTOM-test"))
-            .TriggerOnDemand(300)
-            .DoneOnDemand();
+            .QueueOnDemand()
+            .DoneOnDemand(300);
         
         var chainDiff = new ChainDiff(
             ChainStatus.Done,
             referenceRoot,
             onDemandRoot,
             [buildDiff]);
-
-        var commit = RandomData.NextSha1();
-        var triggerCalled = false;
         
         // Act
-        var result = chainDiff.TriggerTests(commit, (jobName, sha) =>
-        {
-            triggerCalled = true;
-            return Task.FromResult(RandomData.NextBuildNumber);
-        });
+        Assert.That(() => chainDiff.TriggerTests(rootBuildNumber, (_, _) => Task.FromException<int>(new NotImplementedException())),
+            Throws.InvalidOperationException.And.Message.EqualTo("Already done"));
+    }
 
-        // Assert
-        Assert.That(triggerCalled, Is.False, "Trigger function should not be called for already done builds");
-        Assert.That(result.Status, Is.EqualTo(ChainStatus.TestsTriggered));
-        
-        // Verify the build diff remains unchanged
-        var testBuildDiff = result.TestBuildDiffs.Single();
-        testBuildDiff.OnDemandBuild.Match(
-            onPending: _ => Assert.Fail("Build should not be pending"),
-            onTriggered: _ => Assert.Fail("Build should be done, not triggered"),
-            onDone: build =>
-            {
-                Assert.That(build.JobName.Value, Is.EqualTo("CUSTOM-test"));
-                Assert.That(build.BuildNumber, Is.EqualTo(300));
-            });
+    [Test]
+    public void TriggerTests_Coverage_InvalidState()
+    {
+        var referenceRoot = new BuildReference("REF-build", 100);
+        var commit = RandomData.NextSha1();
+        var rootBuildNumber = RandomData.NextBuildNumber;
+        var onDemandRoot = RequestRootBuildReference.Queue(new JobName("CUSTOM-build"), commit);
+
+        var buildDiff1 = new RequestBuildDiff(new JobName("REF-test1"), new JobName("CUSTOM-test1")).QueueOnDemand();
+        var buildDiff2 = new RequestBuildDiff(new JobName("REF-test1"), new JobName("CUSTOM-test1")).QueueOnDemand().DoneOnDemand(RandomData.NextBuildNumber);
+
+        var chainDiff = new ChainDiff(
+            ChainStatus.RootTriggered, // Should be TestsTriggered but we need invalid state for full code coverage
+            referenceRoot,
+            onDemandRoot,
+            [buildDiff1, buildDiff2]);
+
+        chainDiff.TriggerTests(rootBuildNumber, (_, _) => Task.FromException<int>(new InvalidOperationException()));
     }
 
     [Test]
@@ -99,13 +81,13 @@ internal sealed class ChainDiffTests
     {
         // Arrange
         var referenceRoot = new BuildReference("REF-build", 100);
-        var onDemandRoot = RequestBuildReference.Create(new JobName("CUSTOM-build"))
-            .Trigger(200)
-            .DoneTriggered();
+        var commit = RandomData.NextSha1();
+        var onDemandRoot = RequestRootBuildReference.Queue(new JobName("CUSTOM-build"), commit)
+            .DoneQueued(200);
 
         var buildDiff = new RequestBuildDiff(new JobName("REF-test"), new JobName("CUSTOM-test"))
-            .TriggerOnDemand(300)
-            .DoneOnDemand();
+            .QueueOnDemand()
+            .DoneOnDemand(300);
 
         var chainDiff = new ChainDiff(
             ChainStatus.Done,

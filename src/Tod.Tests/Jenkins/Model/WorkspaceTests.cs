@@ -1,6 +1,7 @@
 ﻿using Moq;
 using NUnit.Framework;
 using System.Diagnostics;
+using Tod.Git;
 using Tod.Jenkins;
 using Tod.Tests.IO;
 
@@ -10,7 +11,7 @@ namespace Tod.Tests.Jenkins;
 internal sealed class WorkspaceTests
 {
     [Test]
-    public void SerializationRoundTrip_Works()
+    public async Task SerializationRoundTrip_Works()
     {
         using (Assert.EnterMultipleScope())
         using (var temp = new TempDirectory())
@@ -57,12 +58,21 @@ internal sealed class WorkspaceTests
                 new OnDemandRequests(Path.Combine(temp.Path, "requests"))
             );
             var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["integration"]);
-            var requestState = RequestState.New(
-                request,
-                new BuildReference("MAIN-build", 1),
-                new BuildReference("CUSTOM-build", 42),
-                [new RequestBuildDiff(new("MAIN-test"), new("CUSTOM-test"))]
+
+            var chain = new RequestChain(
+                new BuildReference(new JobName("MAIN-build"), 1),
+                RequestRootBuildReference.Queue(new JobName("CUSTOM-build"), request.Commit),
+                [
+                    new RequestBuildDiff(
+                        new JobName("MAIN-test"),
+                        new JobName("CUSTOM-test")
+                    ),
+                ]
             );
+            Func<JobName, Sha1, Task> triggerRootBuild = (_, _) => Task.CompletedTask;
+            Func<JobName, int, Task> triggerTestBuild = (_, _) => Task.CompletedTask;
+            var requestState = await RequestState.New(request, [chain], onDemandBuilds, triggerRootBuild, triggerTestBuild).ConfigureAwait(false);
+
             workspace.OnDemandRequests.Add(requestState);
             var onDemandRootBuild = new RootBuild(
                 new JobName("CUSTOM-build"),

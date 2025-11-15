@@ -170,7 +170,7 @@ internal static class BranchReferenceExtensions
         Sha1[] commits,
         RootName[] rootNames,
         IFilterManager filterManager,
-        [NotNullWhen(true)] out RootDiff[] rootDiffs,
+        [NotNullWhen(true)] out JobDiff[] rootDiffs,
         [NotNullWhen(true)] out BranchName? branchName,
         [NotNullWhen(true)] out Sha1? refCommit)
     {
