@@ -2,18 +2,36 @@
 
 internal interface IFilterManager
 {
-    JobDiff[] GetRootDiffs(RootName[] rootNames, BranchName referenceBranch);
+    JobDiff[] GetRootDiffs(string[] requestFilters, BranchName referenceBranch);
     JobDiff[] GetTestBuildDiffs(string[] requestFilters, BranchName referenceBranch);
 }
 
 internal sealed class FilterManager(JenkinsConfig config, JobGroups jobGroups) : IFilterManager
 {
-    public JobDiff[] GetRootDiffs(RootName[] rootNames, BranchName referenceBranch)
+    public JobDiff[] GetRootDiffs(string[] requestFilters, BranchName referenceBranch)
     {
+        var filters = new List<RootFilter>();
+        var unknownFilters = new List<string>();
+        foreach (var filter in requestFilters)
+        {
+            if (config.TryGetRootFilter(filter, out var rootFilter))
+            {
+                filters.Add(rootFilter);
+            }
+            else
+            {
+                unknownFilters.Add(filter);
+            }
+        }
+        if (unknownFilters.Count > 0)
+        {
+            throw new InvalidOperationException($"Unknown test filter{(unknownFilters.Count > 1 ? "s" : "")}: {string.Join(", ", unknownFilters.Select(f => $"'{f}'"))}");
+        }
+
         var rootDiffs = new List<JobDiff>();
         foreach (var (name, group) in jobGroups.ByRoot)
         {
-            if (!rootNames.Contains(name))
+            if (!filters.Any(f => f.Matches(name)))
             {
                 continue;
             }
@@ -32,7 +50,7 @@ internal sealed class FilterManager(JenkinsConfig config, JobGroups jobGroups) :
         var unknownFilters = new List<string>();
         foreach (var filter in requestFilters)
         {
-            if (config.TryGetFilter(filter, out var testFilter))
+            if (config.TryGetTestFilter(filter, out var testFilter))
             {
                 filters.Add(testFilter);
             }

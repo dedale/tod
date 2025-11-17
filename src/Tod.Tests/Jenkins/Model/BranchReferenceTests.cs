@@ -512,7 +512,7 @@ internal sealed class BranchReferenceTests
     {
         using (Assert.EnterMultipleScope())
         {
-            var rootNames = new[] { new RootName("Job") };
+            var rootFilters = new[] { "Job" };
             var mainJob = new JobName("MainJob");
 
             using var mocks = StoreMocks.New()
@@ -535,9 +535,9 @@ internal sealed class BranchReferenceTests
             var onDemandJob = new JobName("CustomJob");
             var expectedRootDiffs = new[] { new JobDiff(mainJob, onDemandJob) };
             var filterManager = new Mock<IFilterManager>(MockBehavior.Strict);
-            filterManager.Setup(f => f.GetRootDiffs(rootNames, mainBranchRef.BranchName)).Returns(expectedRootDiffs);
+            filterManager.Setup(f => f.GetRootDiffs(rootFilters, mainBranchRef.BranchName)).Returns(expectedRootDiffs);
 
-            var result = branchReferences.TryGuessBranch(commits, rootNames, filterManager.Object, out var rootDiffs, out var foundBranch, out var foundRefCommit);
+            var result = branchReferences.TryGuessBranch(commits, rootFilters, filterManager.Object, out var rootDiffs, out var foundBranch, out var foundRefCommit);
 
             Assert.That(result, Is.True);
             Assert.That(rootDiffs, Is.EquivalentTo(expectedRootDiffs));
@@ -551,7 +551,7 @@ internal sealed class BranchReferenceTests
     {
         using (Assert.EnterMultipleScope())
         {
-            var rootNames = new[] { new RootName("Job") };
+            var rootFilters = new[] { "Job" };
             var mainJob = new JobName("MainJob");
 
             using var mocks = StoreMocks.New()
@@ -570,9 +570,9 @@ internal sealed class BranchReferenceTests
             var onDemandJob = new JobName("CustomJob");
             var expectedRootDiffs = new[] { new JobDiff(mainJob, onDemandJob) };
             var filterManager = new Mock<IFilterManager>(MockBehavior.Strict);
-            filterManager.Setup(f => f.GetRootDiffs(rootNames, mainBranchRef.BranchName)).Returns(expectedRootDiffs);
+            filterManager.Setup(f => f.GetRootDiffs(rootFilters, mainBranchRef.BranchName)).Returns(expectedRootDiffs);
 
-            var result = branchReferences.TryGuessBranch(commits, rootNames, filterManager.Object, out var rootDiffs, out var foundBranch, out var foundRefCommit);
+            var result = branchReferences.TryGuessBranch(commits, rootFilters, filterManager.Object, out var rootDiffs, out var foundBranch, out var foundRefCommit);
 
             Assert.That(result, Is.False);
             Assert.That(foundBranch, Is.Null);

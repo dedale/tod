@@ -33,8 +33,11 @@ internal sealed class NewOptions : BaseOptions
     [Option('b', "branch", Required = false, HelpText = "Reference branch")]
     public string? BranchName { get; set; }
 
-    [Option('f', "filters", Required = true, HelpText = "Filter names")]
-    public IEnumerable<string> Filters { get; set; }
+    [Option('r', "root-filters", Required = true, HelpText = "Root filter names")]
+    public IEnumerable<string> RootFilters { get; set; }
+
+    [Option('t', "test-filters", Required = true, HelpText = "Test filter names")]
+    public IEnumerable<string> TestFilters { get; set; }
 
     [Option('u', "user-token", Required = true, HelpText = "User token for Jenkins authentication")]
     public string UserToken { get; set; }

@@ -32,12 +32,12 @@ internal sealed class JenkinsConfigTests
             new OnDemandJobConfig("CUSTOM-(?<root>build)", true),
             new OnDemandJobConfig("CUSTOM-(?<test>.*)", false),
         };
-        var filters = new[]
+        var testFilters = new[]
         {
             new TestFilter("tests", "^tests$", "tests"),
             new TestFilter("integration", "^integration-tests$", "tests"),
         };
-        var config = JenkinsConfig.New("http://localhost:8080", jobNames: jobs, referenceJobs: refJobConfigs, onDemandJobs: onDemandJobConfigs, filters: filters);
+        var config = JenkinsConfig.New("http://localhost:8080", jobNames: jobs, referenceJobs: refJobConfigs, onDemandJobs: onDemandJobConfigs, testFilters: testFilters);
         var path = Path.Combine(temp.Path, "jenkins_config.json");
         try
         {
@@ -49,7 +49,8 @@ internal sealed class JenkinsConfigTests
                 Assert.That(reloaded.JobNames, Is.EquivalentTo(config.JobNames));
                 Assert.That(reloaded.ReferenceJobs, Is.EquivalentTo(config.ReferenceJobs));
                 Assert.That(reloaded.OnDemandJobs, Is.EquivalentTo(config.OnDemandJobs));
-                Assert.That(reloaded.Filters, Is.EquivalentTo(config.Filters));
+                Assert.That(reloaded.RootFilters, Is.EquivalentTo(config.RootFilters));
+                Assert.That(reloaded.TestFilters, Is.EquivalentTo(config.TestFilters));
             }
         }
         finally

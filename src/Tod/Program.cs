@@ -43,7 +43,7 @@ internal static class Program
         var commits = gitRepo.GetLastCommits(50);
         var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
         var wantedBranch = options.BranchName is not null ? new BranchName(options.BranchName) : null;
-        var rootNames = new[] { new RootName("build") };
+        var rootFilters = options.RootFilters.ToArray();
 
         var config = JenkinsConfig.Load(options.ConfigPath);
         var jenkinsClient = new JenkinsClient(config, options.UserToken);
@@ -57,7 +57,7 @@ internal static class Program
         Sha1 refCommit;
         if (wantedBranch != null)
         {
-            rootDiffs = filterManager.GetRootDiffs(rootNames, wantedBranch);
+            rootDiffs = filterManager.GetRootDiffs(rootFilters, wantedBranch);
             var rootJobNames = rootDiffs.Select(d => d.ReferenceJob).ToArray();
             if (!workspace.BranchReferences.TryFindRefCommit(commits, rootJobNames, wantedBranch, out var commit))
             {
@@ -68,7 +68,7 @@ internal static class Program
         }
         else
         {
-            if (!workspace.BranchReferences.TryGuessBranch(commits, rootNames, filterManager, out rootDiffs, out var branchName, out var commit))
+            if (!workspace.BranchReferences.TryGuessBranch(commits, rootFilters, filterManager, out rootDiffs, out var branchName, out var commit))
             {
                 return 1;
             }
@@ -78,7 +78,7 @@ internal static class Program
 
         var reportSender = new ReportSender(new RequestReportBuilder());
         var requestManager = new RequestManager(workspace, filterManager, jenkinsClient, reportSender);
-        var request = Request.Create(commits.First(), refCommit, refBranch, [.. options.Filters]);
+        var request = Request.Create(commits.First(), refCommit, refBranch, [.. options.TestFilters]);
         await requestManager.Register(request, rootDiffs).ConfigureAwait(false);
         return 0;
     }

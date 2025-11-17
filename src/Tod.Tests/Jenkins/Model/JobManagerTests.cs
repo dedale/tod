@@ -1,5 +1,6 @@
 ﻿using Moq;
 using NUnit.Framework;
+using System.Diagnostics;
 using Tod.Jenkins;
 
 namespace Tod.Tests.Jenkins;
@@ -45,6 +46,7 @@ internal sealed class JobManagerTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(result, Is.Not.Null);
+            Debug.Assert(result != null);
 
             // Root group validation
             Assert.That(result.ByRoot, Has.Count.EqualTo(1));

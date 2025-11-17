@@ -168,7 +168,7 @@ internal static class BranchReferenceExtensions
     public static bool TryGuessBranch(
         this IEnumerable<BranchReference> branchReferences,
         Sha1[] commits,
-        RootName[] rootNames,
+        string[] rootFilters,
         IFilterManager filterManager,
         [NotNullWhen(true)] out JobDiff[] rootDiffs,
         [NotNullWhen(true)] out BranchName? branchName,
@@ -177,7 +177,7 @@ internal static class BranchReferenceExtensions
         Log.Information("No branch specified, guessing...");
         foreach (var branchReference in branchReferences)
         {
-            rootDiffs = filterManager.GetRootDiffs(rootNames, branchReference.BranchName);
+            rootDiffs = filterManager.GetRootDiffs(rootFilters, branchReference.BranchName);
             var jobNames = rootDiffs.Select(d => d.ReferenceJob).ToArray();
             if (TryFindRefCommit(commits, jobNames, branchReference, out refCommit))
             {

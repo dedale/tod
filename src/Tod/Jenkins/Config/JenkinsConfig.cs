@@ -44,6 +44,31 @@ internal sealed record TriggerConfig(OnDemandJobKind JobKind, TriggerParameter P
     }
 }
 
+internal sealed class RootFilter(string name, string pattern)
+{
+    private readonly Regex _regex = new(pattern);
+
+    public string Name { get; } = name;
+    public string Pattern { get; } = pattern;
+
+    public override bool Equals(object? obj)
+    {
+        return obj is RootFilter filter &&
+               Name == filter.Name &&
+               Pattern == filter.Pattern;
+    }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(Name, Pattern);
+    }
+
+    public bool Matches(RootName rootName)
+    {
+        return _regex.IsMatch(rootName.Value);
+    }
+}
+
 internal sealed class TestFilter(string name, string pattern, string group)
 {
     private readonly Regex _regex = new(pattern);
@@ -73,10 +98,11 @@ internal sealed class TestFilter(string name, string pattern, string group)
 
 internal sealed class JenkinsConfig
 {
-    private readonly Dictionary<string, TestFilter> _filtersByName;
+    private readonly Dictionary<string, RootFilter> _rootFilterByName;
+    private readonly Dictionary<string, TestFilter> _testFilterByName;
 
     public JenkinsConfig(string url)
-        : this(url, [], [], [], [], [], [])
+        : this(url, [], [], [], [], [], [], [])
     {
     }
 
@@ -88,7 +114,8 @@ internal sealed class JenkinsConfig
         ReferenceJobConfig[] referenceJobs,
         OnDemandJobConfig[] onDemandJobs,
         TriggerConfig[] triggerConfigs,
-        TestFilter[] filters)
+        RootFilter[] rootFilters,
+        TestFilter[] testFilters)
     {
         Url = url;
         MultiBranchFolders = multiBranchFolders;
@@ -96,8 +123,10 @@ internal sealed class JenkinsConfig
         ReferenceJobs = referenceJobs;
         OnDemandJobs = onDemandJobs;
         TriggerConfigs = triggerConfigs;
-        Filters = filters;
-        _filtersByName = filters.ToDictionary(f => f.Name);
+        RootFilters = rootFilters;
+        _rootFilterByName = RootFilters.ToDictionary(f => f.Name);
+        TestFilters = testFilters;
+        _testFilterByName = testFilters.ToDictionary(f => f.Name);
     }
 
     public static JenkinsConfig New(
@@ -107,7 +136,8 @@ internal sealed class JenkinsConfig
         ReferenceJobConfig[]? referenceJobs = null,
         OnDemandJobConfig[]? onDemandJobs = null,
         TriggerConfig[]? triggerConfigs = null,
-        TestFilter[]? filters = null
+        RootFilter[]? rootFilters = null,
+        TestFilter[]? testFilters = null
     )
     {
         return new JenkinsConfig(
@@ -117,7 +147,8 @@ internal sealed class JenkinsConfig
             referenceJobs ?? [],
             onDemandJobs ?? [],
             triggerConfigs ?? [],
-            filters ?? []
+            rootFilters ?? [],
+            testFilters ?? []
         );
     }
 
@@ -127,11 +158,17 @@ internal sealed class JenkinsConfig
     public ReferenceJobConfig[] ReferenceJobs { get; }
     public OnDemandJobConfig[] OnDemandJobs { get; }
     public TriggerConfig[] TriggerConfigs { get; }
-    public TestFilter[] Filters { get; }
+    public RootFilter[] RootFilters { get; }
+    public TestFilter[] TestFilters { get; }
 
-    public bool TryGetFilter(string name, [NotNullWhen(true)] out TestFilter? filter)
+    public bool TryGetRootFilter(string name, [NotNullWhen(true)] out RootFilter? filter)
     {
-        return _filtersByName.TryGetValue(name, out filter);
+        return _rootFilterByName.TryGetValue(name, out filter);
+    }
+
+    public bool TryGetTestFilter(string name, [NotNullWhen(true)] out TestFilter? filter)
+    {
+        return _testFilterByName.TryGetValue(name, out filter);
     }
 
     private static readonly JsonSerializerOptions s_jsonOptions = GetJsonOptions();

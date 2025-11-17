@@ -107,11 +107,11 @@ internal sealed class WorkspaceTests
             new OnDemandJobConfig("CUSTOM-(?<root>build)", true),
             new OnDemandJobConfig("CUSTOM-(?<test>.*)", false),
         };
-        var filters = new[]
+        var testFilters = new[]
         {
             new TestFilter("tests", "^tests$", "tests"),
         };
-        var config = JenkinsConfig.New("http://localhost:8080", referenceJobs: refJobConfigs, onDemandJobs: onDemandJobConfigs, filters: filters);
+        var config = JenkinsConfig.New("http://localhost:8080", referenceJobs: refJobConfigs, onDemandJobs: onDemandJobConfigs, testFilters: testFilters);
         var jenkinsClient = new Mock<IJenkinsClient>(MockBehavior.Strict);
         jenkinsClient.Setup(x => x.GetJobNames(config.MultiBranchFolders)).ReturnsAsync(
         [

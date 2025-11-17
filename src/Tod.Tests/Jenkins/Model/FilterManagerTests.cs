@@ -12,14 +12,18 @@ internal sealed class FilterManagerTests
 
     private static FilterManager GetFilterManager()
     {
-        var filters = new TestFilter[]
+        var rootFilters = new RootFilter[]
+        {
+            new("build", "build"),
+        };
+        var testFilters = new TestFilter[]
         {
             new("integration", "integration", "tests"),
             new("empty1", "unmatched1", "tests"),
             new("empty2", "unmatched2", "tests"),
             new("prod", "production-tests", "tests"),
         };
-        var _config = JenkinsConfig.New("http://localhost:8080", filters: filters);
+        var _config = JenkinsConfig.New("http://localhost:8080", rootFilters: rootFilters, testFilters: testFilters);
 
         var referenceJobByBranch = new Dictionary<BranchName, JobName> { [_mainBranch] = new("MAIN-build") };
         var rootGroup = new JobGroup(referenceJobByBranch, new("CUSTOM-build"));
@@ -96,10 +100,10 @@ internal sealed class FilterManagerTests
     {
         // Arrange
         var manager = GetFilterManager();
-        var rootNames = new[] { new RootName("build") };
+        var rootFilters = new[] { "build" };
 
         // Act
-        var rootDiffs = manager.GetRootDiffs(rootNames, _mainBranch);
+        var rootDiffs = manager.GetRootDiffs(rootFilters, _mainBranch);
 
         // Assert
         Assert.That(rootDiffs, Has.Length.EqualTo(1));
@@ -108,17 +112,13 @@ internal sealed class FilterManagerTests
     }
 
     [Test]
-    public void GetRootDiffs_WithNonMatchingRootName_ReturnsEmpty()
+    public void GetRootDiffs_WithNonMatchingRootName_Throws()
     {
-        // Arrange
         var manager = GetFilterManager();
-        var rootNames = new[] { new RootName("nonexistent") };
+        var rootFilters = new[] { "nonexistent" };
 
-        // Act
-        var rootDiffs = manager.GetRootDiffs(rootNames, _mainBranch);
-
-        // Assert
-        Assert.That(rootDiffs, Is.Empty);
+        Assert.That(() => manager.GetRootDiffs(rootFilters, _mainBranch),
+            Throws.InvalidOperationException.And.Message.EqualTo("Unknown test filter: 'nonexistent'"));
     }
 
     [Test]
@@ -126,10 +126,10 @@ internal sealed class FilterManagerTests
     {
         // Arrange
         var manager = GetFilterManager();
-        var rootNames = Array.Empty<RootName>();
+        var rootFilters = Array.Empty<string>();
 
         // Act
-        var rootDiffs = manager.GetRootDiffs(rootNames, _mainBranch);
+        var rootDiffs = manager.GetRootDiffs(rootFilters, _mainBranch);
 
         // Assert
         Assert.That(rootDiffs, Is.Empty);
@@ -140,11 +140,11 @@ internal sealed class FilterManagerTests
     {
         // Arrange
         var manager = GetFilterManager();
-        var rootNames = new[] { new RootName("build") };
+        var rootFilters = new[] { "build" };
         var invalidBranch = new BranchName("nonexistent-branch");
 
         // Act & Assert
-        Assert.That(() => manager.GetRootDiffs(rootNames, invalidBranch),
+        Assert.That(() => manager.GetRootDiffs(rootFilters, invalidBranch),
             Throws.InvalidOperationException.With.Message.EqualTo("No reference job for 'nonexistent-branch' branch in test group"));
     }
 
@@ -165,13 +165,13 @@ internal sealed class FilterManagerTests
         };
         var byTest = new Dictionary<TestName, JobGroup>();
         var jobGroups = new JobGroups(byRoot, byTest);
-        var config = new JenkinsConfig("http://localhost:8080");
+        var config = JenkinsConfig.New("http://localhost:8080", rootFilters: [new("build", "build"), new("deploy", "deploy"), new("package", "package")]);
         var manager = new FilterManager(config, jobGroups);
 
-        var rootNames = new[] { new RootName("build"), new RootName("deploy"), new RootName("package") };
+        var rootFilters = new[] { "build", "deploy", "package" };
 
         // Act
-        var rootDiffs = manager.GetRootDiffs(rootNames, _mainBranch);
+        var rootDiffs = manager.GetRootDiffs(rootFilters, _mainBranch);
 
         // Assert
         Assert.That(rootDiffs, Has.Length.EqualTo(3));
@@ -180,9 +180,8 @@ internal sealed class FilterManagerTests
     }
 
     [Test]
-    public void GetRootDiffs_WithPartialMatch_ReturnsOnlyMatchingRootDiffs()
+    public void GetRootDiffs_WithPartialMatch_Throws()
     {
-        // Arrange
         var referenceJobByBranch = new Dictionary<BranchName, JobName> { [_mainBranch] = new("MAIN-build") };
         var rootGroup1 = new JobGroup(referenceJobByBranch, new("CUSTOM-build"));
         var rootGroup2 = new JobGroup(new Dictionary<BranchName, JobName> { [_mainBranch] = new("MAIN-deploy") }, new("CUSTOM-deploy"));
@@ -197,15 +196,10 @@ internal sealed class FilterManagerTests
         var config = new JenkinsConfig("http://localhost:8080");
         var manager = new FilterManager(config, jobGroups);
 
-        var rootNames = new[] { new RootName("build"), new RootName("nonexistent") };
+        var rootFilters = new[] { "build", "nonexistent" };
 
-        // Act
-        var rootDiffs = manager.GetRootDiffs(rootNames, _mainBranch);
-
-        // Assert
-        Assert.That(rootDiffs, Has.Length.EqualTo(1));
-        Assert.That(rootDiffs[0].ReferenceJob.Value, Is.EqualTo("MAIN-build"));
-        Assert.That(rootDiffs[0].OnDemandJob.Value, Is.EqualTo("CUSTOM-build"));
+        Assert.That(() => manager.GetRootDiffs(rootFilters, _mainBranch),
+            Throws.InvalidOperationException.And.Message.EqualTo("Unknown test filters: 'build', 'nonexistent'"));
     }
 
     [Test]
@@ -226,13 +220,13 @@ internal sealed class FilterManagerTests
         };
         var byTest = new Dictionary<TestName, JobGroup>();
         var jobGroups = new JobGroups(byRoot, byTest);
-        var config = new JenkinsConfig("http://localhost:8080");
+        var config = JenkinsConfig.New("http://localhost:8080", rootFilters: [new("build", "build")]);
         var manager = new FilterManager(config, jobGroups);
 
-        var rootNames = new[] { new RootName("build") };
+        var rootFilters = new[] { "build" };
 
         // Act - Test with main branch
-        var mainRootDiffs = manager.GetRootDiffs(rootNames, _mainBranch);
+        var mainRootDiffs = manager.GetRootDiffs(rootFilters, _mainBranch);
 
         // Assert
         Assert.That(mainRootDiffs, Has.Length.EqualTo(1));
@@ -240,7 +234,7 @@ internal sealed class FilterManagerTests
         Assert.That(mainRootDiffs[0].OnDemandJob.Value, Is.EqualTo("CUSTOM-build"));
 
         // Act - Test with prod branch
-        var prodRootDiffs = manager.GetRootDiffs(rootNames, _prodBranch);
+        var prodRootDiffs = manager.GetRootDiffs(rootFilters, _prodBranch);
 
         // Assert
         Assert.That(prodRootDiffs, Has.Length.EqualTo(1));
@@ -253,10 +247,10 @@ internal sealed class FilterManagerTests
     {
         // Arrange
         var manager = GetFilterManager();
-        var rootNames = new[] { new RootName("build"), new RootName("build") };
+        var rootFilters = new[] {"build", "build" };
 
         // Act
-        var rootDiffs = manager.GetRootDiffs(rootNames, _mainBranch);
+        var rootDiffs = manager.GetRootDiffs(rootFilters, _mainBranch);
 
         // Assert
         Assert.That(rootDiffs, Has.Length.EqualTo(1));
@@ -327,7 +321,13 @@ internal sealed class FilterManagerTests
             new("CUSTOM-(?<root>.*build)", true),
             new("CUSTOM-(?<test>.*-tests-.*)", false),
         };
-        var filters = new TestFilter[]
+        var rootFilters = new RootFilter[]
+        {
+            new("FrontEnd", "FrontEnd"),
+            new("Core", "Core"),
+            new("BackEnd", "BackEnd"),
+        };
+        var testFilters = new TestFilter[]
         {
             new("FrontEnd", "FrontEnd", "team"),
             new("Core", "Core", "team"),
@@ -339,7 +339,7 @@ internal sealed class FilterManagerTests
             new("net6", "net6", "framework"),
             new("net8", "net8", "framework"),
         };
-        var config = JenkinsConfig.New("http://localhost:8080", referenceJobs: referenceJobs, onDemandJobs: onDemandJobs, filters: filters);
+        var config = JenkinsConfig.New("http://localhost:8080", referenceJobs: referenceJobs, onDemandJobs: onDemandJobs, rootFilters: rootFilters, testFilters: testFilters);
         var jobGroups = JobManager.TryLoad(config, jobs);
         Debug.Assert(jobGroups is not null);
         return new FilterManager(config, jobGroups);
@@ -349,10 +349,10 @@ internal sealed class FilterManagerTests
     public void GetRootDiffs_ComplexCase_WithBuildRoot_ReturnsCorrectDiff()
     {
         // Arrange
-        var rootNames = new[] { new RootName("Core-build") };
+        var rootFilters = new[] { "Core" };
 
         // Act
-        var rootDiffs = s_complexManager.GetRootDiffs(rootNames, _mainBranch);
+        var rootDiffs = s_complexManager.GetRootDiffs(rootFilters, _mainBranch);
 
         // Assert
         Assert.That(rootDiffs, Has.Length.EqualTo(1));
@@ -364,10 +364,10 @@ internal sealed class FilterManagerTests
     public void GetRootDiffs_ComplexCase_WithProdBranch_ReturnsCorrectDiff()
     {
         // Arrange
-        var rootNames = new[] { new RootName("Core-build") };
+        var rootFilters = new[] { "Core" };
 
         // Act
-        var rootDiffs = s_complexManager.GetRootDiffs(rootNames, _prodBranch);
+        var rootDiffs = s_complexManager.GetRootDiffs(rootFilters, _prodBranch);
 
         // Assert
         Assert.That(rootDiffs, Has.Length.EqualTo(1));
