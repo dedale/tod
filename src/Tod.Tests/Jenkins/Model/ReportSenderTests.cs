@@ -1,6 +1,5 @@
 ﻿using Moq;
 using NUnit.Framework;
-using Tod.Git;
 using Tod.Jenkins;
 using Tod.Tests.IO;
 
@@ -46,9 +45,8 @@ internal sealed class ReportSenderTests
             )
         };
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
-        Func<JobName, Sha1, Task> triggerRootBuild = (job, commit) => Task.CompletedTask;
-        Func<JobName, int, Task> triggerTestBuild = (job, buildNumber) => Task.CompletedTask;
-        return RequestState.New(request, chains, onDemandBuilds, triggerRootBuild, triggerTestBuild);
+        Func<OnDemandJobKind, JobName, TriggerParameters, Task> triggerBuild = (_, _, _) => Task.CompletedTask;
+        return RequestState.New(request, chains, onDemandBuilds, triggerBuild);
     }
 
     private Workspace GetWorkspace(IReferenceStore referenceStore, IOnDemandStore onDemandStore)

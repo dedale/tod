@@ -1,8 +1,6 @@
 ﻿using Moq;
 using NUnit.Framework;
-using System.Text.Json;
 using System.Text.Json.Serialization;
-using Tod.Git;
 using Tod.Jenkins;
 
 namespace Tod.Tests.Jenkins;
@@ -50,24 +48,19 @@ internal sealed class TestReport(TestSuite[] suites)
     public TestSuite[] Suites { get; } = suites;
 }
 
-internal static class JenkinsMocks
-{
-    public static Dictionary<string, string> RefSpecParameter(Sha1 commit)
-    {
-        return It.Is<Dictionary<string, string>>(d => d.Count == 1 && d["REFSPEC"] == commit.Value);
-    }
-
-    public static Dictionary<string, string> SelectorParameter(int rootNumber)
-    {
-        return It.Is<Dictionary<string, string>>(d => d.Count == 1 && d["UPSTREAM_BUILD_SELECTOR"] == $"<SpecificBuildSelector><buildNumber>{rootNumber}</buildNumber></SpecificBuildSelector>");
-    }
-}
-
 [TestFixture]
 internal sealed class JenkinsClientTests
 {
     private static readonly string s_url = "http://localhost:8080";
-    private static readonly JenkinsConfig s_config = new(s_url);
+    private static readonly JenkinsConfig s_config = GetConfig();
+
+    private static JenkinsConfig GetConfig()
+    {
+        return JenkinsConfig.New(s_url, triggerConfigs: [
+            new TriggerConfig(OnDemandJobKind.Root, TriggerParameter.GitRef, "REFSPEC"),
+            new TriggerConfig(OnDemandJobKind.Test, TriggerParameter.BuildSelector, "UPSTREAM_BUILD_SELECTOR"),
+        ]);
+    }
 
     [Test]
     public void TestConstructor()
@@ -331,7 +324,7 @@ internal sealed class JenkinsClientTests
     }
 
     [Test]
-    public async Task TestTriggerBuild()
+    public async Task TriggerBuild_Root()
     {
         var jobName = new JobName("MyBuild");
         var commit = RandomData.NextSha1();
@@ -344,13 +337,35 @@ internal sealed class JenkinsClientTests
         apiClient.Setup(c => c.Dispose());
         using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
         {
-            await client.TriggerRootBuild(jobName, commit).ConfigureAwait(false);
+            var parameters = new TriggerParameters(commit, null);
+            await client.TriggerBuild(OnDemandJobKind.Root, jobName, parameters).ConfigureAwait(false);
         }
         apiClient.VerifyAll();
     }
 
     [Test]
-    public void TestTriggerBuild_NotInQueue()
+    public async Task TriggerBuild_Test()
+    {
+        var jobName = new JobName("MyBuild");
+        var rootBuildNumber = RandomData.NextBuildNumber;
+        var selector = $"<SpecificBuildSelector><buildNumber>{rootBuildNumber}</buildNumber></SpecificBuildSelector>";
+        var location = $"{s_url}/queue/item/123/";
+        var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
+        apiClient
+            .Setup(c => c.PostAsync($"{s_url}/crumbIssuer/api/json", $"{s_url}/{jobName.UrlPath}/buildWithParameters?UPSTREAM_BUILD_SELECTOR={Uri.EscapeDataString(selector)}"))
+            .ReturnsAsync(location);
+        var queueUrl = location + "api/json";
+        apiClient.Setup(c => c.Dispose());
+        using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
+        {
+            var parameters = new TriggerParameters(RandomData.NextSha1(), rootBuildNumber);
+            await client.TriggerBuild(OnDemandJobKind.Test, jobName, parameters).ConfigureAwait(false);
+        }
+        apiClient.VerifyAll();
+    }
+
+    [Test]
+    public void TriggerBuild_NotInQueue()
     {
         var jobName = new JobName("MyBuild");
         var commit = RandomData.NextSha1();
@@ -361,7 +376,8 @@ internal sealed class JenkinsClientTests
         apiClient.Setup(c => c.Dispose());
         using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
         {
-            Assert.That(async () => await client.TriggerRootBuild(jobName, commit).ConfigureAwait(false),
+            var parameters = new TriggerParameters(commit, null);
+            Assert.That(async () => await client.TriggerBuild(OnDemandJobKind.Root, jobName, parameters).ConfigureAwait(false),
                 Throws.InvalidOperationException.With.Message.EqualTo("Missing queue local header in response"));
         }
         apiClient.VerifyAll();

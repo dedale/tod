@@ -1,5 +1,4 @@
 ﻿using NUnit.Framework;
-using Tod.Git;
 using Tod.Jenkins;
 
 namespace Tod.Tests.Jenkins;
@@ -26,9 +25,8 @@ internal sealed class RequestReportBuilderTests
             )
         };
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
-        Func<JobName, Sha1, Task> triggerRootBuild = (job, commit) => Task.CompletedTask;
-        Func<JobName, int, Task> triggerTestBuild = (job, buildNumber) => Task.CompletedTask;
-        return RequestState.New(request, chains, onDemandBuilds, triggerRootBuild, triggerTestBuild);
+        Func<OnDemandJobKind, JobName, TriggerParameters, Task> triggerBuild = (_, _, _) => Task.CompletedTask;
+        return RequestState.New(request, chains, onDemandBuilds, triggerBuild);
     }
 
     [TestCase(true, BuildStatus.Success)]
@@ -44,7 +42,7 @@ internal sealed class RequestReportBuilderTests
         // Arrange
         var onDemandRoot = new BuildReference(_onDemandBuildJob, 100);
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        requestState = requestState.TriggerTests(onDemandRoot.BuildNumber, (job, commit) => Task.FromResult(RandomData.NextBuildNumber));
+        requestState = requestState.TriggerTests(onDemandRoot.BuildNumber, job => Task.FromResult(RandomData.NextBuildNumber));
 
         var branchReference = new BranchReference(referenceStore);
         branchReference.TryAddRoot(_mainBuildJob);
@@ -129,7 +127,7 @@ internal sealed class RequestReportBuilderTests
         // Arrange
         var rootBuildNumber = RandomData.NextBuildNumber;
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        requestState = requestState.TriggerTests(rootBuildNumber, (job, buildNumber) => Task.FromResult(buildNumber));
+        requestState = requestState.TriggerTests(rootBuildNumber, job => Task.CompletedTask);
 
         var branchReference = new BranchReference(referenceStore);
         branchReference.TryAddRoot(_mainBuildJob);
@@ -168,7 +166,7 @@ internal sealed class RequestReportBuilderTests
         var onDemandTest = new BuildReference(_onDemandTestJob, RandomData.NextBuildNumber);
 
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        requestState = requestState.TriggerTests(onDemandRoot.BuildNumber, (job, buildNumber) => Task.FromResult(buildNumber))
+        requestState = requestState.TriggerTests(onDemandRoot.BuildNumber, job => Task.CompletedTask)
             .DoneOnDemandTestBuild(onDemandRoot, onDemandTest);
 
         var branchReference = new BranchReference(referenceStore);
@@ -215,7 +213,7 @@ internal sealed class RequestReportBuilderTests
 
         var requestState = await CreateRequestState(onDemandStore, referenceRoot: referenceRoot).ConfigureAwait(false);
         requestState = requestState.DoneReferenceTestBuild(referenceRoot, referenceTest)
-            .TriggerTests(onDemandRoot.BuildNumber, (job, buildNumber) => Task.FromResult(buildNumber))
+            .TriggerTests(onDemandRoot.BuildNumber, job => Task.CompletedTask)
             .DoneOnDemandTestBuild(onDemandRoot, onDemandTest);
 
         var branchReference = new BranchReference(referenceStore);
@@ -264,7 +262,7 @@ internal sealed class RequestReportBuilderTests
 
         var requestState = await CreateRequestState(onDemandStore, referenceRoot: referenceRoot).ConfigureAwait(false);
         requestState = requestState.DoneReferenceTestBuild(referenceRoot, referenceTest)
-            .TriggerTests(onDemandRoot.BuildNumber, (job, buildNumber) => Task.FromResult(buildNumber))
+            .TriggerTests(onDemandRoot.BuildNumber, job => Task.CompletedTask)
             .DoneOnDemandTestBuild(onDemandRoot, onDemandTest);
 
         var branchReference = new BranchReference(referenceStore);
@@ -345,9 +343,8 @@ internal sealed class RequestReportBuilderTests
                 [ buildDiff1, buildDiff2 ]
             )
         };
-        Func<JobName, Sha1, Task> triggerRootBuild = (job, commit) => Task.CompletedTask;
-        Func<JobName, int, Task> triggerTestBuild = (job, buildNumber) => Task.CompletedTask;
-        var requestState = await RequestState.New(request, chains, onDemandBuilds, triggerRootBuild, triggerTestBuild).ConfigureAwait(false);
+        Func<OnDemandJobKind, JobName, TriggerParameters, Task> triggerBuild = (_, _, _) => Task.CompletedTask;
+        var requestState = await RequestState.New(request, chains, onDemandBuilds, triggerBuild).ConfigureAwait(false);
 
         // Act
         var report = new RequestReportBuilder().Build(requestState, branchReference, onDemandBuilds);

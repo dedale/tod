@@ -1,6 +1,5 @@
 ﻿using Moq;
 using NUnit.Framework;
-using Tod.Git;
 using Tod.Jenkins;
 
 namespace Tod.Tests.Jenkins;

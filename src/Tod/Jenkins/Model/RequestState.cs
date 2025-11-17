@@ -45,8 +45,7 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
         Request request,
         RequestChain[] requestChains,
         OnDemandBuilds onDemandBuilds,
-        Func<JobName, Sha1, Task> triggerRootBuild,
-        Func<JobName, int, Task> triggerTestBuild
+        Func<OnDemandJobKind, JobName, TriggerParameters, Task> triggerBuild
     )
     {
         var chainDiffs = new List<ChainDiff>();
@@ -60,13 +59,15 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
             var onDemandRootBuild = onDemandRootBuilds.FirstOrDefault(r => r.IsSuccessful && r.Commits.Contains(request.Commit));
             if (onDemandRootBuild == null)
             {
-                await triggerRootBuild(rootJobName, request.Commit).ConfigureAwait(false);
+                var parameters = new TriggerParameters(request.Commit, null);
+                await triggerBuild(OnDemandJobKind.Root, rootJobName, parameters).ConfigureAwait(false);
                 onDemandRoot = requestChain.OnDemandRoot;
                 status = ChainStatus.RootTriggered;
             }
             else
             {
                 int rootBuildNumber = onDemandRootBuild.BuildNumber;
+                var parameters = new TriggerParameters(request.Commit, rootBuildNumber);
                 onDemandRoot = requestChain.OnDemandRoot.DoneQueued(rootBuildNumber);
                 var testBuildsByJobName = onDemandBuilds.TestBuilds.ToDictionary(x => x.JobName);
                 for (var i = 0; i < buildDiffs.Count; i++)
@@ -81,7 +82,7 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
                     }
                     else
                     {
-                        await triggerTestBuild(diff.OnDemandBuild.JobName, onDemandRootBuild.BuildNumber).ConfigureAwait(false);
+                        await triggerBuild(OnDemandJobKind.Test, diff.OnDemandBuild.JobName, parameters).ConfigureAwait(false);
                         buildDiffs[i] = buildDiffs[i].QueueOnDemand();
                     }
                 }
@@ -109,9 +110,9 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
         return new RequestState(Request, [.. newChains]);
     }
 
-    public RequestState TriggerTests(int rootBuildNumber, Func<JobName, int, Task> triggerTestBuild)
+    public RequestState TriggerTests(int rootBuildNumber, Func<JobName, Task> triggerBuild)
     {
-        var newChains = ChainDiffs.Select(chainDiff => chainDiff.TriggerTests(rootBuildNumber, triggerTestBuild));
+        var newChains = ChainDiffs.Select(chainDiff => chainDiff.TriggerTests(rootBuildNumber, triggerBuild));
         return new RequestState(Request, [.. newChains]);
     }
 

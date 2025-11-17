@@ -26,7 +26,7 @@ internal sealed class ChainDiffTests
             [buildDiff]);
 
         // Act
-        Assert.That(() => chainDiff.TriggerTests(rootBuildNumber, (_, _) => Task.FromException<int>(new NotImplementedException())),
+        Assert.That(() => chainDiff.TriggerTests(rootBuildNumber, _ => Task.FromException(new NotImplementedException())),
             Throws.InvalidOperationException.And.Message.EqualTo("Already done"));
     }
 
@@ -52,7 +52,7 @@ internal sealed class ChainDiffTests
             [buildDiff]);
         
         // Act
-        Assert.That(() => chainDiff.TriggerTests(rootBuildNumber, (_, _) => Task.FromException<int>(new NotImplementedException())),
+        Assert.That(() => chainDiff.TriggerTests(rootBuildNumber, _ => Task.FromException(new NotImplementedException())),
             Throws.InvalidOperationException.And.Message.EqualTo("Already done"));
     }
 
@@ -73,7 +73,7 @@ internal sealed class ChainDiffTests
             onDemandRoot,
             [buildDiff1, buildDiff2]);
 
-        chainDiff.TriggerTests(rootBuildNumber, (_, _) => Task.FromException<int>(new InvalidOperationException()));
+        chainDiff.TriggerTests(rootBuildNumber, _ => Task.FromException(new InvalidOperationException()));
     }
 
     [Test]

@@ -41,7 +41,7 @@ internal sealed class ChainDiff(ChainStatus status, BuildReference referenceRoot
         return new ChainDiff(newStatus, ReferenceRoot, OnDemandRoot, newTestDiffs);
     }
 
-    public ChainDiff TriggerTests(int rootBuildNumber, Func<JobName, int, Task> triggerTestBuild)
+    public ChainDiff TriggerTests(int rootBuildNumber, Func<JobName, Task> triggerBuild)
     {
         var newOnDemandRoot = OnDemandRoot.DoneQueued(rootBuildNumber);
         var newTestDiffs = new List<RequestBuildDiff>();
@@ -50,7 +50,7 @@ internal sealed class ChainDiff(ChainStatus status, BuildReference referenceRoot
             buildDiff.OnDemandBuild.Match(
                 onPending: async jobName =>
                 {
-                    await triggerTestBuild(jobName, rootBuildNumber).ConfigureAwait(false);
+                    await triggerBuild(jobName).ConfigureAwait(false);
                     newTestDiffs.Add(buildDiff.QueueOnDemand());
                 },
                 onQueued: _ => newTestDiffs.Add(buildDiff),

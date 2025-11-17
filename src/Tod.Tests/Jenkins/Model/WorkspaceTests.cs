@@ -1,7 +1,6 @@
 ﻿using Moq;
 using NUnit.Framework;
 using System.Diagnostics;
-using Tod.Git;
 using Tod.Jenkins;
 using Tod.Tests.IO;
 
@@ -69,9 +68,8 @@ internal sealed class WorkspaceTests
                     ),
                 ]
             );
-            Func<JobName, Sha1, Task> triggerRootBuild = (_, _) => Task.CompletedTask;
-            Func<JobName, int, Task> triggerTestBuild = (_, _) => Task.CompletedTask;
-            var requestState = await RequestState.New(request, [chain], onDemandBuilds, triggerRootBuild, triggerTestBuild).ConfigureAwait(false);
+            Func<OnDemandJobKind, JobName, TriggerParameters, Task> triggerBuild = (_, _, _) => Task.CompletedTask;
+            var requestState = await RequestState.New(request, [chain], onDemandBuilds, triggerBuild).ConfigureAwait(false);
 
             workspace.OnDemandRequests.Add(requestState);
             var onDemandRootBuild = new RootBuild(

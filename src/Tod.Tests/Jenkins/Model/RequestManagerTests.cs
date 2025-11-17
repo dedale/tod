@@ -92,9 +92,8 @@ internal sealed class RequestManagerTests
             )
         };
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
-        Func<JobName, Sha1, Task> triggerRootBuild = (job, commit) => Task.CompletedTask;
-        Func<JobName, int, Task> triggerTestBuild = (job, buildNumber) => Task.CompletedTask;
-        return RequestState.New(request, chains, onDemandBuilds, triggerRootBuild, triggerTestBuild);
+        Func<OnDemandJobKind, JobName, TriggerParameters, Task> triggerBuild = (_, _, _) => Task.CompletedTask;
+        return RequestState.New(request, chains, onDemandBuilds, triggerBuild);
     }
 
     [Test]
@@ -114,7 +113,7 @@ internal sealed class RequestManagerTests
         var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[1], _mainBranch, requestFilters);
 
         var expectedBuildNumber = RandomData.NextBuildNumber;
-        _jenkinsClient.Setup(c => c.TriggerBuild(_onDemandRootJob, JenkinsMocks.RefSpecParameter(request.Commit)))
+        _jenkinsClient.Setup(c => c.TriggerBuild(OnDemandJobKind.Root, _onDemandRootJob, It.Is<TriggerParameters>(p => p.Commit == request.Commit)))
             .Returns(Task.CompletedTask);
 
         _filterManager.Setup(m => m.GetTestBuildDiffs(requestFilters, _mainBranch))
@@ -198,7 +197,7 @@ internal sealed class RequestManagerTests
         var requestFilters = new[] { "integration" };
         var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[1], _mainBranch, requestFilters);
 
-        _jenkinsClient.Setup(c => c.TriggerBuild(_onDemandRootJob, JenkinsMocks.RefSpecParameter(request.Commit)))
+        _jenkinsClient.Setup(c => c.TriggerBuild(OnDemandJobKind.Root, _onDemandRootJob, It.Is<TriggerParameters>(p => p.Commit == request.Commit)))
             .Returns(Task.CompletedTask);
 
         _filterManager.Setup(m => m.GetTestBuildDiffs(requestFilters, _mainBranch))
@@ -320,7 +319,7 @@ internal sealed class RequestManagerTests
         );
         workspace.OnDemandBuilds.TryAdd(onDemandRootBuild);
 
-        _jenkinsClient.Setup(c => c.TriggerBuild(_onDemandRootJob, JenkinsMocks.RefSpecParameter(request.Commit)))
+        _jenkinsClient.Setup(c => c.TriggerBuild(OnDemandJobKind.Root, _onDemandRootJob, It.Is<TriggerParameters>(p => p.Commit == request.Commit)))
             .Returns(Task.CompletedTask);
 
         _filterManager.Setup(m => m.GetTestBuildDiffs(requestFilters, _mainBranch))
@@ -387,7 +386,7 @@ internal sealed class RequestManagerTests
         _filterManager.Setup(m => m.GetTestBuildDiffs(requestFilters, _mainBranch))
             .Returns([new JobDiff(_referenceTestJob, _onDemandTestJob)]);
 
-        _jenkinsClient.Setup(c => c.TriggerBuild(_onDemandTestJob, JenkinsMocks.SelectorParameter(onDemandRootBuild.BuildNumber)))
+        _jenkinsClient.Setup(c => c.TriggerBuild(OnDemandJobKind.Test, _onDemandTestJob, It.Is<TriggerParameters>(p => p.UpstreamBuildNumber == onDemandRootBuild.BuildNumber)))
             .Returns(Task.CompletedTask);
 
         var requestManager = GetRequestManager(workspace);
@@ -410,7 +409,7 @@ internal sealed class RequestManagerTests
         var workspace = GetWorkspace(onDemandStore);
         workspace.OnDemandRequests.Add(requestState);
 
-        _jenkinsClient.Setup(c => c.TriggerBuild(_onDemandTestJob, JenkinsMocks.SelectorParameter(onDemandRoot.BuildNumber)))
+        _jenkinsClient.Setup(c => c.TriggerBuild(OnDemandJobKind.Test, _onDemandTestJob, It.Is<TriggerParameters>(p => p.UpstreamBuildNumber == onDemandRoot.BuildNumber)))
             .Returns(Task.CompletedTask);
 
         var requestManager = GetRequestManager(workspace);
@@ -460,7 +459,7 @@ internal sealed class RequestManagerTests
         var requestState = await CreateRequestState(onDemandStore, referenceRoot: referenceRoot).ConfigureAwait(false);
         var testBuildNumber = RandomData.NextBuildNumber;
         var onDemandRoot = new BuildReference(_onDemandRootJob, RandomData.NextBuildNumber);
-        requestState = requestState.TriggerTests(onDemandRoot.BuildNumber, (job, refSpec) => Task.FromResult(testBuildNumber));
+        requestState = requestState.TriggerTests(onDemandRoot.BuildNumber, job => Task.FromResult(testBuildNumber));
 
         var workspace = GetWorkspace(branchReference, onDemandStore);
 

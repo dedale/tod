@@ -1,7 +1,6 @@
 ﻿using NUnit.Framework;
 using System.Diagnostics;
 using System.Text.Json;
-using Tod.Git;
 using Tod.Jenkins;
 using Tod.Tests.IO;
 
@@ -28,15 +27,14 @@ internal sealed class OnDemandRequestsTests : IDisposable
             )
         };
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
-        Func<JobName, Sha1, Task> triggerRootBuild = (job, commit) => Task.CompletedTask;
-        Func<JobName, int, Task> triggerTestBuild = (job, buildNumber) => Task.CompletedTask;
-        return RequestState.New(request, chains, onDemandBuilds, triggerRootBuild, triggerTestBuild);
+        Func<OnDemandJobKind, JobName, TriggerParameters, Task> triggerBuild = (_, _, _) => Task.CompletedTask;
+        return RequestState.New(request, chains, onDemandBuilds, triggerBuild);
     }
 
     private static async Task<RequestState> CreateRequestStateTriggered(IOnDemandStore onDemandStore)
     {
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        return requestState.TriggerTests(RandomData.NextBuildNumber, (job, refSpec) => Task.FromResult(RandomData.NextBuildNumber));
+        return requestState.TriggerTests(RandomData.NextBuildNumber, job => Task.FromResult(RandomData.NextBuildNumber));
     }
 
     private static async Task<RequestState> CreateRequestStateDone(IOnDemandStore onDemandStore, BuildReference? referenceRoot = null)
@@ -46,7 +44,7 @@ internal sealed class OnDemandRequestsTests : IDisposable
         var request = await CreateRequestState(onDemandStore, referenceRoot: referenceRoot).ConfigureAwait(false);
         var chainDiff = request.ChainDiffs[0];
         request = request
-            .TriggerTests(rootBuildNumber, (job, refSpec) => Task.FromResult(testBuildNumber))
+            .TriggerTests(rootBuildNumber, job => Task.FromResult(testBuildNumber))
             .DoneReferenceTestBuild(chainDiff.ReferenceRoot, new BuildReference(s_referenceTestJob, RandomData.NextBuildNumber))
             .DoneOnDemandTestBuild(new(s_onDemandRootJob, rootBuildNumber), new BuildReference(s_onDemandTestJob, testBuildNumber));
         Assert.That(request.IsDone, Is.True);
@@ -153,7 +151,7 @@ internal sealed class OnDemandRequestsTests : IDisposable
 
         using (var locked = _requests.ActiveRequests.Single().Lock(nameof(Update_ExistingRequest_UpdatesState)))
         {
-            locked.Update(request => request.TriggerTests(RandomData.NextBuildNumber, (job, refSpec) => Task.FromResult(RandomData.NextBuildNumber)));
+            locked.Update(request => request.TriggerTests(RandomData.NextBuildNumber, job => Task.FromResult(RandomData.NextBuildNumber)));
         }
 
         Assert.That(_requests.ActiveRequests.Single().Value.ChainDiffs[0].Status, Is.EqualTo(ChainStatus.TestsTriggered));
@@ -217,7 +215,7 @@ internal sealed class OnDemandRequestsTests : IDisposable
         var rootBuildNumber = RandomData.NextBuildNumber;
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        requestState = requestState.TriggerTests(rootBuildNumber, (job, refSpec) => Task.FromResult(RandomData.NextBuildNumber));
+        requestState = requestState.TriggerTests(rootBuildNumber, job => Task.FromResult(RandomData.NextBuildNumber));
         _requests.Add(requestState);
         var testJob = new JobName("OtherTestJob");
         Assert.That(_requests.TryGetTestQueued(new(s_onDemandRootJob, rootBuildNumber), testJob, out var foundRequest), Is.False);
@@ -231,7 +229,7 @@ internal sealed class OnDemandRequestsTests : IDisposable
         var testBuildNumber = RandomData.NextBuildNumber;
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        requestState = requestState.TriggerTests(rootBuildNumber, (job, refSpec) => Task.FromResult(testBuildNumber));
+        requestState = requestState.TriggerTests(rootBuildNumber, job => Task.FromResult(testBuildNumber));
         _requests.Add(requestState);
         Assert.That(_requests.TryGetTestQueued(new(s_onDemandRootJob, rootBuildNumber), s_onDemandTestJob, out var foundRequest), Is.True);
         Debug.Assert(foundRequest is not null);
@@ -247,7 +245,7 @@ internal sealed class OnDemandRequestsTests : IDisposable
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
         var onDemandRoot = new BuildReference(s_onDemandRootJob, RandomData.NextBuildNumber);
         requestState = requestState
-            .TriggerTests(onDemandRoot.BuildNumber, (job, refSpec) => Task.FromResult(buildNumber))
+            .TriggerTests(onDemandRoot.BuildNumber, job => Task.FromResult(buildNumber))
             .DoneOnDemandTestBuild(onDemandRoot, new BuildReference("OnDemandTest", buildNumber));
         _requests.Add(requestState);
         var testJob = new JobName("OnDemandTest");
@@ -264,9 +262,9 @@ internal sealed class OnDemandRequestsTests : IDisposable
         var testBuildNumber2 = RandomData.NextBuildNumber;
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState1 = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        requestState1 = requestState1.TriggerTests(rootBuildNumber1, (job, refSpec) => Task.FromResult(testBuildNumber1));
+        requestState1 = requestState1.TriggerTests(rootBuildNumber1, job => Task.FromResult(testBuildNumber1));
         var requestState2 = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        requestState2 = requestState2.TriggerTests(RandomData.NextBuildNumber, (job, refSpec) => Task.FromResult(testBuildNumber2));
+        requestState2 = requestState2.TriggerTests(RandomData.NextBuildNumber, job => Task.FromResult(testBuildNumber2));
         _requests.Add(requestState1);
         _requests.Add(requestState2);
         var testJob = new JobName("OnDemandTest");
@@ -385,9 +383,8 @@ internal sealed class OnDemandRequestsTests : IDisposable
             )
         };
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
-        Func<JobName, Sha1, Task> triggerRootBuild = (job, commit) => Task.CompletedTask;
-        Func<JobName, int, Task> triggerTestBuild = (job, buildNumber) => Task.CompletedTask;
-        var otherRequestState = RequestState.New(request, chains, onDemandBuilds, triggerRootBuild, triggerTestBuild);
+        Func<OnDemandJobKind, JobName, TriggerParameters, Task> triggerBuild = (_, _, _) => Task.CompletedTask;
+        var otherRequestState = RequestState.New(request, chains, onDemandBuilds, triggerBuild);
 
         var testJob = new JobName("ReferenceTest");
         using var result = _requests.GetPendingReferenceTest(referenceRoot, testJob);
@@ -415,9 +412,8 @@ internal sealed class OnDemandRequestsTests : IDisposable
             };
             using var mocks = OnDemandStoreMocks(out var onDemandStore);
             var onDemandBuilds = new OnDemandBuilds(onDemandStore);
-            Func<JobName, Sha1, Task> triggerRootBuild = (job, commit) => Task.CompletedTask;
-            Func<JobName, int, Task> triggerTestBuild = (job, buildNumber) => Task.CompletedTask;
-            var requestState = await RequestState.New(request, chains, onDemandBuilds, triggerRootBuild, triggerTestBuild);
+            Func<OnDemandJobKind, JobName, TriggerParameters, Task> triggerBuild = (_, _, _) => Task.CompletedTask;
+            var requestState = await RequestState.New(request, chains, onDemandBuilds, triggerBuild);
             _requests.Add(requestState);
 
             var json = JsonSerializer.Serialize(_requests, new JsonSerializerOptions { WriteIndented = true });

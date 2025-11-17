@@ -58,7 +58,7 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
             requestChains.Add(new RequestChain(refRootBuild, RequestRootBuildReference.Queue(onDemandJob, request.Commit), [.. testBuildDiffs]));
         }
 
-        var requestState = await RequestState.New(request, [.. requestChains], workspace.OnDemandBuilds, jenkinsClient.TriggerRootBuild, jenkinsClient.TriggerTestBuild).ConfigureAwait(false);
+        var requestState = await RequestState.New(request, [.. requestChains], workspace.OnDemandBuilds, jenkinsClient.TriggerBuild).ConfigureAwait(false);
         workspace.OnDemandRequests.Add(requestState);
 
         Log.Information("Request {RequestId} registered", request.Id);
@@ -85,7 +85,9 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
                 if (success)
                 {
                     Log.Information("{OnDemandBuild} succeeded; Triggering test builds", onDemandRoot);
-                    update = lockedRequest.Update(r => r.TriggerTests(onDemandRoot.BuildNumber, jenkinsClient.TriggerTestBuild));
+                    var triggerParameters = new TriggerParameters(commit, onDemandRoot.BuildNumber);
+                    Func<JobName, Task> triggerBuild = jobName => jenkinsClient.TriggerBuild(OnDemandJobKind.Test, jobName, triggerParameters);
+                    update = lockedRequest.Update(request => request.TriggerTests(onDemandRoot.BuildNumber, triggerBuild));
                 }
                 else
                 {

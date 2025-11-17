@@ -12,6 +12,38 @@ internal sealed record ReferenceJobConfig(string Pattern, BranchName BranchName,
 /// For test jobs, Pattern must contain a group named 'test'
 internal sealed record OnDemandJobConfig(string Pattern, bool IsRoot);
 
+internal enum OnDemandJobKind
+{
+    Root,
+    Test
+}
+
+internal enum TriggerParameter
+{
+    GitRef,
+    BuildSelector // Only build number is supported for now
+}
+
+internal sealed record TriggerConfig(OnDemandJobKind JobKind, TriggerParameter Parameter, string Name)
+{
+    public KeyValuePair<string, string> GetParameter(TriggerParameters triggerParameters)
+    {
+        switch (Parameter)
+        {
+            case TriggerParameter.GitRef:
+                return new KeyValuePair<string, string>(Name, triggerParameters.Commit.Value);
+            case TriggerParameter.BuildSelector:
+                if (triggerParameters.UpstreamBuildNumber == null)
+                {
+                    throw new InvalidOperationException("Upstream build number is required for BuildSelector trigger parameter");
+                }
+                return new KeyValuePair<string, string>(Name, $"<SpecificBuildSelector><buildNumber>{triggerParameters.UpstreamBuildNumber}</buildNumber></SpecificBuildSelector>");
+            default:
+                throw new NotSupportedException($"Unsupported trigger parameter: {Parameter}");
+        }
+    }
+}
+
 internal sealed class TestFilter(string name, string pattern, string group)
 {
     private readonly Regex _regex = new(pattern);
@@ -44,18 +76,26 @@ internal sealed class JenkinsConfig
     private readonly Dictionary<string, TestFilter> _filtersByName;
 
     public JenkinsConfig(string url)
-        : this(url, [], [], [], [], [])
+        : this(url, [], [], [], [], [], [])
     {
     }
 
     [JsonConstructor]
-    public JenkinsConfig(string url, string[] multiBranchFolders, JobName[] jobNames, ReferenceJobConfig[] referenceJobs, OnDemandJobConfig[] onDemandJobs, TestFilter[] filters)
+    public JenkinsConfig(
+        string url,
+        string[] multiBranchFolders,
+        JobName[] jobNames,
+        ReferenceJobConfig[] referenceJobs,
+        OnDemandJobConfig[] onDemandJobs,
+        TriggerConfig[] triggerConfigs,
+        TestFilter[] filters)
     {
         Url = url;
         MultiBranchFolders = multiBranchFolders;
         JobNames = jobNames;
         ReferenceJobs = referenceJobs;
         OnDemandJobs = onDemandJobs;
+        TriggerConfigs = triggerConfigs;
         Filters = filters;
         _filtersByName = filters.ToDictionary(f => f.Name);
     }
@@ -66,6 +106,7 @@ internal sealed class JenkinsConfig
         JobName[]? jobNames = null,
         ReferenceJobConfig[]? referenceJobs = null,
         OnDemandJobConfig[]? onDemandJobs = null,
+        TriggerConfig[]? triggerConfigs = null,
         TestFilter[]? filters = null
     )
     {
@@ -75,6 +116,7 @@ internal sealed class JenkinsConfig
             jobNames ?? [],
             referenceJobs ?? [],
             onDemandJobs ?? [],
+            triggerConfigs ?? [],
             filters ?? []
         );
     }
@@ -84,6 +126,7 @@ internal sealed class JenkinsConfig
     public JobName[] JobNames { get; }
     public ReferenceJobConfig[] ReferenceJobs { get; }
     public OnDemandJobConfig[] OnDemandJobs { get; }
+    public TriggerConfig[] TriggerConfigs { get; }
     public TestFilter[] Filters { get; }
 
     public bool TryGetFilter(string name, [NotNullWhen(true)] out TestFilter? filter)

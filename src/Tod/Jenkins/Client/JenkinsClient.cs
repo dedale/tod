@@ -1,8 +1,9 @@
-﻿using Serilog;
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using Tod.Git;
 
 namespace Tod.Jenkins;
+
+internal sealed record TriggerParameters(Sha1 Commit, int? UpstreamBuildNumber);
 
 internal interface IJenkinsClient
 {
@@ -12,7 +13,7 @@ internal interface IJenkinsClient
     Task<int> GetFailCount(BuildReference buildReference);
     Task<TestBuildData> GetTestData(BuildReference buildReference);
     Task<FailedTest[]> GetFailedTests(BuildReference buildReference);
-    Task TriggerBuild(JobName jobName, Dictionary<string, string> parameters);
+    Task TriggerBuild(OnDemandJobKind jobKind, JobName jobName, TriggerParameters parameters);
     Task<BuildReference?> TryGetRootBuild(BuildReference buildReference);
     Task<JobName[]> GetJobNames(string[] multiBranchFolders);
 }
@@ -168,7 +169,7 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
         return [.. failedTests];
     }
 
-    public async Task TriggerBuild(JobName jobName, Dictionary<string, string> parameters)
+    private async Task TriggerBuild(JobName jobName, Dictionary<string, string> parameters)
     {
         var crumbUrl = $"{config.Url}/crumbIssuer/api/json";
         var triggerUrl = $"{config.Url}/{jobName.UrlPath}/buildWithParameters?{string.Join("&", parameters.Select(kvp => $"{Uri.EscapeDataString(kvp.Key)}={Uri.EscapeDataString(kvp.Value)}"))}";
@@ -177,6 +178,20 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
         {
             throw new InvalidOperationException("Missing queue local header in response");
         }
+    }
+
+    public Task TriggerBuild(OnDemandJobKind jobKind, JobName jobName, TriggerParameters triggerParameters)
+    {
+        var parameters = new Dictionary<string, string>();
+        foreach (var c in config.TriggerConfigs)
+        {
+            if (c.JobKind == jobKind)
+            {
+                var kvp = c.GetParameter(triggerParameters);
+                parameters.Add(kvp.Key, kvp.Value);
+            }
+        }
+        return TriggerBuild(jobName, parameters);
     }
 
     private static readonly Regex s_copiedArtifacts = new(@"Copied \d+ artifacts from \""(?<jobName>.*)\"" build number (?<buildNumber>\d+)", RegexOptions.Compiled);
@@ -222,28 +237,5 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
     public void Dispose()
     {
         _apiClient.Dispose();
-    }
-}
-
-internal static class IJenkinsClientExtensions
-{
-    public static Task TriggerRootBuild(this IJenkinsClient jenkinsClient, JobName jobName, Sha1 commit)
-    {
-        Log.Information("Triggering {JobName} build with commit {Commit}", jobName, commit);
-        var parameters = new Dictionary<string, string>()
-        {
-            ["REFSPEC"] = commit.Value,
-        };
-        return jenkinsClient.TriggerBuild(jobName, parameters);
-    }
-
-    public static Task TriggerTestBuild(this IJenkinsClient jenkinsClient, JobName jobName, int rootBuildNumber)
-    {
-        Log.Information("Triggering {JobName} build with upstream build number #{RootBuildNumber}", jobName, rootBuildNumber);
-        var parameters = new Dictionary<string, string>()
-        {
-            ["UPSTREAM_BUILD_SELECTOR"] = $"<SpecificBuildSelector><buildNumber>{rootBuildNumber}</buildNumber></SpecificBuildSelector>",
-        };
-        return jenkinsClient.TriggerBuild(jobName, parameters);
     }
 }
