@@ -181,7 +181,7 @@ internal sealed class JenkinsSynchronizerTests
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
         for (var i = 0; i < buildCount; i++)
         {
-            handler.Setup(x => x.PostReferenceTestBuild(new BuildReference(_refRootJob, rootBuilds[i].Number), triggered[i][0]));
+            handler.Setup(x => x.PostReferenceTestBuild(new BuildReference(_refRootJob, rootBuilds[i].Number), triggered[i][0])).Returns(Task.CompletedTask);
         }
         var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
         var workspace = NewWorkspace(branchReference, _onDemandRootJob, onDemandStore);
@@ -360,7 +360,7 @@ internal sealed class JenkinsSynchronizerTests
         client.Setup(x => x.GetTestData(testRef))
             .ReturnsAsync(new TestBuildData(0, [rootRef]));
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
-        handler.Setup(x => x.PostReferenceTestBuild(rootRef, testRef));
+        handler.Setup(x => x.PostReferenceTestBuild(rootRef, testRef)).Returns(Task.CompletedTask);
         var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
         var workspace = NewWorkspace(branchReference, _onDemandRootJob, onDemandStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
@@ -395,7 +395,7 @@ internal sealed class JenkinsSynchronizerTests
             ["REFSPEC"] = commit.Value,
         });
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
-        handler.Setup(x => x.PostOnDemandRootBuild(new BuildReference(_onDemandRootJob, build.Number), commit, build.Result == BuildResult.Success));
+        handler.Setup(x => x.PostOnDemandRootBuild(new BuildReference(_onDemandRootJob, build.Number), commit, build.Result == BuildResult.Success)).Returns(Task.CompletedTask);
         var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
         var workspace = NewWorkspace(onDemandBuilds);
         await synchronizer.Update(workspace).ConfigureAwait(false);
@@ -527,7 +527,7 @@ internal sealed class JenkinsSynchronizerTests
             client.Setup(x => x.GetFailedTests(new(_onDemandTestJob1, testBuild.Number))).ReturnsAsync(failedTests);
         }
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
-        handler.Setup(x => x.PostOnDemandTestBuild(new(_onDemandRootJob, rootBuild.Number), testBuildReference));
+        handler.Setup(x => x.PostOnDemandTestBuild(new(_onDemandRootJob, rootBuild.Number), testBuildReference)).Returns(Task.CompletedTask);
         var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
         var workspace = NewWorkspace(onDemandBuilds);
         await synchronizer.Update(workspace).ConfigureAwait(false);
@@ -574,7 +574,7 @@ internal sealed class JenkinsSynchronizerTests
         client.Setup(x => x.TryGetRootBuild(new(_onDemandTestJob1, testBuild.Number))).ReturnsAsync(onDemandBuilds.RootBuilds[0][0].Reference);
         client.Setup(x => x.GetFailCount(new(_onDemandTestJob1, testBuild.Number))).ReturnsAsync(0);
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
-        handler.Setup(x => x.PostOnDemandTestBuild(new(_onDemandRootJob, rootBuild.Number), testBuildReference));
+        handler.Setup(x => x.PostOnDemandTestBuild(new(_onDemandRootJob, rootBuild.Number), testBuildReference)).Returns(Task.CompletedTask);
         var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
         var workspace = NewWorkspace(onDemandBuilds);
         await synchronizer.Update(workspace).ConfigureAwait(false);

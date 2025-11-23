@@ -118,7 +118,7 @@ internal sealed class FilterManagerTests
         var rootFilters = new[] { "nonexistent" };
 
         Assert.That(() => manager.GetRootDiffs(rootFilters, _mainBranch),
-            Throws.InvalidOperationException.And.Message.EqualTo("Unknown test filter: 'nonexistent'"));
+            Throws.InvalidOperationException.And.Message.EqualTo("Unknown root filter: 'nonexistent'"));
     }
 
     [Test]
@@ -199,7 +199,7 @@ internal sealed class FilterManagerTests
         var rootFilters = new[] { "build", "nonexistent" };
 
         Assert.That(() => manager.GetRootDiffs(rootFilters, _mainBranch),
-            Throws.InvalidOperationException.And.Message.EqualTo("Unknown test filters: 'build', 'nonexistent'"));
+            Throws.InvalidOperationException.And.Message.EqualTo("Unknown root filters: 'build', 'nonexistent'"));
     }
 
     [Test]

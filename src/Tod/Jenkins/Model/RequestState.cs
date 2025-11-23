@@ -110,10 +110,11 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
         return new RequestState(Request, [.. newChains]);
     }
 
-    public RequestState TriggerTests(BuildReference rootReference, Func<JobName, Task> triggerBuild)
+    public async Task<RequestState> TriggerTests(BuildReference rootReference, Func<JobName, Task> triggerBuild)
     {
-        var newChains = ChainDiffs.Select(chainDiff => chainDiff.TriggerTests(rootReference, triggerBuild));
-        return new RequestState(Request, [.. newChains]);
+        var newChains = ChainDiffs.Select(async chainDiff => await chainDiff.TriggerTests(rootReference, triggerBuild).ConfigureAwait(false)).ToArray();
+        await Task.WhenAll(newChains).ConfigureAwait(false);
+        return new RequestState(Request, [.. newChains.Select(t => t.Result)]);
     }
 
     public RequestState DoneOnDemandTestBuild(BuildReference rootBuild, BuildReference testBuild)

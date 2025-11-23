@@ -5,18 +5,19 @@ using Tod.Git;
 
 namespace Tod.Jenkins;
 
+internal sealed record GitReference(BranchName Branch, Sha1 Commit);
+
 internal sealed record Request
 {
     [JsonConstructor]
-    private Request(Guid id, string userName, string userEmail, DateTime createdUtc, Sha1 commit, Sha1 parentCommit, BranchName referenceBranchName, string filters)
+    private Request(Guid id, string userName, string userEmail, DateTime createdUtc, Sha1 commit, GitReference gitReference, string filters)
     {
         Id = id;
         UserName = userName;
         UserEmail = userEmail;
         CreatedUtc = createdUtc;
         Commit = commit;
-        ParentCommit = parentCommit;
-        ReferenceBranchName = referenceBranchName;
+        GitReference = gitReference;
         Filters = filters;
     }
 
@@ -32,7 +33,12 @@ internal sealed record Request
         return principal.EmailAddress;
     }
 
-    public static Request Create(Sha1 commit, Sha1 parentCommit, BranchName referenceBranchName, string[] filters, Func<string, string>? getUserEmail = null)
+    public static Request Create(Sha1 commit, Sha1 refCommit, BranchName refBranch, string[] filters, Func<string, string>? getUserEmail = null)
+    {
+        return Create(commit, new GitReference(refBranch, refCommit), filters, getUserEmail);
+    }
+
+    public static Request Create(Sha1 commit, GitReference gitReference, string[] filters, Func<string, string>? getUserEmail = null)
     {
         return new Request(
             Guid.NewGuid(),
@@ -40,8 +46,7 @@ internal sealed record Request
             (getUserEmail ?? GetUserEmail)(Environment.UserName),
             DateTime.UtcNow,
             commit,
-            parentCommit,
-            referenceBranchName,
+            gitReference,
             string.Join(";", filters)
         );
     }
@@ -51,8 +56,7 @@ internal sealed record Request
     public string UserEmail { get; }
     public DateTime CreatedUtc { get; }
     public Sha1 Commit { get; }
-    public Sha1 ParentCommit { get; }
-    public BranchName ReferenceBranchName { get; }
+    public GitReference GitReference { get; }
     public string Filters { get; }
 
     public string[] GetFilters() => Filters.Split(';', StringSplitOptions.RemoveEmptyEntries);

@@ -57,7 +57,7 @@ internal sealed class ChainDiffTests
     }
 
     [Test]
-    public void TriggerTests_OtherQueued_DoesNothing()
+    public async Task TriggerTests_OtherQueued_DoesNothing()
     {
         var referenceRoot = new BuildReference("REF-build", 100);
         var commit = RandomData.NextSha1();
@@ -69,12 +69,12 @@ internal sealed class ChainDiffTests
             referenceRoot,
             onDemandRoot,
             [buildDiff]);
-        var newChainDiff = chainDiff.TriggerTests(new BuildReference("OTHER-build", 999), _ => Task.FromException(new InvalidOperationException()));
+        var newChainDiff = await chainDiff.TriggerTests(new BuildReference("OTHER-build", 999), _ => Task.FromException(new InvalidOperationException())).ConfigureAwait(false);
         Assert.That(newChainDiff, Is.SameAs(chainDiff));
     }
 
     [Test]
-    public void TriggerTests_OtherDone_DoesNothing()
+    public async Task TriggerTests_OtherDone_DoesNothing()
     {
         var referenceRoot = new BuildReference("REF-build", 100);
         var commit = RandomData.NextSha1();
@@ -86,12 +86,12 @@ internal sealed class ChainDiffTests
             referenceRoot,
             onDemandRoot,
             [buildDiff]);
-        var newChainDiff = chainDiff.TriggerTests(new BuildReference("OTHER-build", 999), _ => Task.FromException(new InvalidOperationException()));
+        var newChainDiff = await chainDiff.TriggerTests(new BuildReference("OTHER-build", 999), _ => Task.FromException(new InvalidOperationException())).ConfigureAwait(false);
         Assert.That(newChainDiff, Is.SameAs(chainDiff));
     }
 
     [Test]
-    public void TriggerTests_Coverage_InvalidState()
+    public async Task TriggerTests_Coverage_InvalidState()
     {
         var referenceRoot = new BuildReference("REF-build", 100);
         var commit = RandomData.NextSha1();
@@ -107,7 +107,42 @@ internal sealed class ChainDiffTests
             onDemandRoot,
             [buildDiff1, buildDiff2]);
 
-        chainDiff.TriggerTests(onDemandRootRef, _ => Task.FromException(new InvalidOperationException()));
+        await chainDiff.TriggerTests(onDemandRootRef, _ => Task.FromException(new InvalidOperationException())).ConfigureAwait(false);
+    }
+
+    [Test]
+    public async Task TriggerTests_Synchronization_TriggerDone()
+    {
+        var referenceRoot = new BuildReference("REF-build", 100);
+        var commit = RandomData.NextSha1();
+        var onDemandRootRef = new BuildReference("CUSTOM-build", RandomData.NextBuildNumber);
+        var onDemandRoot = RequestRootBuildReference.Queue(onDemandRootRef.JobName, commit);
+
+        var count = 10;
+        var builDiffs = Enumerable.Range(0, count)
+            .Select(i => new RequestBuildDiff(new JobName($"REF-test{i + 1}"), new JobName($"CUSTOM-test{i + 1}")))
+            .ToList();
+
+        var chainDiff = new ChainDiff(
+            ChainStatus.RootTriggered,
+            referenceRoot,
+            onDemandRoot,
+            builDiffs);
+
+        var tcses = Enumerable.Range(0, count).Select(_ => new TaskCompletionSource<bool>()).ToArray();
+
+        async Task Trigger(JobName job)
+        {
+            await Task.Delay(5).ConfigureAwait(false);
+            var i = int.Parse(job.Value["CUSTOM-test".Length..]);
+            tcses[i - 1].SetResult(true);
+        }
+
+        await chainDiff.TriggerTests(onDemandRootRef, Trigger).ConfigureAwait(false);
+
+        Assert.That(tcses.All(tcs => tcs.Task.IsCompleted), Is.True);
+
+        await Task.WhenAll(tcses.Select(tcs => tcs.Task)).ConfigureAwait(false);
     }
 
     [Test]

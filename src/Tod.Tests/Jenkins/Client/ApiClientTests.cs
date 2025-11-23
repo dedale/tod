@@ -44,7 +44,7 @@ internal sealed class ApiClientTests
         });
 
         using var client = new ApiClient(handler, "user:token");
-        var result = await client.GetAsync("http://test.com/api");
+        var result = await client.GetAsync("http://test.com/api").ConfigureAwait(false);
         Assert.That(result.RootElement.GetProperty("key").GetString(), Is.EqualTo("value"));
     }
 
@@ -73,7 +73,7 @@ internal sealed class ApiClientTests
         });
 
         using var client = new ApiClient(handler, "user:token");
-        var result = await client.GetStringAsync("http://test.com/api");
+        var result = await client.GetStringAsync("http://test.com/api").ConfigureAwait(false);
         Assert.That(result, Is.EqualTo(response));
     }
 
@@ -104,7 +104,7 @@ internal sealed class ApiClientTests
         });
 
         using var client = new ApiClient(handler, "user:token");
-        var result = await client.PostAsync("http://test.com/crumb", "http://test.com/job/test/build");
+        var result = await client.PostAsync("http://test.com/crumb", "http://test.com/job/test/build").ConfigureAwait(false);
         Assert.That(result, Is.EqualTo("http://test.com/queue/item/123"));
     }
 
@@ -135,7 +135,7 @@ internal sealed class ApiClientTests
         });
 
         using var client = new ApiClient(handler, "user:token");
-        var result = await client.PostAsync("http://test.com/crumb", "http://test.com/job/test/build");
+        var result = await client.PostAsync("http://test.com/crumb", "http://test.com/job/test/build").ConfigureAwait(false);
         Assert.That(result, Is.Null);
     }
 }

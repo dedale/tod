@@ -12,7 +12,7 @@ internal interface ILockedJson<T> : IDisposable
     T Value { get; }
     void Save();
     DateTime LastModifiedUtc { get; }
-    T Update(Func<T, T> update);
+    Task<T> Update(Func<T, Task<T>> update);
 }
 
 internal sealed class LockedJsons<T> : IEnumerable<ILockedJson<T>>, IDisposable
@@ -112,9 +112,9 @@ internal static class LockedJsonSerializer<TValue, TSerializable>
 
         public DateTime LastModifiedUtc => File.Exists(path) ? File.GetLastWriteTimeUtc(path) : DateTime.MinValue;
 
-        public TValue Update(Func<TValue, TValue> update)
+        public async Task<TValue> Update(Func<TValue, Task<TValue>> update)
         {
-            value = update(Value);
+            value = await update(Value).ConfigureAwait(false);
             Save();
             return Value;
         }

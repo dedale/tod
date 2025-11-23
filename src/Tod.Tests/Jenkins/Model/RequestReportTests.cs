@@ -44,7 +44,7 @@ internal sealed class RequestReportBuilderTests
         // Arrange
         var onDemandRoot = new BuildReference(_onDemandBuildJob, 100);
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        requestState = requestState.TriggerTests(onDemandRoot, job => Task.FromResult(RandomData.NextBuildNumber));
+        requestState = await requestState.TriggerTests(onDemandRoot, job => Task.FromResult(RandomData.NextBuildNumber)).ConfigureAwait(false);
 
         var branchReference = new BranchReference(referenceStore);
         branchReference.TryAddRoot(_mainBuildJob);
@@ -129,7 +129,7 @@ internal sealed class RequestReportBuilderTests
         // Arrange
         var rootBuildNumber = RandomData.NextBuildNumber;
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        requestState = requestState.TriggerTests(new(_onDemandBuildJob, rootBuildNumber), job => Task.CompletedTask);
+        requestState = await requestState.TriggerTests(new(_onDemandBuildJob, rootBuildNumber), job => Task.CompletedTask).ConfigureAwait(false);
 
         var branchReference = new BranchReference(referenceStore);
         branchReference.TryAddRoot(_mainBuildJob);
@@ -168,8 +168,8 @@ internal sealed class RequestReportBuilderTests
         var onDemandTest = new BuildReference(_onDemandTestJob, RandomData.NextBuildNumber);
 
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        requestState = requestState.TriggerTests(onDemandRoot, job => Task.CompletedTask)
-            .DoneOnDemandTestBuild(onDemandRoot, onDemandTest);
+        requestState = await requestState.TriggerTests(onDemandRoot, job => Task.CompletedTask).ConfigureAwait(false);
+        requestState = requestState.DoneOnDemandTestBuild(onDemandRoot, onDemandTest);
 
         var branchReference = new BranchReference(referenceStore);
         branchReference.TryAddRoot(_mainBuildJob);
@@ -214,9 +214,9 @@ internal sealed class RequestReportBuilderTests
         var onDemandTest = new BuildReference(_onDemandTestJob, RandomData.NextBuildNumber);
 
         var requestState = await CreateRequestState(onDemandStore, referenceRoot: referenceRoot).ConfigureAwait(false);
-        requestState = requestState.DoneReferenceTestBuild(referenceRoot, referenceTest)
-            .TriggerTests(onDemandRoot, job => Task.CompletedTask)
-            .DoneOnDemandTestBuild(onDemandRoot, onDemandTest);
+        requestState = requestState.DoneReferenceTestBuild(referenceRoot, referenceTest);
+        requestState = await requestState.TriggerTests(onDemandRoot, job => Task.CompletedTask).ConfigureAwait(false);
+        requestState = requestState.DoneOnDemandTestBuild(onDemandRoot, onDemandTest);
 
         var branchReference = new BranchReference(referenceStore);
         branchReference.TryAddRoot(_mainBuildJob);
@@ -263,9 +263,9 @@ internal sealed class RequestReportBuilderTests
         var onDemandTest = new BuildReference(_onDemandTestJob, RandomData.NextBuildNumber);
 
         var requestState = await CreateRequestState(onDemandStore, referenceRoot: referenceRoot).ConfigureAwait(false);
-        requestState = requestState.DoneReferenceTestBuild(referenceRoot, referenceTest)
-            .TriggerTests(onDemandRoot, job => Task.CompletedTask)
-            .DoneOnDemandTestBuild(onDemandRoot, onDemandTest);
+        requestState = requestState.DoneReferenceTestBuild(referenceRoot, referenceTest);
+        requestState = await requestState.TriggerTests(onDemandRoot, job => Task.CompletedTask).ConfigureAwait(false);
+        requestState = requestState.DoneOnDemandTestBuild(onDemandRoot, onDemandTest);
 
         var branchReference = new BranchReference(referenceStore);
         branchReference.TryAddRoot(_mainBuildJob);

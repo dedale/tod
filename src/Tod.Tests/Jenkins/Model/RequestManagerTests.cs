@@ -415,7 +415,7 @@ internal sealed class RequestManagerTests
             .Returns(Task.CompletedTask);
 
         var requestManager = GetRequestManager(workspace);
-        requestManager.PostOnDemandRootBuild(onDemandRoot, requestState.Request.Commit, true);
+        await requestManager.PostOnDemandRootBuild(onDemandRoot, requestState.Request.Commit, true).ConfigureAwait(false);
 
         Assert.That(workspace.OnDemandRequests.ActiveRequests.Single().Value.ChainDiffs[0].Status, Is.EqualTo(ChainStatus.TestsTriggered));
     }
@@ -440,7 +440,7 @@ internal sealed class RequestManagerTests
         _reportSender.Setup(x => x.Send(It.Is<RequestState>(r => r.Request.Id == requestState.Request.Id && r.IsDone == true), It.IsAny<Workspace>()));
 
         var requestManager = GetRequestManager(workspace);
-        requestManager.PostOnDemandRootBuild(onDemandRoot, requestState.Request.Commit, false);
+        await requestManager.PostOnDemandRootBuild(onDemandRoot, requestState.Request.Commit, false).ConfigureAwait(false);
 
         Assert.That(workspace.OnDemandRequests.ActiveRequests, Is.Empty);
     }
@@ -463,7 +463,7 @@ internal sealed class RequestManagerTests
         var requestState = await CreateRequestState(onDemandStore, referenceRoot: referenceRoot).ConfigureAwait(false);
         var testBuildNumber = RandomData.NextBuildNumber;
         var onDemandRoot = new BuildReference(_onDemandRootJob, RandomData.NextBuildNumber);
-        requestState = requestState.TriggerTests(onDemandRoot, job => Task.FromResult(testBuildNumber));
+        requestState = await requestState.TriggerTests(onDemandRoot, job => Task.FromResult(testBuildNumber)).ConfigureAwait(false);
 
         var workspace = GetWorkspace(branchReference, onDemandStore);
 
@@ -479,13 +479,13 @@ internal sealed class RequestManagerTests
             {
                 var refTestBuild = RandomData.NextTestBuild(testJobName: job, rootBuild: referenceRoot);
                 Assert.That(workspace.BranchReferences.First().TryAdd(refTestBuild), Is.True);
-                requestManager.PostReferenceTestBuild(referenceRoot, refTestBuild.Reference);
+                await requestManager.PostReferenceTestBuild(referenceRoot, refTestBuild.Reference).ConfigureAwait(false);
             }
             if (job == _onDemandTestJob.Value)
             {
                 var onDemandTestBuild = RandomData.NextTestBuild(testJobName: job, buildNumber: testBuildNumber, rootBuild: onDemandRoot);
                 Assert.That(workspace.OnDemandBuilds.TryAdd(onDemandTestBuild), Is.True);
-                requestManager.PostOnDemandTestBuild(onDemandRoot, onDemandTestBuild.Reference);
+                await requestManager.PostOnDemandTestBuild(onDemandRoot, onDemandTestBuild.Reference).ConfigureAwait(false);
             }
             if (job == job1)
             {

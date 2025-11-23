@@ -176,7 +176,7 @@ internal sealed class ReportSender(IRequestReportBuilder builder, IMailSender ma
                 new XElement("li", $"Request ID: {request.Request.Id}"),
                 new XElement("li", $"Created (UTC): {request.Request.CreatedUtc}"),
                 new XElement("li", $"Commit: {request.Request.Commit}"),
-                new XElement("li", $"Ref Commit: {request.Request.ParentCommit} (on {request.Request.ReferenceBranchName})"),
+                new XElement("li", $"Ref Commit: {request.Request.GitReference.Commit} (on {request.Request.GitReference.Branch})"),
                 new XElement("li", $"Test Filters: {string.Join(" ", request.Request.GetFilters())}")
             ),
             new XElement("h2", "Chain Reports"),
@@ -195,7 +195,7 @@ internal sealed class ReportSender(IRequestReportBuilder builder, IMailSender ma
 
     public void Send(RequestState request, Workspace workspace)
     {
-        var branchReference = workspace.BranchReferences.Single(r => r.BranchName == request.Request.ReferenceBranchName);
+        var branchReference = workspace.BranchReferences.Single(r => r.BranchName == request.Request.GitReference.Branch);
         var report = builder.Build(request, branchReference, workspace.OnDemandBuilds);
         Send(request, report);
     }

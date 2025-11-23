@@ -211,7 +211,7 @@ internal sealed class JenkinsClientTests
         using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
         {
             var failCount = await client.GetFailCount(new(jobName, buildNumber)).ConfigureAwait(false);
-            Assert.That(failCount, Is.EqualTo(0));
+            Assert.That(failCount, Is.Zero);
         }
         apiClient.VerifyAll();
     }
@@ -512,8 +512,9 @@ internal sealed class JenkinsClientTests
                 actions = new[] {
                     new {
                         parameters = new[] {
-                            new { name = "PARAM1", value = "Value1" },
-                            new { name = "PARAM2", value = "Value2" },
+                            new { name = "PARAM1", value = (object)"Value1" },
+                            new { name = "PARAM2", value = (object)"Value2" },
+                            new { name = "PARAM3", value = (object)456 },
                         }
                     }
                 }
@@ -526,6 +527,7 @@ internal sealed class JenkinsClientTests
             {
                 { "PARAM1", "Value1" },
                 { "PARAM2", "Value2" },
+                { "PARAM3", "456" },
             };
             Assert.That(parameters, Is.EquivalentTo(expectedParameters));
         }

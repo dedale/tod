@@ -41,10 +41,10 @@ internal sealed class ChainDiff(ChainStatus status, BuildReference referenceRoot
         return new ChainDiff(newStatus, ReferenceRoot, OnDemandRoot, newTestDiffs);
     }
 
-    public ChainDiff TriggerTests(BuildReference rootReference, Func<JobName, Task> triggerBuild)
+    public Task<ChainDiff> TriggerTests(BuildReference rootReference, Func<JobName, Task> triggerBuild)
     {
         return OnDemandRoot.Match(
-            onQueued: (job, _) =>
+            onQueued: async (job, _) =>
             {
                 if (rootReference.JobName.Equals(job))
                 {
@@ -52,15 +52,22 @@ internal sealed class ChainDiff(ChainStatus status, BuildReference referenceRoot
                     var newTestDiffs = new List<RequestBuildDiff>();
                     foreach (var buildDiff in testBuildDiffs)
                     {
-                        buildDiff.OnDemandBuild.Match(
+                        await buildDiff.OnDemandBuild.Match(
                             onPending: async jobName =>
                             {
                                 await triggerBuild(jobName).ConfigureAwait(false);
                                 newTestDiffs.Add(buildDiff.QueueOnDemand());
                             },
-                            onQueued: _ => newTestDiffs.Add(buildDiff),
-                            onDone: _ => newTestDiffs.Add(buildDiff)
-                        );
+                            onQueued: _ =>
+                            {
+                                newTestDiffs.Add(buildDiff);
+                                return Task.CompletedTask;
+                            },
+                            onDone: _ => {
+                                newTestDiffs.Add(buildDiff);
+                                return Task.CompletedTask;
+                            }
+                        ).ConfigureAwait(false);
                     }
                     return new ChainDiff(ChainStatus.TestsTriggered, ReferenceRoot, newOnDemandRoot, newTestDiffs);
                 }
@@ -72,7 +79,7 @@ internal sealed class ChainDiff(ChainStatus status, BuildReference referenceRoot
                 {
                     throw new InvalidOperationException("Already done");
                 }
-                return this;
+                return Task.FromResult(this);
             }
         );
     }

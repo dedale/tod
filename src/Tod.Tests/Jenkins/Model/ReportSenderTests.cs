@@ -198,7 +198,7 @@ internal sealed class ReportSenderTests
         var onDemandTest = new BuildReference(_onDemandTestJob, RandomData.NextBuildNumber);
 
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        requestState.TriggerTests(onDemandRoot, _ => Task.CompletedTask);
+        await requestState.TriggerTests(onDemandRoot, _ => Task.CompletedTask).ConfigureAwait(false);
         var workspace = GetWorkspace(referenceStore, onDemandStore);
 
         var buildDiffResult = new BuildDiffResult(

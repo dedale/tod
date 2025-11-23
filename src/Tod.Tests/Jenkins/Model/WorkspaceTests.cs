@@ -1,6 +1,7 @@
 ﻿using Moq;
 using NUnit.Framework;
 using System.Diagnostics;
+using Tod.Git;
 using Tod.Jenkins;
 using Tod.Tests.IO;
 
@@ -58,7 +59,7 @@ internal sealed class WorkspaceTests
                 onDemandBuilds,
                 new OnDemandRequests(Path.Combine(temp.Path, "requests"))
             );
-            var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["integration"], GetUserEmail);
+            var request = Request.Create(RandomData.NextSha1(), new(new("main"), RandomData.NextSha1()), ["integration"], GetUserEmail);
 
             var chain = new RequestChain(
                 new BuildReference(new JobName("MAIN-build"), 1),
@@ -157,5 +158,101 @@ internal sealed class WorkspaceTests
         Assert.That(branchReferences[0].TestBuilds[0].JobName.Value, Is.EqualTo("MAIN-tests"));
         Assert.That(workspace.OnDemandBuilds.TestBuilds, Has.Count.EqualTo(1));
         Assert.That(workspace.OnDemandBuilds.TestBuilds[0].JobName.Value, Is.EqualTo("CUSTOM-tests"));
+    }
+
+    [Test]
+    public async Task GetGitReference_WithWantedBranch_Found()
+    {
+        using var temp = new TempDirectory();
+        var jobGroups = await GetJobGroups().ConfigureAwait(false);
+        var workspace = Workspace.New(temp.Path, jobGroups);
+        var config = JenkinsConfig.New("http://localhost:8080", rootFilters: [new RootFilter("build", "^build$")]);
+        var filterManager = new FilterManager(config, jobGroups);
+        var wantedBranch = new BranchName("main");
+        var rootFilters = new string[] { "build" };
+        var commits = new Sha1[] { RandomData.NextSha1(), RandomData.NextSha1(), };
+        var rootBuild = RandomData.NextRootBuild(
+            jobName: "MAIN-build",
+            buildNumber: RandomData.NextBuildNumber,
+            isSuccessful: true,
+            commits: 1
+        );
+        rootBuild.Commits[0] = commits[1];
+        workspace.BranchReferences.First().TryAdd(rootBuild);
+        var gitReference = workspace.GetGitReference(filterManager, wantedBranch, rootFilters, commits, out var rootDiffs);
+        Assert.That(gitReference, Is.Not.Null);
+        Debug.Assert(gitReference is not null);
+        Assert.That(gitReference.Branch, Is.EqualTo(wantedBranch));
+        Assert.That(rootDiffs, Has.Length.EqualTo(1));
+        Assert.That(rootDiffs[0].ReferenceJob.Value, Is.EqualTo("MAIN-build"));
+    }
+
+    [Test]
+    public async Task GetGitReference_WithWantedBranch_NotFound()
+    {
+        using var temp = new TempDirectory();
+        var jobGroups = await GetJobGroups().ConfigureAwait(false);
+        var workspace = Workspace.New(temp.Path, jobGroups);
+        var config = JenkinsConfig.New("http://localhost:8080", rootFilters: [new RootFilter("build", "^build$")]);
+        var filterManager = new FilterManager(config, jobGroups);
+        var wantedBranch = new BranchName("main");
+        var rootFilters = new string[] { "build" };
+        var commits = new Sha1[] { RandomData.NextSha1(), RandomData.NextSha1(), };
+        var rootBuild = RandomData.NextRootBuild(
+            jobName: "MAIN-build",
+            buildNumber: RandomData.NextBuildNumber,
+            isSuccessful: true,
+            commits: 1
+        );
+        workspace.BranchReferences.First().TryAdd(rootBuild);
+        var gitReference = workspace.GetGitReference(filterManager, wantedBranch, rootFilters, commits, out var rootDiffs);
+        Assert.That(gitReference, Is.Null);
+    }
+
+    [Test]
+    public async Task GetGitReference_WithoutWantedBranch_Found()
+    {
+        using var temp = new TempDirectory();
+        var jobGroups = await GetJobGroups().ConfigureAwait(false);
+        var workspace = Workspace.New(temp.Path, jobGroups);
+        var config = JenkinsConfig.New("http://localhost:8080", rootFilters: [new RootFilter("build", "^build$")]);
+        var filterManager = new FilterManager(config, jobGroups);
+        var rootFilters = new string[] { "build" };
+        var commits = new Sha1[] { RandomData.NextSha1(), RandomData.NextSha1(), };
+        var rootBuild = RandomData.NextRootBuild(
+            jobName: "MAIN-build",
+            buildNumber: RandomData.NextBuildNumber,
+            isSuccessful: true,
+            commits: 1
+        );
+        rootBuild.Commits[0] = commits[1];
+        workspace.BranchReferences.First().TryAdd(rootBuild);
+        var gitReference = workspace.GetGitReference(filterManager, null, rootFilters, commits, out var rootDiffs);
+        Assert.That(gitReference, Is.Not.Null);
+        Debug.Assert(gitReference is not null);
+        Assert.That(gitReference.Branch.Value, Is.EqualTo("main"));
+        Assert.That(rootDiffs, Has.Length.EqualTo(1));
+        Assert.That(rootDiffs[0].ReferenceJob.Value, Is.EqualTo("MAIN-build"));
+    }
+
+    [Test]
+    public async Task GetGitReference_WithoutWantedBranch_NotFound()
+    {
+        using var temp = new TempDirectory();
+        var jobGroups = await GetJobGroups().ConfigureAwait(false);
+        var workspace = Workspace.New(temp.Path, jobGroups);
+        var config = JenkinsConfig.New("http://localhost:8080", rootFilters: [new RootFilter("build", "^build$")]);
+        var filterManager = new FilterManager(config, jobGroups);
+        var rootFilters = new string[] { "build" };
+        var commits = new Sha1[] { RandomData.NextSha1(), RandomData.NextSha1(), };
+        var rootBuild = RandomData.NextRootBuild(
+            jobName: "MAIN-build",
+            buildNumber: RandomData.NextBuildNumber,
+            isSuccessful: true,
+            commits: 1
+        );
+        workspace.BranchReferences.First().TryAdd(rootBuild);
+        var gitReference = workspace.GetGitReference(filterManager, null, rootFilters, commits, out var rootDiffs);
+        Assert.That(gitReference, Is.Null);
     }
 }

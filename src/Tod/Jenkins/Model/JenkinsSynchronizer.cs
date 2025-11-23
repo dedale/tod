@@ -29,21 +29,23 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     build.GetCommits(),
                     scheduled
                 );
+
+                Log.Information("Adding root build {RootBuild} ({IsSuccessful})", rootBuild, rootBuild.IsSuccessful ? "Success" : "Failure");
+                rootBuilds.TryAdd(rootBuild);
+
                 // Reference root builds are always done when creating requests, so no need to post them here
                 if (onDemand)
                 {
                     var parameters = await jenkinsClient.GetBuildParameters(new(rootBuilds.JobName, build.Number)).ConfigureAwait(false);
                     if (parameters.TryGetValue("REFSPEC", out var value))
                     {
-                        postBuildHandler.PostOnDemandRootBuild(rootBuild.Reference, new Sha1(value), rootBuild.IsSuccessful);
+                        await postBuildHandler.PostOnDemandRootBuild(rootBuild.Reference, new Sha1(value), rootBuild.IsSuccessful).ConfigureAwait(false);
                     }
                     else
                     {
                         Log.Warning("On-demand root build {RootBuild} is missing REFSPEC parameter (cannot trigger test builds)", rootBuild.Reference);
                     }
                 }
-                Log.Information("Adding root build {RootBuild} ({IsSuccessful})", rootBuild, rootBuild.IsSuccessful ? "Success" : "Failure");
-                rootBuilds.TryAdd(rootBuild);
             }
         }
     }
@@ -83,13 +85,15 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     testData.UpstreamBuilds,
                     failedTests
                 );
-                foreach (var rootBuild in testBuild.RootBuilds)
-                {
-                    postBuildHandler.PostReferenceTestBuild(rootBuild, testBuild.Reference);
-                }
+
                 Log.Information("Adding test build {JobName} #{BuildNumber} ({IsSuccessful})",
                     testBuild.JobName, testBuild.BuildNumber, testBuild.IsSuccessful ? "Success" : $"{testData.FailCount} failed tests");
                 testBuilds.TryAdd(testBuild);
+
+                foreach (var rootBuild in testBuild.RootBuilds)
+                {
+                    await postBuildHandler.PostReferenceTestBuild(rootBuild, testBuild.Reference).ConfigureAwait(false);
+                }
             }
         }
     }
@@ -134,13 +138,15 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     [rootBuild],
                     failedTests
                 );
-                postBuildHandler.PostOnDemandTestBuild(rootBuild, testBuild.Reference);
+
                 var info = testBuild.IsSuccessful ? "Success" : $"{failCount} failed test{(failCount == 1 ? "" : "s")}";
                 Log.Information("Adding test build {JobName} #{BuildNumber} ({Info})",
                     testBuild.JobName,
                     testBuild.BuildNumber,
                     info);
                 testBuilds.TryAdd(testBuild);
+
+                await postBuildHandler.PostOnDemandTestBuild(rootBuild, testBuild.Reference).ConfigureAwait(false);
             }
         }
     }

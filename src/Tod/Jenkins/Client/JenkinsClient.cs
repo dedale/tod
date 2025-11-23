@@ -51,7 +51,15 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
                 foreach (var parameter in parametersProperty.EnumerateArray())
                 {
                     var name = parameter.GetProperty("name").GetString()!;
-                    var value = parameter.GetProperty("value").GetString()!;
+                    string value;
+                    try
+                    {
+                        value = parameter.GetProperty("value").GetString()!;
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        value = parameter.GetProperty("value").GetRawText();
+                    }
                     parameters.Add(name, value);
                 }
             }
@@ -93,6 +101,7 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
             if (match.Success)
             {
                 var triggeredJobName = match.Groups["jobName"].Value;
+                // Careful: short job name in log when triggered (not scheduled)
                 var triggeredBuildNumber = int.Parse(match.Groups["buildNumber"].Value);
                 triggeredBuilds.Add(new BuildReference(new JobName(triggeredJobName), triggeredBuildNumber));
             }
@@ -205,7 +214,7 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
             var match = s_copiedArtifacts.Match(line);
             if (match.Success)
             {
-                var rootJobName = match.Groups["jobName"].Value;
+                var rootJobName = match.Groups["jobName"].Value.Replace(" » ", "/");
                 var rootBuildNumber = int.Parse(match.Groups["buildNumber"].Value);
                 return new BuildReference(new JobName(rootJobName), rootBuildNumber);
             }

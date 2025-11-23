@@ -41,7 +41,7 @@ internal static class Program
 
     private static async Task<int> New(NewOptions options)
     {
-        using var gitRepo = new GitRepo();
+        using var gitRepo = new GitRepo(Environment.CurrentDirectory);
         var commits = gitRepo.GetLastCommits(50);
         var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
         var wantedBranch = options.BranchName is not null ? new BranchName(options.BranchName) : null;
@@ -54,34 +54,16 @@ internal static class Program
         Debug.Assert(jobGroups is not null);
         var filterManager = new FilterManager(config, jobGroups);
 
-        JobDiff[] rootDiffs;
-        BranchName refBranch;
-        Sha1 refCommit;
-        if (wantedBranch != null)
+        var gitReference = workspace.GetGitReference(filterManager, wantedBranch, rootFilters, commits, out var rootDiffs);
+        if (gitReference == null)
         {
-            rootDiffs = filterManager.GetRootDiffs(rootFilters, wantedBranch);
-            var rootJobNames = rootDiffs.Select(d => d.ReferenceJob).ToArray();
-            if (!workspace.BranchReferences.TryFindRefCommit(commits, rootJobNames, wantedBranch, out var commit))
-            {
-                return 1;
-            }
-            refBranch = wantedBranch;
-            refCommit = commit!;
-        }
-        else
-        {
-            if (!workspace.BranchReferences.TryGuessBranch(commits, rootFilters, filterManager, out rootDiffs, out var branchName, out var commit))
-            {
-                return 1;
-            }
-            refBranch = branchName;
-            refCommit = commit;
+            return 1;
         }
 
         var mailSender = new MailSender(config.MailConfig);
         var reportSender = new ReportSender(new RequestReportBuilder(), mailSender);
         var requestManager = new RequestManager(workspace, filterManager, jenkinsClient, reportSender);
-        var request = Request.Create(commits.First(), refCommit, refBranch, [.. options.TestFilters]);
+        var request = Request.Create(commits.First(), gitReference, [.. options.TestFilters]);
         await requestManager.Register(request, rootDiffs).ConfigureAwait(false);
         return 0;
     }

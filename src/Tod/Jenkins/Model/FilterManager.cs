@@ -25,7 +25,7 @@ internal sealed class FilterManager(JenkinsConfig config, JobGroups jobGroups) :
         }
         if (unknownFilters.Count > 0)
         {
-            throw new InvalidOperationException($"Unknown test filter{(unknownFilters.Count > 1 ? "s" : "")}: {string.Join(", ", unknownFilters.Select(f => $"'{f}'"))}");
+            throw new InvalidOperationException($"Unknown root filter{(unknownFilters.Count > 1 ? "s" : "")}: {string.Join(", ", unknownFilters.Select(f => $"'{f}'"))}");
         }
 
         var rootDiffs = new List<JobDiff>();

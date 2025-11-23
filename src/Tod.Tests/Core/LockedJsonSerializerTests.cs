@@ -170,7 +170,7 @@ internal sealed class LockedJsonSerializerTests
                 {
                     RequestTestBuildReference.Create(new JobName("AdditionalJob"))
                 };
-                return new Dummy(newReferences);
+                return Task.FromResult(new Dummy(newReferences));
             });
         }
         using (var lockedJson = LockedDummy.Load(path, "Load updated"))

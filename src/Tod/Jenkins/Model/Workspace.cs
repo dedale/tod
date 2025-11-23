@@ -1,4 +1,7 @@
-﻿namespace Tod.Jenkins;
+﻿
+using Tod.Git;
+
+namespace Tod.Jenkins;
 
 internal sealed class Workspace(List<BranchReference> branchReferences, OnDemandBuilds onDemandBuilds, OnDemandRequests onDemandRequests)
 {
@@ -78,5 +81,30 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
         var onDemandBuilds = new OnDemandBuilds(workspaceStore.OnDemandStore);
         var onDemandRequests = new OnDemandRequests(Path.Combine(dir, "Requests"));
         return new Workspace(branchReferences, onDemandBuilds, onDemandRequests);
+    }
+}
+
+internal static class WorkspaceExtensions
+{
+    public static GitReference? GetGitReference(this Workspace workspace, FilterManager filterManager, BranchName? wantedBranch, string[] rootFilters, Sha1[] commits, out JobDiff[] rootDiffs)
+    {
+        if (wantedBranch != null)
+        {
+            rootDiffs = filterManager.GetRootDiffs(rootFilters, wantedBranch);
+            var rootJobNames = rootDiffs.Select(d => d.ReferenceJob).ToArray();
+            if (!workspace.BranchReferences.TryFindRefCommit(commits, rootJobNames, wantedBranch, out var commit))
+            {
+                return null;
+            }
+            return new GitReference(wantedBranch, commit);
+        }
+        else
+        {
+            if (!workspace.BranchReferences.TryGuessBranch(commits, rootFilters, filterManager, out rootDiffs, out var branchName, out var commit))
+            {
+                return null;
+            }
+            return new GitReference(branchName, commit);
+        }
     }
 }

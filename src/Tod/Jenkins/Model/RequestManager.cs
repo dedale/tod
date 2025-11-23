@@ -5,9 +5,9 @@ namespace Tod.Jenkins;
 
 internal interface IPostBuildHandler
 {
-    void PostOnDemandRootBuild(BuildReference rootBuild, Sha1 commit, bool success);
-    void PostOnDemandTestBuild(BuildReference rootBuild, BuildReference testBuild);
-    void PostReferenceTestBuild(BuildReference rootBuild, BuildReference testBuild);
+    Task PostOnDemandRootBuild(BuildReference rootBuild, Sha1 commit, bool success);
+    Task PostOnDemandTestBuild(BuildReference rootBuild, BuildReference testBuild);
+    Task PostReferenceTestBuild(BuildReference rootBuild, BuildReference testBuild);
 }
 
 internal sealed class RequestManager(Workspace workspace, IFilterManager filterManager, IJenkinsClient jenkinsClient, IReportSender reportSender) : IPostBuildHandler
@@ -15,35 +15,35 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
     public async Task Register(Request request, JobDiff[] rootDiffs)
     {
         Log.Information("Registering new request {RequestId} for commit {Commit} on branch {Branch}",
-            request.Id, request.Commit, request.ReferenceBranchName);
+            request.Id, request.Commit, request.GitReference.Branch);
 
-        var branchReference = workspace.BranchReferences.FirstOrDefault(r => r.BranchName == request.ReferenceBranchName);
+        var branchReference = workspace.BranchReferences.FirstOrDefault(r => r.BranchName == request.GitReference.Branch);
         if (branchReference == null)
         {
-            Log.Error("Cannot use branch {Branch} for reference - branch not found", request.ReferenceBranchName);
-            throw new InvalidOperationException($"Cannot use '{request.ReferenceBranchName}' branch for reference");
+            Log.Error("Cannot use branch {Branch} for reference - branch not found", request.GitReference.Branch);
+            throw new InvalidOperationException($"Cannot use '{request.GitReference.Branch}' branch for reference");
         }
 
         var roots = new List<(JobName ReferenceJob, BuildReference RootBuild, JobName OnDemandJob)>();
         foreach (var rootDiff in rootDiffs)
         {
-            if (branchReference.TryFindRootBuildByCommit(request.ParentCommit, rootDiff.ReferenceJob, out var rootBuild))
+            if (branchReference.TryFindRootBuildByCommit(request.GitReference.Commit, rootDiff.ReferenceJob, out var rootBuild))
             {
                 roots.Add((rootDiff.ReferenceJob, rootBuild.Reference, rootDiff.OnDemandJob));
-                Log.Debug("Found reference root build {RootBuild} for parent commit {Commit}", rootBuild, request.ParentCommit);
+                Log.Debug("Found reference root build {RootBuild} for parent commit {Commit}", rootBuild, request.GitReference.Commit);
             }
             else
             {
                 Log.Error("Unknown parent commit {Commit} in branch {Branch} for job {JobName}",
-                    request.ParentCommit, request.ReferenceBranchName, rootDiff.ReferenceJob);
-                throw new InvalidOperationException($"Unknown parent commit '{request.ParentCommit}' for job '{rootDiff.ReferenceJob}'");
+                    request.GitReference.Commit, request.GitReference.Branch, rootDiff.ReferenceJob);
+                throw new InvalidOperationException($"Unknown parent commit '{request.GitReference.Commit}' for job '{rootDiff.ReferenceJob}'");
             }
         }
 
         var requestChains = new List<RequestChain>();
         foreach (var (refRootJob, refRootBuild, onDemandJob) in roots)
         {
-            var testJobDiffs = filterManager.GetTestBuildDiffs(request.GetFilters(), request.ReferenceBranchName);
+            var testJobDiffs = filterManager.GetTestBuildDiffs(request.GetFilters(), request.GitReference.Branch);
             var testBuildDiffs = new List<RequestBuildDiff>(testJobDiffs.Length);
             for (var i = 0; i < testJobDiffs.Length; i++)
             {
@@ -71,7 +71,7 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
         }
     }
 
-    public void PostOnDemandRootBuild(BuildReference onDemandRoot, Sha1 commit, bool success)
+    public async Task PostOnDemandRootBuild(BuildReference onDemandRoot, Sha1 commit, bool success)
     {
         // Protection to handle custom builds triggered manually outside requests
         if (workspace.OnDemandRequests.TryGetRootQueued(onDemandRoot.JobName, commit, out var lockedRequest))
@@ -87,12 +87,12 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
                     Log.Information("{OnDemandBuild} succeeded; Triggering test builds", onDemandRoot);
                     var triggerParameters = new TriggerParameters(commit, onDemandRoot.BuildNumber);
                     Func<JobName, Task> triggerBuild = jobName => jenkinsClient.TriggerBuild(OnDemandJobKind.Test, jobName, triggerParameters);
-                    update = lockedRequest.Update(request => request.TriggerTests(onDemandRoot, triggerBuild));
+                    update = await lockedRequest.Update(async request => await request.TriggerTests(onDemandRoot, triggerBuild).ConfigureAwait(false));
                 }
                 else
                 {
                     Log.Information("{OnDemandBuild} failed; Aborting request", onDemandRoot);
-                    update = lockedRequest.Update(r => r.AbortChain(onDemandRoot.JobName));
+                    update = await lockedRequest.Update(r => Task.FromResult(r.AbortChain(onDemandRoot.JobName))).ConfigureAwait(false);
 
                     if (update.IsDone)
                     {
@@ -110,7 +110,7 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
         }
     }
 
-    public void PostReferenceTestBuild(BuildReference rootBuild, BuildReference testBuild)
+    public async Task PostReferenceTestBuild(BuildReference rootBuild, BuildReference testBuild)
     {
         using var lockedRequests = workspace.OnDemandRequests.GetPendingReferenceTest(rootBuild, testBuild.JobName);
 
@@ -121,7 +121,7 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
 
         foreach (var lockedRequest in lockedRequests)
         {
-            var update = lockedRequest.Update(r => r.DoneReferenceTestBuild(rootBuild, testBuild));
+            var update = await lockedRequest.Update(r => Task.FromResult(r.DoneReferenceTestBuild(rootBuild, testBuild))).ConfigureAwait(false);
 
             Log.Debug("Updated request {RequestId} with reference test build {TestBuild}", update.Request.Id, testBuild);
 
@@ -132,7 +132,7 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
         }
     }
 
-    public void PostOnDemandTestBuild(BuildReference rootBuild, BuildReference testBuild)
+    public async Task PostOnDemandTestBuild(BuildReference rootBuild, BuildReference testBuild)
     {
         if (workspace.OnDemandRequests.TryGetTestQueued(rootBuild, testBuild.JobName, out var lockedRequest))
         {
@@ -140,7 +140,7 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
             {
                 Log.Information("On-demand test build {TestBuild} completed for request {RequestId}", testBuild, lockedRequest.Value.Request.Id);
 
-                var update = lockedRequest.Update(r => r.DoneOnDemandTestBuild(rootBuild, testBuild));
+                var update = await lockedRequest.Update(r => Task.FromResult(r.DoneOnDemandTestBuild(rootBuild, testBuild))).ConfigureAwait(false);
 
                 if (update.IsDone)
                 {
