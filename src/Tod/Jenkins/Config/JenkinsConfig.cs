@@ -96,13 +96,21 @@ internal sealed class TestFilter(string name, string pattern, string group)
     }
 }
 
+internal sealed class MailConfig(string from, string smtpHost)
+{
+    public string From { get; } = from;
+    public string SmtpHost { get; } = smtpHost;
+}
+
 internal sealed class JenkinsConfig
 {
+    private static readonly MailConfig s_emptyMailConfig = new(string.Empty, string.Empty);
+
     private readonly Dictionary<string, RootFilter> _rootFilterByName;
     private readonly Dictionary<string, TestFilter> _testFilterByName;
 
     public JenkinsConfig(string url)
-        : this(url, [], [], [], [], [], [], [])
+        : this(url, [], [], [], [], [], [], [], s_emptyMailConfig)
     {
     }
 
@@ -115,7 +123,8 @@ internal sealed class JenkinsConfig
         OnDemandJobConfig[] onDemandJobs,
         TriggerConfig[] triggerConfigs,
         RootFilter[] rootFilters,
-        TestFilter[] testFilters)
+        TestFilter[] testFilters,
+        MailConfig mailConfig)
     {
         Url = url;
         MultiBranchFolders = multiBranchFolders;
@@ -127,6 +136,7 @@ internal sealed class JenkinsConfig
         _rootFilterByName = RootFilters.ToDictionary(f => f.Name);
         TestFilters = testFilters;
         _testFilterByName = testFilters.ToDictionary(f => f.Name);
+        MailConfig = mailConfig;
     }
 
     public static JenkinsConfig New(
@@ -137,7 +147,8 @@ internal sealed class JenkinsConfig
         OnDemandJobConfig[]? onDemandJobs = null,
         TriggerConfig[]? triggerConfigs = null,
         RootFilter[]? rootFilters = null,
-        TestFilter[]? testFilters = null
+        TestFilter[]? testFilters = null,
+        MailConfig? mailConfig = null
     )
     {
         return new JenkinsConfig(
@@ -148,7 +159,8 @@ internal sealed class JenkinsConfig
             onDemandJobs ?? [],
             triggerConfigs ?? [],
             rootFilters ?? [],
-            testFilters ?? []
+            testFilters ?? [],
+            mailConfig ?? s_emptyMailConfig
         );
     }
 
@@ -160,6 +172,7 @@ internal sealed class JenkinsConfig
     public TriggerConfig[] TriggerConfigs { get; }
     public RootFilter[] RootFilters { get; }
     public TestFilter[] TestFilters { get; }
+    public MailConfig MailConfig { get; }
 
     public bool TryGetRootFilter(string name, [NotNullWhen(true)] out RootFilter? filter)
     {

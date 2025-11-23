@@ -13,9 +13,11 @@ internal sealed class RequestReportBuilderTests
     private readonly JobName _onDemandBuildJob = new("CUSTOM-build");
     private readonly JobName _onDemandTestJob = new("CUSTOM-test");
 
+    private static string GetUserEmail(string userName) => $"{userName}@example.org";
+
     private Task<RequestState> CreateRequestState(IOnDemandStore onDemandStore, BuildReference? referenceRoot = null)
     {
-        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _mainBranch, ["test"]);
+        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _mainBranch, ["test"], GetUserEmail);
         var onDemandRoot = RequestRootBuildReference.Queue(_onDemandBuildJob, request.Commit);
         var chains = new RequestChain[] {
             new(
@@ -42,7 +44,7 @@ internal sealed class RequestReportBuilderTests
         // Arrange
         var onDemandRoot = new BuildReference(_onDemandBuildJob, 100);
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        requestState = requestState.TriggerTests(onDemandRoot.BuildNumber, job => Task.FromResult(RandomData.NextBuildNumber));
+        requestState = requestState.TriggerTests(onDemandRoot, job => Task.FromResult(RandomData.NextBuildNumber));
 
         var branchReference = new BranchReference(referenceStore);
         branchReference.TryAddRoot(_mainBuildJob);
@@ -127,7 +129,7 @@ internal sealed class RequestReportBuilderTests
         // Arrange
         var rootBuildNumber = RandomData.NextBuildNumber;
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        requestState = requestState.TriggerTests(rootBuildNumber, job => Task.CompletedTask);
+        requestState = requestState.TriggerTests(new(_onDemandBuildJob, rootBuildNumber), job => Task.CompletedTask);
 
         var branchReference = new BranchReference(referenceStore);
         branchReference.TryAddRoot(_mainBuildJob);
@@ -166,7 +168,7 @@ internal sealed class RequestReportBuilderTests
         var onDemandTest = new BuildReference(_onDemandTestJob, RandomData.NextBuildNumber);
 
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        requestState = requestState.TriggerTests(onDemandRoot.BuildNumber, job => Task.CompletedTask)
+        requestState = requestState.TriggerTests(onDemandRoot, job => Task.CompletedTask)
             .DoneOnDemandTestBuild(onDemandRoot, onDemandTest);
 
         var branchReference = new BranchReference(referenceStore);
@@ -213,7 +215,7 @@ internal sealed class RequestReportBuilderTests
 
         var requestState = await CreateRequestState(onDemandStore, referenceRoot: referenceRoot).ConfigureAwait(false);
         requestState = requestState.DoneReferenceTestBuild(referenceRoot, referenceTest)
-            .TriggerTests(onDemandRoot.BuildNumber, job => Task.CompletedTask)
+            .TriggerTests(onDemandRoot, job => Task.CompletedTask)
             .DoneOnDemandTestBuild(onDemandRoot, onDemandTest);
 
         var branchReference = new BranchReference(referenceStore);
@@ -262,7 +264,7 @@ internal sealed class RequestReportBuilderTests
 
         var requestState = await CreateRequestState(onDemandStore, referenceRoot: referenceRoot).ConfigureAwait(false);
         requestState = requestState.DoneReferenceTestBuild(referenceRoot, referenceTest)
-            .TriggerTests(onDemandRoot.BuildNumber, job => Task.CompletedTask)
+            .TriggerTests(onDemandRoot, job => Task.CompletedTask)
             .DoneOnDemandTestBuild(onDemandRoot, onDemandTest);
 
         var branchReference = new BranchReference(referenceStore);
@@ -334,7 +336,7 @@ internal sealed class RequestReportBuilderTests
         var buildDiff1 = new RequestBuildDiff(new JobName("MAIN-test1"), new JobName("CUSTOM-test1"));
         var buildDiff2 = new RequestBuildDiff(new JobName("MAIN-test2"), new JobName("CUSTOM-test2"));
 
-        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _mainBranch, ["test"]);
+        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _mainBranch, ["test"], GetUserEmail);
         var onDemandRoot = RequestRootBuildReference.Queue(_onDemandBuildJob, request.Commit);
         var chains = new RequestChain[] {
             new(

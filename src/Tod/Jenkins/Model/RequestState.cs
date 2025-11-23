@@ -110,9 +110,9 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
         return new RequestState(Request, [.. newChains]);
     }
 
-    public RequestState TriggerTests(int rootBuildNumber, Func<JobName, Task> triggerBuild)
+    public RequestState TriggerTests(BuildReference rootReference, Func<JobName, Task> triggerBuild)
     {
-        var newChains = ChainDiffs.Select(chainDiff => chainDiff.TriggerTests(rootBuildNumber, triggerBuild));
+        var newChains = ChainDiffs.Select(chainDiff => chainDiff.TriggerTests(rootReference, triggerBuild));
         return new RequestState(Request, [.. newChains]);
     }
 
@@ -129,7 +129,13 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
         return new RequestState(Request, [.. newChains]);
     }
 
-    public RequestState Abort()
+    public RequestState AbortChain(JobName rootJob)
+    {
+        var newChains = ChainDiffs.Select(chainDiff => chainDiff.OnDemandRoot.JobName.Equals(rootJob) ? chainDiff.Abort() : chainDiff);
+        return new RequestState(Request, [.. newChains]);
+    }
+
+    public RequestState AbortAll()
     {
         return new RequestState(Request, [.. ChainDiffs.Select(chainDiff => chainDiff.Abort())]);
     }

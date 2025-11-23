@@ -9,6 +9,8 @@ namespace Tod.Tests.Jenkins;
 [TestFixture]
 internal sealed class WorkspaceTests
 {
+    private static string GetUserEmail(string userName) => $"{userName}@example.org";
+
     [Test]
     public async Task SerializationRoundTrip_Works()
     {
@@ -56,7 +58,7 @@ internal sealed class WorkspaceTests
                 onDemandBuilds,
                 new OnDemandRequests(Path.Combine(temp.Path, "requests"))
             );
-            var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["integration"]);
+            var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["integration"], GetUserEmail);
 
             var chain = new RequestChain(
                 new BuildReference(new JobName("MAIN-build"), 1),

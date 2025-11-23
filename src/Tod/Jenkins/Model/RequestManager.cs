@@ -87,12 +87,17 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
                     Log.Information("{OnDemandBuild} succeeded; Triggering test builds", onDemandRoot);
                     var triggerParameters = new TriggerParameters(commit, onDemandRoot.BuildNumber);
                     Func<JobName, Task> triggerBuild = jobName => jenkinsClient.TriggerBuild(OnDemandJobKind.Test, jobName, triggerParameters);
-                    update = lockedRequest.Update(request => request.TriggerTests(onDemandRoot.BuildNumber, triggerBuild));
+                    update = lockedRequest.Update(request => request.TriggerTests(onDemandRoot, triggerBuild));
                 }
                 else
                 {
                     Log.Information("{OnDemandBuild} failed; Aborting request", onDemandRoot);
-                    update = lockedRequest.Update(r => r.Abort());
+                    update = lockedRequest.Update(r => r.AbortChain(onDemandRoot.JobName));
+
+                    if (update.IsDone)
+                    {
+                        reportSender.Send(update, workspace);
+                    }
                 }
 
                 Log.Information("Request {RequestId} updated", update.Request.Id);

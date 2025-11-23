@@ -12,9 +12,9 @@ internal sealed class ChainDiffTests
         // Arrange
         var referenceRoot = new BuildReference("REF-build", 100);
         var commit = RandomData.NextSha1();
-        var rootBuildNumber = RandomData.NextBuildNumber;
-        var onDemandRoot = RequestRootBuildReference.Queue(new JobName("CUSTOM-build"), commit)
-            .DoneQueued(rootBuildNumber);
+        var onDemandRootRef = new BuildReference("CUSTOM-build", RandomData.NextBuildNumber);
+        var onDemandRoot = RequestRootBuildReference.Queue(onDemandRootRef.JobName, commit)
+            .DoneQueued(onDemandRootRef.BuildNumber);
         
         var buildDiff = new RequestBuildDiff(new JobName("REF-test"), new JobName("CUSTOM-test"))
             .QueueOnDemand();
@@ -26,7 +26,7 @@ internal sealed class ChainDiffTests
             [buildDiff]);
 
         // Act
-        Assert.That(() => chainDiff.TriggerTests(rootBuildNumber, _ => Task.FromException(new NotImplementedException())),
+        Assert.That(() => chainDiff.TriggerTests(onDemandRootRef, _ => Task.FromException(new NotImplementedException())),
             Throws.InvalidOperationException.And.Message.EqualTo("Already done"));
     }
 
@@ -36,9 +36,9 @@ internal sealed class ChainDiffTests
         // Arrange
         var referenceRoot = new BuildReference("REF-build", 100);
         var commit = RandomData.NextSha1();
-        var rootBuildNumber = RandomData.NextBuildNumber;
-        var onDemandRoot = RequestRootBuildReference.Queue(new JobName("CUSTOM-build"), commit)
-            .DoneQueued(rootBuildNumber);
+        var onDemandRootRef = new BuildReference("CUSTOM-build", RandomData.NextBuildNumber);
+        var onDemandRoot = RequestRootBuildReference.Queue(onDemandRootRef.JobName, commit)
+            .DoneQueued(onDemandRootRef.BuildNumber);
         // Should be DoneTriggered but we need invalid state for full code coverage
 
         var buildDiff = new RequestBuildDiff(new JobName("REF-test"), new JobName("CUSTOM-test"))
@@ -52,8 +52,42 @@ internal sealed class ChainDiffTests
             [buildDiff]);
         
         // Act
-        Assert.That(() => chainDiff.TriggerTests(rootBuildNumber, _ => Task.FromException(new NotImplementedException())),
+        Assert.That(() => chainDiff.TriggerTests(onDemandRootRef, _ => Task.FromException(new NotImplementedException())),
             Throws.InvalidOperationException.And.Message.EqualTo("Already done"));
+    }
+
+    [Test]
+    public void TriggerTests_OtherQueued_DoesNothing()
+    {
+        var referenceRoot = new BuildReference("REF-build", 100);
+        var commit = RandomData.NextSha1();
+        var onDemandRootRef = new BuildReference("CUSTOM-build", RandomData.NextBuildNumber);
+        var onDemandRoot = RequestRootBuildReference.Queue(onDemandRootRef.JobName, commit);
+        var buildDiff = new RequestBuildDiff(new JobName("REF-test"), new JobName("CUSTOM-test"));
+        var chainDiff = new ChainDiff(
+            ChainStatus.RootTriggered,
+            referenceRoot,
+            onDemandRoot,
+            [buildDiff]);
+        var newChainDiff = chainDiff.TriggerTests(new BuildReference("OTHER-build", 999), _ => Task.FromException(new InvalidOperationException()));
+        Assert.That(newChainDiff, Is.SameAs(chainDiff));
+    }
+
+    [Test]
+    public void TriggerTests_OtherDone_DoesNothing()
+    {
+        var referenceRoot = new BuildReference("REF-build", 100);
+        var commit = RandomData.NextSha1();
+        var onDemandRootRef = new BuildReference("CUSTOM-build", RandomData.NextBuildNumber);
+        var onDemandRoot = RequestRootBuildReference.Queue(onDemandRootRef.JobName, commit).DoneQueued(RandomData.NextBuildNumber);
+        var buildDiff = new RequestBuildDiff(new JobName("REF-test"), new JobName("CUSTOM-test")).QueueOnDemand();
+        var chainDiff = new ChainDiff(
+            ChainStatus.TestsTriggered,
+            referenceRoot,
+            onDemandRoot,
+            [buildDiff]);
+        var newChainDiff = chainDiff.TriggerTests(new BuildReference("OTHER-build", 999), _ => Task.FromException(new InvalidOperationException()));
+        Assert.That(newChainDiff, Is.SameAs(chainDiff));
     }
 
     [Test]
@@ -61,8 +95,8 @@ internal sealed class ChainDiffTests
     {
         var referenceRoot = new BuildReference("REF-build", 100);
         var commit = RandomData.NextSha1();
-        var rootBuildNumber = RandomData.NextBuildNumber;
-        var onDemandRoot = RequestRootBuildReference.Queue(new JobName("CUSTOM-build"), commit);
+        var onDemandRootRef = new BuildReference("CUSTOM-build", RandomData.NextBuildNumber);
+        var onDemandRoot = RequestRootBuildReference.Queue(onDemandRootRef.JobName, commit);
 
         var buildDiff1 = new RequestBuildDiff(new JobName("REF-test1"), new JobName("CUSTOM-test1")).QueueOnDemand();
         var buildDiff2 = new RequestBuildDiff(new JobName("REF-test1"), new JobName("CUSTOM-test1")).QueueOnDemand().DoneOnDemand(RandomData.NextBuildNumber);
@@ -73,7 +107,7 @@ internal sealed class ChainDiffTests
             onDemandRoot,
             [buildDiff1, buildDiff2]);
 
-        chainDiff.TriggerTests(rootBuildNumber, _ => Task.FromException(new InvalidOperationException()));
+        chainDiff.TriggerTests(onDemandRootRef, _ => Task.FromException(new InvalidOperationException()));
     }
 
     [Test]

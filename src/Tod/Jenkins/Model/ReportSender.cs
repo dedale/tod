@@ -1,4 +1,6 @@
 ﻿using Serilog;
+using System.Xml.Linq;
+using Tod.Net;
 
 namespace Tod.Jenkins;
 
@@ -19,6 +21,8 @@ internal sealed record BuildReferenceResult(JobName JobName, int Number, BuildSt
     public static BuildReferenceResult Done(BuildReference build, bool isSuccessful) => new(build.JobName, build.BuildNumber, isSuccessful ? BuildStatus.Success : BuildStatus.Failed);
 
     public static BuildReferenceResult Done(BaseBuild build) => Done(build.Reference, build.IsSuccessful);
+
+    public string Id => Number > 0 ? $"{JobName}#{Number}" : JobName.Value;
 }
 
 internal abstract class BuildDiff
@@ -109,61 +113,84 @@ internal interface IReportSender
     void Send(RequestState request, Workspace workspace);
 }
 
-internal sealed class ReportSender(IRequestReportBuilder builder) : IReportSender
+internal sealed class ReportSender(IRequestReportBuilder builder, IMailSender mailSender) : IReportSender
 {
-    private static void Send(RequestState request, RequestReport report)
+    private static XElement GetElement(FailedTestDiff diff)
     {
-        Log.Information("📧 Sending report for request {RequestId}", request.Request.Id);
-        foreach (var chainDiff in request.ChainDiffs)
+        var statuses = new List<string>();
+        if (diff.Status.HasFlag(TestBuildDiffStatus.NewFailures))
         {
-            Log.Information("   Chain Status: {Status}", chainDiff.Status);
-            Log.Information("   Reference Root: {ReferenceRoot}", chainDiff.ReferenceRoot);
-            Log.Information("   On-Demand Root: {OnDemandRoot}", chainDiff.OnDemandRoot);
+            statuses.Add("New Failures ❌");
         }
-
-        foreach (var chainReport in report.ChainReports)
+        if (diff.Status.HasFlag(TestBuildDiffStatus.UpdatedFailures))
         {
-            if (chainReport.RootResult.Number > 0)
-            {
-                Log.Information($"{chainReport.RootResult.JobName} #{chainReport.RootResult.Number} {chainReport.RootResult.Status}");
-            }
-            else
-            {
-                Log.Information($"{chainReport.RootResult.JobName} {chainReport.RootResult.Status}");
-            }
-            foreach (var buildDiffResult in chainReport.BuildDiffs)
-            {
-                if (buildDiffResult.Result.Number > 0)
-                {
-                    Log.Information($"{buildDiffResult.Result.JobName} #{buildDiffResult.Result.Number} {buildDiffResult.Result.Status}");
-                }
-                else
-                {
-                    Log.Information($"{buildDiffResult.Result.JobName} {buildDiffResult.Result.Status}");
-                }
-                buildDiffResult.Diff.Match(
-                    onNotComparable: message => Log.Information("      Diff: {Message}", message),
-                    onComparable: diff =>
-                    {
-                        var statuses = new List<string>();
-                        if (diff.Status.HasFlag(TestBuildDiffStatus.NewFailures))
-                        {
-                            statuses.Add("New Failures");
-                        }
-                        if (diff.Status.HasFlag(TestBuildDiffStatus.UpdatedFailures))
-                        {
-                            statuses.Add("Updated Failures");
-                        }
-                        if (diff.Status.HasFlag(TestBuildDiffStatus.SameFailures))
-                        {
-                            statuses.Add("Same Failures");
-                        }
-                        Log.Information("      Diff Status: {Statuses}", string.Join(", ", statuses));
-                        diff.Added.ToList().ForEach(test => Log.Information("      Added: {TestName}", test.TestName));
-                        diff.Updated.ToList().ForEach(test => Log.Information("      Updated: {TestName}", test.TestName));
-                    });
-            }
-        }   
+            statuses.Add("Updated Failures ❌");
+        }
+        if (diff.Status.HasFlag(TestBuildDiffStatus.SameFailures))
+        {
+            statuses.Add("Same Failures ⚠️");
+        }
+        if (diff.Status == TestBuildDiffStatus.OK)
+        {
+            statuses.Add("OK ✅");
+        }
+        return new XElement("div",
+            new XElement("p", $"Diff Status: {string.Join(", ", statuses)}"),
+            diff.Added.Length > 0 || diff.Updated.Length > 0 ? new XElement("ul",
+                from test in diff.Added
+                select new XElement("li", $"Added: {test.ClassName} {test.TestName}"),
+                from test in diff.Updated
+                select new XElement("li", $"Updated: {test.ClassName} {test.TestName}")
+            ) : null
+        );
+    }
+
+    private static XElement GetElement(BuildDiffResult buildDiffResult)
+    {
+        return new XElement("li",
+            new XElement("h4", $"{buildDiffResult.Result.Id}: {buildDiffResult.Result.Status}"),
+            buildDiffResult.Diff.Match(
+                onNotComparable: message => new XElement("p", $"Diff: {message}"),
+                onComparable: GetElement));
+    }
+
+    private static XElement GetElement(ChainReport chainReport)
+    {
+        return new XElement("li",
+            new XElement("h3", $"{chainReport.RootResult.Id}: {chainReport.RootResult.Status}"),
+            new XElement("ul", chainReport.BuildDiffs.Select(GetElement)));
+    }
+
+    private static string GetLabel(RequestRootBuildReference buildReference)
+    {
+        return buildReference.Match(
+            onQueued: (job, _) => $"{job} (queued)",
+            onDone: buildRef => $"{buildRef} (done)");
+    }
+
+    private static XElement GetBody(RequestState request, RequestReport report)
+    {
+        return new XElement("body",
+            new XElement("h1", "Test On Demand Report"),
+            new XElement("ul",
+                new XElement("li", $"Request ID: {request.Request.Id}"),
+                new XElement("li", $"Created (UTC): {request.Request.CreatedUtc}"),
+                new XElement("li", $"Commit: {request.Request.Commit}"),
+                new XElement("li", $"Ref Commit: {request.Request.ParentCommit} (on {request.Request.ReferenceBranchName})"),
+                new XElement("li", $"Test Filters: {string.Join(" ", request.Request.GetFilters())}")
+            ),
+            new XElement("h2", "Chain Reports"),
+            new XElement("ul", request.ChainDiffs.Select(chainDiff => new XElement("li",
+                new XElement("p", $"{GetLabel(chainDiff.OnDemandRoot)} chain status: {chainDiff.Status}")))),
+            new XElement("ul", report.ChainReports.Select(GetElement)));
+    }
+
+    private void Send(RequestState request, RequestReport report)
+    {
+        Log.Information("Sending report for request {RequestId} to {UserEmail}", request.Request.Id, request.Request.UserEmail);
+
+        var doc = new XDocument(new XElement("html", GetBody(request, report)));
+        mailSender.Send(request.Request.UserEmail, "On-Demand Report", doc.ToString());
     }
 
     public void Send(RequestState request, Workspace workspace)

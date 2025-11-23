@@ -41,23 +41,40 @@ internal sealed class ChainDiff(ChainStatus status, BuildReference referenceRoot
         return new ChainDiff(newStatus, ReferenceRoot, OnDemandRoot, newTestDiffs);
     }
 
-    public ChainDiff TriggerTests(int rootBuildNumber, Func<JobName, Task> triggerBuild)
+    public ChainDiff TriggerTests(BuildReference rootReference, Func<JobName, Task> triggerBuild)
     {
-        var newOnDemandRoot = OnDemandRoot.DoneQueued(rootBuildNumber);
-        var newTestDiffs = new List<RequestBuildDiff>();
-        foreach (var buildDiff in testBuildDiffs)
-        {
-            buildDiff.OnDemandBuild.Match(
-                onPending: async jobName =>
+        return OnDemandRoot.Match(
+            onQueued: (job, _) =>
+            {
+                if (rootReference.JobName.Equals(job))
                 {
-                    await triggerBuild(jobName).ConfigureAwait(false);
-                    newTestDiffs.Add(buildDiff.QueueOnDemand());
-                },
-                onQueued: _ => newTestDiffs.Add(buildDiff),
-                onDone: _ => newTestDiffs.Add(buildDiff)
-            );
-        }
-        return new ChainDiff(ChainStatus.TestsTriggered, ReferenceRoot, newOnDemandRoot, newTestDiffs);
+                    var newOnDemandRoot = OnDemandRoot.DoneQueued(rootReference.BuildNumber);
+                    var newTestDiffs = new List<RequestBuildDiff>();
+                    foreach (var buildDiff in testBuildDiffs)
+                    {
+                        buildDiff.OnDemandBuild.Match(
+                            onPending: async jobName =>
+                            {
+                                await triggerBuild(jobName).ConfigureAwait(false);
+                                newTestDiffs.Add(buildDiff.QueueOnDemand());
+                            },
+                            onQueued: _ => newTestDiffs.Add(buildDiff),
+                            onDone: _ => newTestDiffs.Add(buildDiff)
+                        );
+                    }
+                    return new ChainDiff(ChainStatus.TestsTriggered, ReferenceRoot, newOnDemandRoot, newTestDiffs);
+                }
+                return this;
+            },
+            onDone: reference =>
+            {
+                if (rootReference.JobName.Equals(reference.JobName))
+                {
+                    throw new InvalidOperationException("Already done");
+                }
+                return this;
+            }
+        );
     }
 
     public ChainDiff DoneOnDemandTestBuild(BuildReference onDemandBuild)

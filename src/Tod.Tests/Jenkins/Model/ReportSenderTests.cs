@@ -1,6 +1,7 @@
 ﻿using Moq;
 using NUnit.Framework;
 using Tod.Jenkins;
+using Tod.Net;
 using Tod.Tests.IO;
 
 namespace Tod.Tests.Jenkins;
@@ -15,27 +16,32 @@ internal sealed class ReportSenderTests
     private readonly JobName _onDemandTestJob = new("CUSTOM-test");
 
     private TempDirectory _temp;
-    private Mock<IRequestReportBuilder> _mockBuilder;
+    private Mock<IRequestReportBuilder> _mockReportBuilder;
+    private Mock<IMailSender> _mockMailSender;
     private ReportSender _reportSender;
 
     [SetUp]
     public void SetUp()
     {
         _temp = new TempDirectory();
-        _mockBuilder = new Mock<IRequestReportBuilder>(MockBehavior.Strict);
-        _reportSender = new ReportSender(_mockBuilder.Object);
+        _mockReportBuilder = new Mock<IRequestReportBuilder>(MockBehavior.Strict);
+        _mockMailSender = new Mock<IMailSender>(MockBehavior.Strict);
+        _reportSender = new ReportSender(_mockReportBuilder.Object, _mockMailSender.Object);
     }
 
     [TearDown]
     public void TearDown()
     {
         _temp.Dispose();
-        _mockBuilder.VerifyAll();
+        _mockReportBuilder.VerifyAll();
+        _mockMailSender.VerifyAll();
     }
+
+    private static string GetUserEmail(string userName) => $"{userName}@example.org";
 
     private Task<RequestState> CreateRequestState(IOnDemandStore onDemandStore, BranchName? refBranch = null)
     {
-        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), refBranch ?? _mainBranch, ["test"]);
+        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), refBranch ?? _mainBranch, ["test"], GetUserEmail);
         var onDemandRoot = RequestRootBuildReference.Queue(_onDemandRootJob, request.Commit);
         var chains = new RequestChain[] {
             new(
@@ -75,12 +81,15 @@ internal sealed class ReportSenderTests
             BuildReferenceResult.Pending(_onDemandRootJob),
             [])]);
 
-        _mockBuilder
+        _mockReportBuilder
             .Setup(b => b.Build(
                 requestState,
                 It.Is<BranchReference>(br => br.BranchName == _mainBranch),
                 workspace.OnDemandBuilds))
             .Returns(expectedReport);
+
+        _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.IsAny<string>()))
+            .Returns(Task.CompletedTask);
 
         _reportSender.Send(requestState, workspace);
     }
@@ -117,12 +126,15 @@ internal sealed class ReportSenderTests
 
         var expectedReport = new RequestReport([new ChainReport(BuildReferenceResult.Pending(_onDemandRootJob), [])]);
 
-        _mockBuilder
+        _mockReportBuilder
             .Setup(b => b.Build(
                 requestState,
                 It.Is<BranchReference>(br => br.BranchName == featureBranch),
                 onDemandBuilds))
             .Returns(expectedReport);
+
+        _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.IsAny<string>()))
+            .Returns(Task.CompletedTask);
 
         _reportSender.Send(requestState, workspace);
     }
@@ -162,13 +174,94 @@ internal sealed class ReportSenderTests
             BuildReferenceResult.Queued(_onDemandRootJob),
             [buildDiffResult])]);
 
-        _mockBuilder
+        _mockReportBuilder
             .Setup(b => b.Build(
                 It.IsAny<RequestState>(),
                 It.IsAny<BranchReference>(),
                 It.IsAny<OnDemandBuilds>()))
             .Returns(report);
 
+        _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.IsAny<string>()))
+            .Returns(Task.CompletedTask);
+
         Assert.DoesNotThrow(() => _reportSender.Send(requestState, workspace));
+    }
+
+    private async Task Send_FailedTestDiff(FailedTestDiff failedTestDiff, string inMail)
+    {
+        using var mocks = StoreMocks.New()
+            .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithRootJobs(_onDemandRootJob);
+
+        var onDemandRoot = new BuildReference(_onDemandRootJob, RandomData.NextBuildNumber);
+        var onDemandTest = new BuildReference(_onDemandTestJob, RandomData.NextBuildNumber);
+
+        var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
+        requestState.TriggerTests(onDemandRoot, _ => Task.CompletedTask);
+        var workspace = GetWorkspace(referenceStore, onDemandStore);
+
+        var buildDiffResult = new BuildDiffResult(
+            BuildReferenceResult.Done(onDemandTest, true),
+            BuildDiff.Diff(failedTestDiff));
+
+        var report = new RequestReport([new ChainReport(
+            BuildReferenceResult.Done(onDemandRoot, true),
+            [buildDiffResult])]);
+
+        _mockReportBuilder
+            .Setup(b => b.Build(
+                It.IsAny<RequestState>(),
+                It.IsAny<BranchReference>(),
+                It.IsAny<OnDemandBuilds>()))
+            .Returns(report);
+
+        _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.Is<string>(m => m.Contains(inMail))))
+            .Returns(Task.CompletedTask);
+
+        Assert.DoesNotThrow(() => _reportSender.Send(requestState, workspace));
+    }
+
+    [Test]
+    public Task Send_FailedTestsDiffOK_InMail()
+    {
+        var failedTestsDiff = new FailedTestDiff(TestBuildDiffStatus.OK, [], []);
+
+        return Send_FailedTestDiff(failedTestsDiff, "Diff Status: OK");
+    }
+
+    [Test]
+    public Task Send_FailedTestsDiffNewFailures_InMail()
+    {
+        var failedTestsDiff = new FailedTestDiff(TestBuildDiffStatus.NewFailures, [], [new FailedTest("ClassName", "TestName", "Details")]);
+
+        return Send_FailedTestDiff(failedTestsDiff, "Diff Status: New Failures");
+    }
+
+    [Test]
+    public Task Send_FailedTestsDiffSameFailures_InMail()
+    {
+        var failedTestsDiff = new FailedTestDiff(TestBuildDiffStatus.SameFailures, [], []);
+
+        return Send_FailedTestDiff(failedTestsDiff, "Diff Status: Same Failures");
+    }
+
+    [Test]
+    public Task Send_FailedTestsDiffUpdatedFailures_InMail()
+    {
+        var failedTestsDiff = new FailedTestDiff(TestBuildDiffStatus.UpdatedFailures, [new FailedTest("ClassName", "TestName", "Details")], []);
+
+        return Send_FailedTestDiff(failedTestsDiff, "Diff Status: Updated Failures");
+    }
+
+    [Test]
+    public Task Send_FailedTestsDiffAllCases_InMail()
+    {
+        var status = TestBuildDiffStatus.NewFailures
+            | TestBuildDiffStatus.SameFailures
+            | TestBuildDiffStatus.UpdatedFailures;
+        var failedTestsDiff = new FailedTestDiff(status, [new FailedTest("ClassName1", "TestName1", "Details1")], [new FailedTest("ClassName2", "TestName2", "Details2")]);
+
+        return Send_FailedTestDiff(failedTestsDiff, "Diff Status: New Failures ❌, Updated Failures ❌, Same Failures ⚠️");
     }
 }

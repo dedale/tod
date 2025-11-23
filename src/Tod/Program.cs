@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Tod.Git;
 using Tod.Jenkins;
+using Tod.Net;
 
 namespace Tod;
 
@@ -30,7 +31,8 @@ internal static class Program
 
         var workSpace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
         var filterManager = new FilterManager(config, jobGroups);
-        var reportSender = new ReportSender(new RequestReportBuilder());
+        var mailSender = new MailSender(config.MailConfig);
+        var reportSender = new ReportSender(new RequestReportBuilder(), mailSender);
         var requestManager = new RequestManager(workSpace, filterManager, jenkinsClient, reportSender);
         var jenkinsSynchronizer = new JenkinsSynchronizer(jenkinsClient, requestManager);
         await jenkinsSynchronizer.Update(workSpace).ConfigureAwait(false);
@@ -76,7 +78,8 @@ internal static class Program
             refCommit = commit;
         }
 
-        var reportSender = new ReportSender(new RequestReportBuilder());
+        var mailSender = new MailSender(config.MailConfig);
+        var reportSender = new ReportSender(new RequestReportBuilder(), mailSender);
         var requestManager = new RequestManager(workspace, filterManager, jenkinsClient, reportSender);
         var request = Request.Create(commits.First(), refCommit, refBranch, [.. options.TestFilters]);
         await requestManager.Register(request, rootDiffs).ConfigureAwait(false);
