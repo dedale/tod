@@ -34,12 +34,19 @@ internal sealed class ApiClient : IApiClient
 
     public async Task<JsonDocument> GetAsync(string url)
     {
-        var response = await _httpClient.GetAsync(url).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        try
+        {
+            var response = await _httpClient.GetAsync(url).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
 
-        var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-        var doc = JsonDocument.Parse(json);
-        return doc;
+            var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            var doc = JsonDocument.Parse(json);
+            return doc;
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(url, ex);
+        }
     }
 
     public Task<string> GetStringAsync(string url)
@@ -49,14 +56,22 @@ internal sealed class ApiClient : IApiClient
 
     public async Task<string> PostAsync(string crumbUrl, string url)
     {
-        var crumbDoc = await GetAsync(crumbUrl).ConfigureAwait(false);
-        string crumbField = crumbDoc.RootElement.GetProperty("crumbRequestField").GetString()!;
-        string crumbValue = crumbDoc.RootElement.GetProperty("crumb").GetString()!;
-        _httpClient.DefaultRequestHeaders.Add(crumbField, crumbValue);
+        try
+        {
+            var crumbDoc = await GetAsync(crumbUrl).ConfigureAwait(false);
+            string crumbField = crumbDoc.RootElement.GetProperty("crumbRequestField").GetString()!;
+            string crumbValue = crumbDoc.RootElement.GetProperty("crumb").GetString()!;
+            var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Headers.Add(crumbField, crumbValue);
 
-        var response = await _httpClient.PostAsync(url, null).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        return response.Headers.Location?.ToString()!;
+            var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            return response.Headers.Location?.ToString()!;
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(url, ex);
+        }
     }
 
     public void Dispose()

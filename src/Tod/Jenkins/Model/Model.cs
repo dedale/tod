@@ -141,6 +141,7 @@ internal abstract class BaseBuild(JobName jobName, string id, int buildNumber, D
     public DateTime EndTimeUtc { get; } = endTimeUtc;
     public bool IsSuccessful { get; } = isSuccessful;
 
+    [JsonIgnore]
     public BuildReference Reference => _reference;
 }
 

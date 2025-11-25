@@ -1,4 +1,5 @@
 ﻿using NUnit.Framework;
+using System.Diagnostics;
 using System.Net;
 using Tod.Jenkins;
 
@@ -58,8 +59,11 @@ internal sealed class ApiClientTests
         });
 
         using var client = new ApiClient(handler, "user:token");
-        var ex = Assert.ThrowsAsync<HttpRequestException>(async () => await client.GetAsync("http://test.com/api").ConfigureAwait(false));
-        Assert.That(ex!.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+        var ex = Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync("http://test.com/api").ConfigureAwait(false));
+        var httpEx = ex.InnerException as HttpRequestException;
+        Assert.That(httpEx, Is.Not.Null);
+        Debug.Assert(httpEx != null);
+        Assert.That(httpEx.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
     [Test]
@@ -109,7 +113,38 @@ internal sealed class ApiClientTests
     }
 
     [Test]
-    public async Task Post_Async_NullLocation()
+    public void PostAsync_ErrorResponse_ThrowsHttpRequestException()
+    {
+        const string crumbJson = @"{""crumbRequestField"":""Jenkins-Crumb"",""crumb"":""abc123""}";
+        var handler = new TestHttpMessageHandler(req =>
+        {
+            if (req.RequestUri!.ToString().EndsWith("crumb"))
+            {
+                return new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.OK,
+                    Content = new StringContent(crumbJson)
+                };
+            }
+            // Verify crumb header was added
+            Assert.That(req.Headers.Contains("Jenkins-Crumb"), Is.True);
+            Assert.That(req.Headers.GetValues("Jenkins-Crumb").First(), Is.EqualTo("abc123"));
+            return new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.BadRequest,
+                Content = new StringContent("Bad Request")
+            };
+        });
+        using var client = new ApiClient(handler, "user:token");
+        var ex = Assert.ThrowsAsync<InvalidOperationException>(async () => await client.PostAsync("http://test.com/crumb", "http://test.com/job/test/build").ConfigureAwait(false));
+        var httpEx = ex.InnerException as HttpRequestException;
+        Assert.That(httpEx, Is.Not.Null);
+        Debug.Assert(httpEx != null);
+        Assert.That(httpEx.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+    }
+
+    [Test]
+    public async Task PostAsync_NullLocation()
     {
         const string crumbJson = @"{""crumbRequestField"":""Jenkins-Crumb"",""crumb"":""abc123""}";
         var handler = new TestHttpMessageHandler(req =>
