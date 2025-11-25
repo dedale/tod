@@ -10,7 +10,7 @@ internal static class RandomBuilds
     private static readonly Random s_rand = new();
 
     // Jenkins builds are ordered from latest to oldest
-    public static IEnumerable<Build> Generate(int count, int[] buildNumbers = null!, bool[] success = null!, bool[] buildings = null!)
+    public static IEnumerable<Build> Generate(int count, int[] buildNumbers = null!, bool[] success = null!, bool[] buildings = null!, int? commitCount = null)
     {
         buildNumbers ??= [];
         success ??= [];
@@ -25,7 +25,7 @@ internal static class RandomBuilds
             timestamp = timestamp.AddMinutes(-s_rand.Next(10, 20));
             var durationInMs = s_rand.Next(5, 15) * 60 * 1000;
             var building = buildings.Length > i ? buildings[i] : false;
-            var commits = Enumerable.Range(0, s_rand.Next(1, 3)).Select(_ => RandomData.NextSha1().Value).ToArray();
+            var commits = Enumerable.Range(0, commitCount ?? s_rand.Next(1, 3)).Select(_ => RandomData.NextSha1().Value).ToArray();
             yield return new Build(id, number, result, timestamp, durationInMs, building, commits);
         }
     }

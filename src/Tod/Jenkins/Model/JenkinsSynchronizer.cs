@@ -5,7 +5,7 @@ namespace Tod.Jenkins;
 
 internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBuildHandler postBuildHandler)
 {
-    private async Task UpdateRootBuilds(BuildCollections<RootBuild> allRootBuilds, bool onDemand)
+    private async Task UpdateReferenceRootBuilds(BuildCollections<RootBuild> allRootBuilds)
     {
         foreach (var rootBuilds in allRootBuilds)
         {
@@ -17,8 +17,8 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                 {
                     continue;
                 }
-                // Test jobs are scheduled only for reference root builds
-                var scheduled = onDemand ? [] : await jenkinsClient.GetScheduledJobs(new(rootBuilds.JobName, build.Number)).ConfigureAwait(false);
+
+                var scheduled = await jenkinsClient.GetScheduledJobs(new(rootBuilds.JobName, build.Number)).ConfigureAwait(false);
                 var rootBuild = new RootBuild(
                     rootBuilds.JobName,
                     build.Id,
@@ -32,20 +32,6 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
 
                 Log.Information("Adding root build {RootBuild} ({IsSuccessful})", rootBuild, rootBuild.IsSuccessful ? "Success" : "Failure");
                 rootBuilds.TryAdd(rootBuild);
-
-                // Reference root builds are always done when creating requests, so no need to post them here
-                if (onDemand)
-                {
-                    var parameters = await jenkinsClient.GetBuildParameters(new(rootBuilds.JobName, build.Number)).ConfigureAwait(false);
-                    if (parameters.TryGetValue("REFSPEC", out var value))
-                    {
-                        await postBuildHandler.PostOnDemandRootBuild(rootBuild.Reference, new Sha1(value), rootBuild.IsSuccessful).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        Log.Warning("On-demand root build {RootBuild} is missing REFSPEC parameter (cannot trigger test builds)", rootBuild.Reference);
-                    }
-                }
             }
         }
     }
@@ -54,7 +40,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
     {
         Log.Information("Updating builds for reference branch {BranchName}", branchReference.BranchName);
 
-        await UpdateRootBuilds(branchReference.RootBuilds, false).ConfigureAwait(false);
+        await UpdateReferenceRootBuilds(branchReference.RootBuilds).ConfigureAwait(false);
 
         foreach (var testBuilds in branchReference.TestBuilds)
         {
@@ -98,11 +84,60 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
         }
     }
 
+    private async Task UpdateOnDemandRootBuilds(BuildCollections<RootBuild> allRootBuilds)
+    {
+        foreach (var rootBuilds in allRootBuilds)
+        {
+            Log.Debug("Fetching root builds for {JobName}", rootBuilds.JobName);
+            var builds = await jenkinsClient.GetLastBuilds(rootBuilds.JobName).ConfigureAwait(false);
+            foreach (var build in builds.Reverse())
+            {
+                if (rootBuilds.Contains(build.Number))
+                {
+                    continue;
+                }
+                // Test jobs are scheduled only for reference root builds
+                var scheduled = true ? [] : await jenkinsClient.GetScheduledJobs(new(rootBuilds.JobName, build.Number)).ConfigureAwait(false);
+
+                Sha1[] commits;
+                var parameters = await jenkinsClient.GetBuildParameters(new(rootBuilds.JobName, build.Number)).ConfigureAwait(false);
+                if (parameters.TryGetValue("REFSPEC", out var value))
+                {
+                    commits = [new Sha1(value)];
+                }
+                else
+                {
+                    commits = [];
+                    Log.Warning("On-demand root build {RootBuild} is missing REFSPEC parameter (cannot trigger test builds)", new BuildReference(rootBuilds.JobName, build.Number));
+                }
+
+                var rootBuild = new RootBuild(
+                    rootBuilds.JobName,
+                    build.Id,
+                    build.Number,
+                    build.TimestampUtc,
+                    build.TimestampUtc.AddMilliseconds(build.DurationInMs),
+                    build.Result == BuildResult.Success,
+                    commits,
+                    scheduled
+                );
+
+                Log.Information("Adding root build {RootBuild} ({IsSuccessful})", rootBuild, rootBuild.IsSuccessful ? "Success" : "Failure");
+                rootBuilds.TryAdd(rootBuild);
+
+                if (commits.Length == 1)
+                {
+                    await postBuildHandler.PostOnDemandRootBuild(rootBuild.Reference, commits[0], rootBuild.IsSuccessful).ConfigureAwait(false);
+                }
+            }
+        }
+    }
+
     private async Task Update(OnDemandBuilds onDemandBuilds)
     {
         Log.Information("Updating builds for on-demand");
 
-        await UpdateRootBuilds(onDemandBuilds.RootBuilds, true).ConfigureAwait(false);
+        await UpdateOnDemandRootBuilds(onDemandBuilds.RootBuilds).ConfigureAwait(false);
 
         foreach (var testBuilds in onDemandBuilds.TestBuilds)
         {

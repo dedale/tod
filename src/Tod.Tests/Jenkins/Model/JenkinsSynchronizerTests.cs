@@ -383,7 +383,7 @@ internal sealed class JenkinsSynchronizerTests
         onDemandBuilds.TryAddRoot(_onDemandRootJob);
         onDemandBuilds.TryAddTest(_onDemandTestJob1);
         onDemandBuilds.TryAddTest(_onDemandTestJob2);
-        var builds = RandomBuilds.Generate(1).ToArray();
+        var builds = RandomBuilds.Generate(1, commitCount: 0).ToArray();
         var build = builds[0];
         var commit = RandomData.NextSha1();
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
@@ -406,7 +406,7 @@ internal sealed class JenkinsSynchronizerTests
         Assert.That(rootBuild.IsSuccessful, Is.EqualTo(build.Result == BuildResult.Success));
         Assert.That(rootBuild.StartTimeUtc, Is.EqualTo(build.TimestampUtc));
         Assert.That(rootBuild.EndTimeUtc, Is.EqualTo(build.TimestampUtc.AddMilliseconds(build.DurationInMs)));
-        Assert.That(rootBuild.Commits, Is.EqualTo(build.GetCommits()));
+        Assert.That(rootBuild.Commits, Is.EqualTo([commit]));
         Assert.That(rootBuild.Scheduled, Is.Empty);
         client.VerifyAll();
         handler.VerifyAll();
@@ -424,7 +424,7 @@ internal sealed class JenkinsSynchronizerTests
         onDemandBuilds.TryAddRoot(_onDemandRootJob);
         onDemandBuilds.TryAddTest(_onDemandTestJob1);
         onDemandBuilds.TryAddTest(_onDemandTestJob2);
-        var builds = RandomBuilds.Generate(1).ToArray();
+        var builds = RandomBuilds.Generate(1, commitCount: 0).ToArray();
         var build = builds[0];
         var commit = RandomData.NextSha1();
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
@@ -459,7 +459,7 @@ internal sealed class JenkinsSynchronizerTests
 
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandRootJob);
-        var builds = RandomBuilds.Generate(1).ToArray();
+        var builds = RandomBuilds.Generate(1, commitCount: 0).ToArray();
         var build = builds[0];
         var scheduled = new JobName[] { _onDemandTestJob1, _onDemandTestJob2 };
         onDemandBuilds.RootBuilds[0].TryAdd(new RootBuild(
