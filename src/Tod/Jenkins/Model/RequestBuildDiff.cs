@@ -3,8 +3,9 @@ using System.Text.Json.Serialization;
 
 namespace Tod.Jenkins;
 
-internal sealed class JobDiff(JobName referenceJob, JobName onDemandJob)
+internal sealed class JobDiff(string chain, JobName referenceJob, JobName onDemandJob)
 {
+    public string Chain { get; } = chain;
     public JobName ReferenceJob { get; } = referenceJob;
     public JobName OnDemandJob { get; } = onDemandJob;
 }

@@ -21,29 +21,17 @@ internal sealed record Request
         Filters = filters;
     }
 
-    [ExcludeFromCodeCoverage]
-    private static string GetUserEmail(string userName)
+    public static Request Create(Sha1 commit, Sha1 refCommit, BranchName refBranch, string[] filters, string userEmail)
     {
-        using var context = new PrincipalContext(ContextType.Domain, Environment.UserDomainName);
-        var principal = UserPrincipal.FindByIdentity(context, IdentityType.SamAccountName, userName);
-        if (principal == null)
-        {
-            throw new InvalidOperationException($"User '{userName}' not found in Active Directory");
-        }
-        return principal.EmailAddress;
+        return Create(commit, new GitReference(refBranch, refCommit), filters, userEmail);
     }
 
-    public static Request Create(Sha1 commit, Sha1 refCommit, BranchName refBranch, string[] filters, Func<string, string>? getUserEmail = null)
-    {
-        return Create(commit, new GitReference(refBranch, refCommit), filters, getUserEmail);
-    }
-
-    public static Request Create(Sha1 commit, GitReference gitReference, string[] filters, Func<string, string>? getUserEmail = null)
+    public static Request Create(Sha1 commit, GitReference gitReference, string[] filters, string userEmail)
     {
         return new Request(
             Guid.NewGuid(),
             Environment.UserName,
-            (getUserEmail ?? GetUserEmail)(Environment.UserName),
+            userEmail,
             DateTime.UtcNow,
             commit,
             gitReference,

@@ -6,12 +6,12 @@ namespace Tod.Tests.Jenkins;
 [TestFixture]
 internal sealed class RequestStateTests
 {
-    private readonly Request _request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["tests"], GetUserEmail);
+    private readonly Request _request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["tests"], s_userEmail);
     private readonly BuildReference _referenceRoot = new("MainBuild", RandomData.NextBuildNumber);
     private readonly JobName _onDemandRootJob = new("OnDemandBuild");
     private readonly BuildReference _onDemandRoot = new("OnDemandBuild", RandomData.NextBuildNumber);
 
-    private static string GetUserEmail(string userName) => $"{userName}@example.org";
+    private static readonly string s_userEmail = $"user@example.org";
 
     private Task<RequestState> NewState(List<RequestBuildDiff> testBuildDiffs, IOnDemandStore onDemandStore)
     {
@@ -290,7 +290,7 @@ internal sealed class RequestStateTests
     }
 
     [Test]
-    public async Task Abort_WithPendingBuilds_SetsStatusToDone()
+    public async Task AbortAll_WithPendingBuilds_SetsStatusToDone()
     {
         var diffs = new List<RequestBuildDiff>
         {
@@ -304,7 +304,7 @@ internal sealed class RequestStateTests
     }
 
     [Test]
-    public async Task Abort_WithTriggeredBuilds_SetsStatusToDone()
+    public async Task AbortAll_WithTriggeredBuilds_SetsStatusToDone()
     {
         var diffs = new List<RequestBuildDiff>
         {
@@ -319,7 +319,7 @@ internal sealed class RequestStateTests
     }
 
     [Test]
-    public async Task Abort_WithDoneBuilds_SetsStatusToDone()
+    public async Task AbortAll_WithDoneBuilds_SetsStatusToDone()
     {
         var diffs = new List<RequestBuildDiff>
         {
@@ -335,6 +335,37 @@ internal sealed class RequestStateTests
             .DoneOnDemandTestBuild(_onDemandRoot, new BuildReference("OnDemandTest2", buildNumberByJob["OnDemandTest2"]));
         update = update.AbortAll();
         Assert.That(update.IsDone, Is.True);
+    }
+
+    [Test]
+    public async Task AbortChain_SameChain_SetsStatusToDone()
+    {
+        var diffs = new List<RequestBuildDiff>
+        {
+            new(new("MainTest1"), new("OnDemandTest1")),
+            new(new("MainTest2"), new("OnDemandTest2")),
+        };
+        using var mocks = OnDemandStoreMocks(out var onDemandStore);
+        var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
+
+        var update = requestState.AbortChain(_onDemandRootJob);
+
+        Assert.That(update.ChainDiffs[0].Status, Is.EqualTo(ChainStatus.Done));
+    }
+
+    [Test]
+    public async Task AbortChain_DifferentChain_DoesNothing()
+    {
+        var diffs = new List<RequestBuildDiff>
+        {
+            new(new("MainTest1"), new("OnDemandTest1")),
+            new(new("MainTest2"), new("OnDemandTest2")),
+        };
+        using var mocks = OnDemandStoreMocks(out var onDemandStore);
+        var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
+        var otherOnDemandRootJob = new JobName("OtherOnDemandBuild");
+        var update = requestState.AbortChain(otherOnDemandRootJob);
+        Assert.That(update.ChainDiffs[0].Status, Is.EqualTo(ChainStatus.RootTriggered));
     }
 
     [Test]

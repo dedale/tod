@@ -55,7 +55,7 @@ internal sealed class FilterManagerTests
     {
         var manager = GetFilterManager();
 
-        Assert.That(() => manager.GetTestBuildDiffs(["unknown1", "unknown2"], _mainBranch),
+        Assert.That(() => manager.GetTestBuildDiffs("chain", ["unknown1", "unknown2"], _mainBranch),
             Throws.InvalidOperationException.And.Message.EqualTo("Unknown test filters: 'unknown1', 'unknown2'"));
     }
 
@@ -64,7 +64,7 @@ internal sealed class FilterManagerTests
     {
         var manager = GetFilterManager();
 
-        Assert.That(() => manager.GetTestBuildDiffs(["unknown1"], _mainBranch),
+        Assert.That(() => manager.GetTestBuildDiffs("chain", ["unknown1"], _mainBranch),
             Throws.InvalidOperationException.And.Message.EqualTo("Unknown test filter: 'unknown1'"));
     }
 
@@ -73,7 +73,7 @@ internal sealed class FilterManagerTests
     {
         var manager = GetFilterManager();
 
-        Assert.That(() => manager.GetTestBuildDiffs(["empty1"], _mainBranch),
+        Assert.That(() => manager.GetTestBuildDiffs("chain", ["empty1"], _mainBranch),
             Throws.InvalidOperationException.And.Message.EqualTo("No test groups for the request filter: 'empty1'"));
     }
 
@@ -82,7 +82,7 @@ internal sealed class FilterManagerTests
     {
         var manager = GetFilterManager();
 
-        Assert.That(() => manager.GetTestBuildDiffs(["empty1", "empty2"], _mainBranch),
+        Assert.That(() => manager.GetTestBuildDiffs("chain", ["empty1", "empty2"], _mainBranch),
             Throws.InvalidOperationException.And.Message.EqualTo("No test groups for the request filters: 'empty1', 'empty2'"));
     }
 
@@ -91,7 +91,7 @@ internal sealed class FilterManagerTests
     {
         var manager = GetFilterManager();
 
-        Assert.That(() => manager.GetTestBuildDiffs(["prod"], _mainBranch),
+        Assert.That(() => manager.GetTestBuildDiffs("chain", ["prod"], _mainBranch),
             Throws.InvalidOperationException.With.Message.EqualTo("No reference job for 'main' branch in test group"));
     }
 
@@ -245,17 +245,11 @@ internal sealed class FilterManagerTests
     [Test]
     public void GetRootDiffs_WithDuplicateRootNames_ReturnsSingleRootDiff()
     {
-        // Arrange
         var manager = GetFilterManager();
-        var rootFilters = new[] {"build", "build" };
+        var rootFilters = new[] { "build", "build" };
 
-        // Act
-        var rootDiffs = manager.GetRootDiffs(rootFilters, _mainBranch);
-
-        // Assert
-        Assert.That(rootDiffs, Has.Length.EqualTo(1));
-        Assert.That(rootDiffs[0].ReferenceJob.Value, Is.EqualTo("MAIN-build"));
-        Assert.That(rootDiffs[0].OnDemandJob.Value, Is.EqualTo("CUSTOM-build"));
+        Assert.That(() => manager.GetRootDiffs(rootFilters, _mainBranch),
+            Throws.InvalidOperationException.And.Message.EqualTo("Multiple matching root filters for root 'build': chain '', chain ''"));
     }
 
     private static readonly FilterManager s_complexManager = GetComplexManager();
@@ -323,15 +317,15 @@ internal sealed class FilterManagerTests
         };
         var rootFilters = new RootFilter[]
         {
-            new("FrontEnd", "FrontEnd"),
+            new("FrontEnd", "(?<chain>FrontEnd)"),
             new("Core", "Core"),
-            new("BackEnd", "BackEnd"),
+            new("BackEnd", "(?<chain>BackEnd)"),
         };
         var testFilters = new TestFilter[]
         {
-            new("FrontEnd", "FrontEnd", "team"),
+            new("FrontEnd", "(?<chain>FrontEnd)", "team"),
             new("Core", "Core", "team"),
-            new("BackEnd", "BackEnd", "team"),
+            new("BackEnd", "(?<chain>BackEnd)", "team"),
 
             new("dev", "dev-tests", "tests"),
             new("integration", "integration-tests", "tests"),
@@ -339,23 +333,34 @@ internal sealed class FilterManagerTests
             new("net6", "net6", "framework"),
             new("net8", "net8", "framework"),
         };
-        var config = JenkinsConfig.New("http://localhost:8080", referenceJobs: referenceJobs, onDemandJobs: onDemandJobs, rootFilters: rootFilters, testFilters: testFilters);
+        var config = JenkinsConfig.New("http://localhost:8080", referenceJobs: referenceJobs, onDemandJobs: onDemandJobs, rootFilters: rootFilters, chainTestGroup: "team", testFilters: testFilters);
         var jobGroups = JobManager.TryLoad(config, jobs);
         Debug.Assert(jobGroups is not null);
         return new FilterManager(config, jobGroups);
     }
 
     [Test]
-    public void GetRootDiffs_ComplexCase_WithBuildRoot_ReturnsCorrectDiff()
+    public void GetRootDiffs_ComplexCase_WithChain_ReturnsCorrectDiff()
     {
-        // Arrange
-        var rootFilters = new[] { "Core" };
+        var rootFilters = new[] { "FrontEnd" };
 
-        // Act
         var rootDiffs = s_complexManager.GetRootDiffs(rootFilters, _mainBranch);
 
-        // Assert
         Assert.That(rootDiffs, Has.Length.EqualTo(1));
+        Assert.That(rootDiffs[0].Chain, Is.EqualTo("FrontEnd"));
+        Assert.That(rootDiffs[0].ReferenceJob.Value, Is.EqualTo("MAIN-FrontEnd-build"));
+        Assert.That(rootDiffs[0].OnDemandJob.Value, Is.EqualTo("CUSTOM-FrontEnd-build"));
+    }
+
+    [Test]
+    public void GetRootDiffs_ComplexCase_WithBuildRoot_ReturnsCorrectDiff()
+    {
+        var rootFilters = new[] { "Core" };
+
+        var rootDiffs = s_complexManager.GetRootDiffs(rootFilters, _mainBranch);
+
+        Assert.That(rootDiffs, Has.Length.EqualTo(1));
+        Assert.That(rootDiffs[0].Chain, Is.EqualTo(RootFilter.DefaultChain));
         Assert.That(rootDiffs[0].ReferenceJob.Value, Is.EqualTo("MAIN-Core-build"));
         Assert.That(rootDiffs[0].OnDemandJob.Value, Is.EqualTo("CUSTOM-Core-build"));
     }
@@ -363,22 +368,20 @@ internal sealed class FilterManagerTests
     [Test]
     public void GetRootDiffs_ComplexCase_WithProdBranch_ReturnsCorrectDiff()
     {
-        // Arrange
         var rootFilters = new[] { "Core" };
 
-        // Act
         var rootDiffs = s_complexManager.GetRootDiffs(rootFilters, _prodBranch);
 
-        // Assert
         Assert.That(rootDiffs, Has.Length.EqualTo(1));
+        Assert.That(rootDiffs[0].Chain, Is.EqualTo(RootFilter.DefaultChain));
         Assert.That(rootDiffs[0].ReferenceJob.Value, Is.EqualTo("PROD-Core-build"));
         Assert.That(rootDiffs[0].OnDemandJob.Value, Is.EqualTo("CUSTOM-Core-build"));
     }
 
     [Test]
-    public void ComplexCase_FrontEnd()
+    public void GetTestBuildDiffs_ComplexCase_FrontEnd()
     {
-        var testBuildDiffs = s_complexManager.GetTestBuildDiffs(["FrontEnd"], _mainBranch);
+        var testBuildDiffs = s_complexManager.GetTestBuildDiffs("FrontEnd", ["FrontEnd"], _mainBranch);
         Assert.That(testBuildDiffs, Has.Length.EqualTo(4));
         var jobNames = testBuildDiffs.Select(d => d.OnDemandJob);
         Assert.That(jobNames, Is.EquivalentTo(new JobName[]
@@ -391,9 +394,9 @@ internal sealed class FilterManagerTests
     }
 
     [Test]
-    public void ComplexCase_Core_net6()
+    public void GetTestBuildDiffs_ComplexCase_Core_net6()
     {
-        var testBuildDiffs = s_complexManager.GetTestBuildDiffs(["Core", "net6"], _mainBranch);
+        var testBuildDiffs = s_complexManager.GetTestBuildDiffs(RootFilter.DefaultChain, ["Core", "net6"], _mainBranch);
         Assert.That(testBuildDiffs, Has.Length.EqualTo(2));
         var jobNames = testBuildDiffs.Select(d => d.OnDemandJob);
         Assert.That(jobNames, Is.EquivalentTo(new JobName[]
@@ -403,17 +406,17 @@ internal sealed class FilterManagerTests
         }));
     }
 
-    [Test]
-    public void ComplexCase_dev_net6()
+    [TestCase("FrontEnd", "CUSTOM-FrontEnd-dev-tests-net6")]
+    [TestCase("", "CUSTOM-Core-dev-tests-net6")]
+    [TestCase("BackEnd", "CUSTOM-BackEnd-dev-tests-net6")]
+    public void GetTestBuildDiffs_ComplexCase_dev_net6(string chain, string testJob)
     {
-        var testBuildDiffs = s_complexManager.GetTestBuildDiffs(["dev", "net6"], _mainBranch);
-        Assert.That(testBuildDiffs, Has.Length.EqualTo(3));
+        var testBuildDiffs = s_complexManager.GetTestBuildDiffs(chain, ["dev", "net6"], _mainBranch);
+        Assert.That(testBuildDiffs, Has.Length.EqualTo(1));
         var jobNames = testBuildDiffs.Select(d => d.OnDemandJob);
         Assert.That(jobNames, Is.EquivalentTo(new JobName[]
         {
-            new("CUSTOM-FrontEnd-dev-tests-net6"),
-            new("CUSTOM-Core-dev-tests-net6"),
-            new("CUSTOM-BackEnd-dev-tests-net6"),
+            new(testJob),
         }));
     }
 }

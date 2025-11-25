@@ -17,48 +17,10 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
         Log.Information("Registering new request {RequestId} for commit {Commit} on branch {Branch}",
             request.Id, request.Commit, request.GitReference.Branch);
 
-        var branchReference = workspace.BranchReferences.FirstOrDefault(r => r.BranchName == request.GitReference.Branch);
-        if (branchReference == null)
-        {
-            Log.Error("Cannot use branch {Branch} for reference - branch not found", request.GitReference.Branch);
-            throw new InvalidOperationException($"Cannot use '{request.GitReference.Branch}' branch for reference");
-        }
+        var chainBuilder = new RequestChainBuilder(workspace, filterManager);
+        var chains = chainBuilder.Get(request.Commit, request.GitReference, rootDiffs, request.GetFilters());
 
-        var roots = new List<(JobName ReferenceJob, BuildReference RootBuild, JobName OnDemandJob)>();
-        foreach (var rootDiff in rootDiffs)
-        {
-            if (branchReference.TryFindRootBuildByCommit(request.GitReference.Commit, rootDiff.ReferenceJob, out var rootBuild))
-            {
-                roots.Add((rootDiff.ReferenceJob, rootBuild.Reference, rootDiff.OnDemandJob));
-                Log.Debug("Found reference root build {RootBuild} for parent commit {Commit}", rootBuild, request.GitReference.Commit);
-            }
-            else
-            {
-                Log.Error("Unknown parent commit {Commit} in branch {Branch} for job {JobName}",
-                    request.GitReference.Commit, request.GitReference.Branch, rootDiff.ReferenceJob);
-                throw new InvalidOperationException($"Unknown parent commit '{request.GitReference.Commit}' for job '{rootDiff.ReferenceJob}'");
-            }
-        }
-
-        var requestChains = new List<RequestChain>();
-        foreach (var (refRootJob, refRootBuild, onDemandJob) in roots)
-        {
-            var testJobDiffs = filterManager.GetTestBuildDiffs(request.GetFilters(), request.GitReference.Branch);
-            var testBuildDiffs = new List<RequestBuildDiff>(testJobDiffs.Length);
-            for (var i = 0; i < testJobDiffs.Length; i++)
-            {
-                var buildDiff = new RequestBuildDiff(testJobDiffs[i].ReferenceJob, testJobDiffs[i].OnDemandJob);
-                if (branchReference.TryFindTestBuild(testJobDiffs[i].ReferenceJob, refRootBuild, out var refTestBuild))
-                {
-                    Log.Debug("Reusing reference test build {TestBuild}", refTestBuild);
-                    buildDiff = buildDiff.DoneReference(refTestBuild.BuildNumber);
-                }
-                testBuildDiffs.Add(buildDiff);
-            }
-            requestChains.Add(new RequestChain(refRootBuild, RequestRootBuildReference.Queue(onDemandJob, request.Commit), [.. testBuildDiffs]));
-        }
-
-        var requestState = await RequestState.New(request, [.. requestChains], workspace.OnDemandBuilds, jenkinsClient.TriggerBuild).ConfigureAwait(false);
+        var requestState = await RequestState.New(request, chains, workspace.OnDemandBuilds, jenkinsClient.TriggerBuild).ConfigureAwait(false);
         workspace.OnDemandRequests.Add(requestState);
 
         Log.Information("Request {RequestId} registered", request.Id);

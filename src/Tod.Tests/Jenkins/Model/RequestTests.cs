@@ -6,12 +6,12 @@ namespace Tod.Tests.Jenkins;
 [TestFixture]
 internal sealed class RequestTests
 {
-    private static string GetUserEmail(string userName) => $"{userName}@example.org";
+    private static readonly string s_userEmail = $"user@example.org";
 
     [Test]
     public void AssertSerializable_Works()
     {
-        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["tests"], GetUserEmail);
+        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["tests"], s_userEmail);
         request.AssertSerializable();
     }
 }

@@ -15,11 +15,11 @@ internal sealed class OnDemandRequestsTests : IDisposable
     private static readonly JobName s_referenceRootJob = new("ReferenceJob");
     private static readonly JobName s_referenceTestJob = new("ReferenceTest");
 
-    private static string GetUserEmail(string userName) => $"{userName}@example.org";
+    private static readonly string s_userEmail = $"user@example.org";
 
     private static Task<RequestState> CreateRequestState(IOnDemandStore onDemandStore, BuildReference? referenceRoot = null)
     {
-        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["test"], GetUserEmail);
+        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["test"], s_userEmail);
         var onDemandRoot = RequestRootBuildReference.Queue(s_onDemandRootJob, request.Commit);
         var chains = new RequestChain[] {
             new(
@@ -368,13 +368,13 @@ internal sealed class OnDemandRequestsTests : IDisposable
     [Test]
     public async Task GetPendingReferenceTest_IgnoreOtherTests()
     {
-        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["test"], GetUserEmail);
+        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["test"], s_userEmail);
         var referenceRoot = new BuildReference("ReferenceJob", RandomData.NextBuildNumber);
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState1 = await CreateRequestState(onDemandStore, referenceRoot: referenceRoot).ConfigureAwait(false);
         var onDemandRoot = new BuildReference("OnDemandJob", RandomData.NextBuildNumber);
 
-        var otherRequest = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["test"], GetUserEmail);
+        var otherRequest = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["test"], s_userEmail);
         var otherOnDemandRoot = RequestRootBuildReference.Queue(s_onDemandRootJob, otherRequest.Commit);
         var chains = new RequestChain[] {
             new(
@@ -402,7 +402,7 @@ internal sealed class OnDemandRequestsTests : IDisposable
                 new(new("MainTest1"), new("OnDemandTest1")),
                 new(new("MainTest2"), new("OnDemandTest2")),
             };
-            var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["tests"], GetUserEmail);
+            var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["tests"], s_userEmail);
             var onDemandRoot = RequestRootBuildReference.Queue(s_onDemandRootJob, request.Commit);
             var chains = new RequestChain[] {
                 new(

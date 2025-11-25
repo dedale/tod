@@ -2,6 +2,7 @@
 using Serilog;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using Tod.Core;
 using Tod.Git;
 using Tod.Jenkins;
 using Tod.Net;
@@ -63,9 +64,42 @@ internal static class Program
         var mailSender = new MailSender(config.MailConfig);
         var reportSender = new ReportSender(new RequestReportBuilder(), mailSender);
         var requestManager = new RequestManager(workspace, filterManager, jenkinsClient, reportSender);
-        var request = Request.Create(commits.First(), gitReference, [.. options.TestFilters]);
+        var request = Request.Create(commits.First(), gitReference, [.. options.TestFilters], UserDirectory.CurrentUserEmail);
         await requestManager.Register(request, rootDiffs).ConfigureAwait(false);
         return 0;
+    }
+
+    private static Task<int> Jobs(JobsOptions options)
+    {
+        using var gitRepo = new GitRepo(Environment.CurrentDirectory);
+        var commits = gitRepo.GetLastCommits(50);
+        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
+        var wantedBranch = options.BranchName is not null ? new BranchName(options.BranchName) : null;
+        var rootFilters = options.RootFilters.ToArray();
+
+        var config = JenkinsConfig.Load(options.ConfigPath);
+        Log.Debug("Using cached jobs in Jenkins config");
+        var jobGroups = JobManager.TryLoad(config, config.JobNames);
+        Debug.Assert(jobGroups is not null);
+        var filterManager = new FilterManager(config, jobGroups);
+
+        var gitReference = workspace.GetGitReference(filterManager, wantedBranch, rootFilters, commits, out var rootDiffs);
+        if (gitReference == null)
+        {
+            return Task.FromResult(1);
+        }
+
+        var chainBuilder = new RequestChainBuilder(workspace, filterManager);
+        var chains = chainBuilder.Get(commits.First(), gitReference, rootDiffs, [.. options.TestFilters]);
+        foreach (var chain in chains)
+        {
+            Log.Information("Root Job; {RootJob}", chain.OnDemandRoot);
+            foreach (var testBuildDiff in chain.TestBuildDiffs)
+            {
+                Log.Information("  Test Job: {TestJob}", testBuildDiff.OnDemandBuild);
+            }
+        }
+        return Task.FromResult(0);
     }
 
     private static async Task<int> Main(string[] args)
@@ -78,9 +112,10 @@ internal static class Program
         {
             Log.Debug(Environment.CommandLine);
 
-            return await Parser.Default.ParseArguments<SyncOptions, NewOptions>(args).MapResult(
+            return await Parser.Default.ParseArguments<SyncOptions, NewOptions, JobsOptions>(args).MapResult(
                 (SyncOptions options) => Sync(options),
                 (NewOptions options) => New(options),
+                (JobsOptions options) => Jobs(options),
                 errors => Task.FromResult(1)).ConfigureAwait(false);
         }
         catch (Exception ex)

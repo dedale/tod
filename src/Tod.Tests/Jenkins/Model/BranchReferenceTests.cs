@@ -533,7 +533,7 @@ internal sealed class BranchReferenceTests
             var commits = new[] { localCommit, refCommit };
 
             var onDemandJob = new JobName("CustomJob");
-            var expectedRootDiffs = new[] { new JobDiff(mainJob, onDemandJob) };
+            var expectedRootDiffs = new[] { new JobDiff("chain", mainJob, onDemandJob) };
             var filterManager = new Mock<IFilterManager>(MockBehavior.Strict);
             filterManager.Setup(f => f.GetRootDiffs(rootFilters, mainBranchRef.BranchName)).Returns(expectedRootDiffs);
 
@@ -568,7 +568,7 @@ internal sealed class BranchReferenceTests
             var commits = new[] { RandomData.NextSha1(), RandomData.NextSha1(), RandomData.NextSha1() };
 
             var onDemandJob = new JobName("CustomJob");
-            var expectedRootDiffs = new[] { new JobDiff(mainJob, onDemandJob) };
+            var expectedRootDiffs = new[] { new JobDiff("chain", mainJob, onDemandJob) };
             var filterManager = new Mock<IFilterManager>(MockBehavior.Strict);
             filterManager.Setup(f => f.GetRootDiffs(rootFilters, mainBranchRef.BranchName)).Returns(expectedRootDiffs);
 

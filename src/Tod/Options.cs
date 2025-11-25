@@ -43,4 +43,18 @@ internal sealed class NewOptions : BaseOptions
     public string UserToken { get; set; }
 }
 
+[ExcludeFromCodeCoverage]
+[Verb("jobs", HelpText = "Get job names from filters")]
+internal sealed class JobsOptions : BaseOptions
+{
+    [Option('b', "branch", Required = false, HelpText = "Reference branch")]
+    public string? BranchName { get; set; }
+
+    [Option('r', "root-filters", Required = true, HelpText = "Root filter names")]
+    public IEnumerable<string> RootFilters { get; set; }
+
+    [Option('t', "test-filters", Required = true, HelpText = "Test filter names")]
+    public IEnumerable<string> TestFilters { get; set; }
+}
+
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.

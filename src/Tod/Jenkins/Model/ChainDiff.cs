@@ -1,4 +1,7 @@
-﻿using System.Text.Json.Serialization;
+﻿using LibGit2Sharp;
+using Serilog;
+using System.Text.Json.Serialization;
+using Tod.Git;
 
 namespace Tod.Jenkins;
 
@@ -14,6 +17,54 @@ internal sealed class RequestChain(BuildReference referenceRoot, RequestRootBuil
     public BuildReference ReferenceRoot { get; } = referenceRoot;
     public RequestRootBuildReference OnDemandRoot { get; } = ondemandRoot;
     public IEnumerable<RequestBuildDiff> TestBuildDiffs { get; } = testBuildDiffs;
+}
+
+internal sealed class RequestChainBuilder(Workspace workspace, IFilterManager filterManager)
+{
+    public RequestChain[] Get(Sha1 commit, GitReference gitReference, JobDiff[] rootDiffs, string[] testFilters)
+    {
+        var branchReference = workspace.BranchReferences.FirstOrDefault(r => r.BranchName == gitReference.Branch);
+        if (branchReference == null)
+        {
+            Log.Error("Cannot use branch {Branch} for reference - branch not found", gitReference.Branch);
+            throw new InvalidOperationException($"Cannot use '{gitReference.Branch}' branch for reference");
+        }
+
+        var roots = new List<(string rootChain, BuildReference rootBuild, JobName onDemandJob)>();
+        foreach (var rootDiff in rootDiffs)
+        {
+            if (branchReference.TryFindRootBuildByCommit(gitReference.Commit, rootDiff.ReferenceJob, out var rootBuild))
+            {
+                roots.Add((rootDiff.Chain, rootBuild.Reference, rootDiff.OnDemandJob));
+                Log.Debug("Found reference root build {RootBuild} for parent commit {Commit}", rootBuild, gitReference.Commit);
+            }
+            else
+            {
+                Log.Error("Unknown parent commit {Commit} in branch {Branch} for job {JobName}",
+                    gitReference.Commit, gitReference.Branch, rootDiff.ReferenceJob);
+                throw new InvalidOperationException($"Unknown parent commit '{gitReference.Commit}' for job '{rootDiff.ReferenceJob}'");
+            }
+        }
+
+        var requestChains = new List<RequestChain>();
+        foreach (var (rootChain, refRootBuild, onDemandJob) in roots)
+        {
+            var testJobDiffs = filterManager.GetTestBuildDiffs(rootChain, testFilters, gitReference.Branch);
+            var testBuildDiffs = new List<RequestBuildDiff>(testJobDiffs.Length);
+            for (var i = 0; i < testJobDiffs.Length; i++)
+            {
+                var buildDiff = new RequestBuildDiff(testJobDiffs[i].ReferenceJob, testJobDiffs[i].OnDemandJob);
+                if (branchReference.TryFindTestBuild(testJobDiffs[i].ReferenceJob, refRootBuild, out var refTestBuild))
+                {
+                    Log.Debug("Reusing reference test build {TestBuild}", refTestBuild);
+                    buildDiff = buildDiff.DoneReference(refTestBuild.BuildNumber);
+                }
+                testBuildDiffs.Add(buildDiff);
+            }
+            requestChains.Add(new RequestChain(refRootBuild, RequestRootBuildReference.Queue(onDemandJob, commit), [.. testBuildDiffs]));
+        }
+        return [.. requestChains];
+    }
 }
 
 internal sealed class ChainDiff(ChainStatus status, BuildReference referenceRoot, RequestRootBuildReference onDemandRoot, List<RequestBuildDiff> testBuildDiffs) : IWithCustomSerialization<ChainDiff.Serializable>

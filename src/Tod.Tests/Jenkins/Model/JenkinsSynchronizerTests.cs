@@ -44,7 +44,7 @@ internal sealed class JenkinsSynchronizerTests
             branchReference.TryAddTest(_refTestJob1);
             branchReference.TryAddTest(_refTestJob2);
             var buildCount = 2;
-            var builds = RandomBuilds.Generate(buildCount).ToArray();
+            var builds = RandomBuilds.Generate(buildCount, success: [true, false]).ToArray();
             var scheduled = Enumerable.Range(0, buildCount)
                 .Select(_ => new JobName[] { _refTestJob1, _refTestJob2 })
                 .ToArray();

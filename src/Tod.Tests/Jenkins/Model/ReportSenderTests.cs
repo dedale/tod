@@ -37,11 +37,11 @@ internal sealed class ReportSenderTests
         _mockMailSender.VerifyAll();
     }
 
-    private static string GetUserEmail(string userName) => $"{userName}@example.org";
+    private static readonly string s_userEmail = $"user@example.org";
 
     private Task<RequestState> CreateRequestState(IOnDemandStore onDemandStore, BranchName? refBranch = null)
     {
-        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), refBranch ?? _mainBranch, ["test"], GetUserEmail);
+        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), refBranch ?? _mainBranch, ["test"], s_userEmail);
         var onDemandRoot = RequestRootBuildReference.Queue(_onDemandRootJob, request.Commit);
         var chains = new RequestChain[] {
             new(

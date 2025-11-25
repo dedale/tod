@@ -80,11 +80,11 @@ internal sealed class RequestManagerTests
         return new RequestManager(workspace, _filterManager.Object, _jenkinsClient.Object, _reportSender.Object);
     }
 
-    private static string GetUserEmail(string userName) => $"{userName}@example.org";
+    private static readonly string s_userEmail = $"user@example.org";
 
     private Task<RequestState> CreateRequestState(IOnDemandStore onDemandStore, BuildReference? referenceRoot = null)
     {
-        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _mainBranch, ["test"], GetUserEmail);
+        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _mainBranch, ["test"], s_userEmail);
         var onDemandRoot = RequestRootBuildReference.Queue(_onDemandRootJob, request.Commit);
         var chains = new RequestChain[] {
             new(
@@ -112,14 +112,14 @@ internal sealed class RequestManagerTests
 
         var requestFilters = new[] { "integration" };
 
-        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[1], _mainBranch, requestFilters, GetUserEmail);
+        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[1], _mainBranch, requestFilters, s_userEmail);
 
         var expectedBuildNumber = RandomData.NextBuildNumber;
         _jenkinsClient.Setup(c => c.TriggerBuild(OnDemandJobKind.Root, _onDemandRootJob, It.Is<TriggerParameters>(p => p.Commit == request.Commit)))
             .Returns(Task.CompletedTask);
 
-        _filterManager.Setup(m => m.GetTestBuildDiffs(requestFilters, _mainBranch))
-            .Returns([new(_referenceTestJob, _onDemandTestJob)]);
+        _filterManager.Setup(m => m.GetTestBuildDiffs("chain", requestFilters, _mainBranch))
+            .Returns([new("chain", _referenceTestJob, _onDemandTestJob)]);
 
         var workspace = GetWorkspace(branchReference, onDemandStore);
 
@@ -127,7 +127,7 @@ internal sealed class RequestManagerTests
 
         var requestManager = GetRequestManager(workspace);
 
-        await requestManager.Register(request, [new(_referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false);
+        await requestManager.Register(request, [new("chain", _referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false);
 
         Assert.That(workspace.OnDemandRequests.ActiveRequests.Single().Value.Request.Id, Is.EqualTo(request.Id));
     }
@@ -143,12 +143,12 @@ internal sealed class RequestManagerTests
 
         var branchReference = AddMainBranchReference(referenceStore);
 
-        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("unknown"), ["integration"], GetUserEmail);
+        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("unknown"), ["integration"], s_userEmail);
 
         var workspace = GetWorkspace(branchReference, onDemandStore);
         var requestManager = GetRequestManager(workspace);
 
-        Assert.That(() => requestManager.Register(request, [new(_referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false),
+        Assert.That(() => requestManager.Register(request, [new("chain", _referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false),
             Throws.InvalidOperationException.With.Message.EqualTo("Cannot use 'unknown' branch for reference"));
     }
 
@@ -161,14 +161,14 @@ internal sealed class RequestManagerTests
             .WithTestobs(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore);
 
-        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _mainBranch, ["integration"], GetUserEmail);
+        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _mainBranch, ["integration"], s_userEmail);
 
         var branchReference = new BranchReference(referenceStore);
         branchReference.TryAddRoot(_referenceRootJob);
         var workspace = GetWorkspace(branchReference, onDemandStore);
         var requestManager = GetRequestManager(workspace);
 
-        Assert.That(() => requestManager.Register(request, [new(_referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false),
+        Assert.That(() => requestManager.Register(request, [new("chain", _referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false),
             Throws.InvalidOperationException.With.Message.StartWith("Unknown parent commit"));
     }
 
@@ -197,18 +197,18 @@ internal sealed class RequestManagerTests
         )), Is.True);
 
         var requestFilters = new[] { "integration" };
-        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[1], _mainBranch, requestFilters, GetUserEmail);
+        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[1], _mainBranch, requestFilters, s_userEmail);
 
         _jenkinsClient.Setup(c => c.TriggerBuild(OnDemandJobKind.Root, _onDemandRootJob, It.Is<TriggerParameters>(p => p.Commit == request.Commit)))
             .Returns(Task.CompletedTask);
 
-        _filterManager.Setup(m => m.GetTestBuildDiffs(requestFilters, _mainBranch))
-            .Returns([new JobDiff(_referenceTestJob, _onDemandTestJob)]);
+        _filterManager.Setup(m => m.GetTestBuildDiffs("chain", requestFilters, _mainBranch))
+            .Returns([new JobDiff("chain", _referenceTestJob, _onDemandTestJob)]);
 
         var workspace = GetWorkspace(branchReference, onDemandStore);
         var requestManager = GetRequestManager(workspace);
 
-        await requestManager.Register(request, [new(_referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false);
+        await requestManager.Register(request, [new("chain", _referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false);
 
         var cachedRequest = workspace.OnDemandRequests.ActiveRequests.Single();
         Assert.That(cachedRequest.Value.ChainDiffs[0].TestBuildDiffs.Single().ReferenceBuild.IsDone, Is.True);
@@ -240,7 +240,7 @@ internal sealed class RequestManagerTests
         )), Is.True);
 
         var requestFilters = new[] { "integration" };
-        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, GetUserEmail);
+        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, s_userEmail);
 
         var onDemandRootBuild = new RootBuild(
             _onDemandRootJob,
@@ -268,12 +268,12 @@ internal sealed class RequestManagerTests
             []
         ));
 
-        _filterManager.Setup(m => m.GetTestBuildDiffs(requestFilters, _mainBranch))
-            .Returns([new JobDiff(_referenceTestJob, _onDemandTestJob)]);
+        _filterManager.Setup(m => m.GetTestBuildDiffs("chain", requestFilters, _mainBranch))
+            .Returns([new JobDiff("chain", _referenceTestJob, _onDemandTestJob)]);
 
         _reportSender.Setup(x => x.Send(It.Is<RequestState>(r => r.Request.Id == request.Id && r.IsDone == true), It.IsAny<Workspace>()));
 
-        var rootDiffs = new JobDiff[] { new(_referenceRootJob, _onDemandRootJob) };
+        var rootDiffs = new JobDiff[] { new("chain", _referenceRootJob, _onDemandRootJob) };
 
         var requestManager = GetRequestManager(workspace);
 
@@ -305,7 +305,7 @@ internal sealed class RequestManagerTests
         )), Is.True);
 
         var requestFilters = new[] { "integration" };
-        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, GetUserEmail);
+        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, s_userEmail);
 
         var workspace = GetWorkspace(branchReference, onDemandStore);
 
@@ -324,12 +324,12 @@ internal sealed class RequestManagerTests
         _jenkinsClient.Setup(c => c.TriggerBuild(OnDemandJobKind.Root, _onDemandRootJob, It.Is<TriggerParameters>(p => p.Commit == request.Commit)))
             .Returns(Task.CompletedTask);
 
-        _filterManager.Setup(m => m.GetTestBuildDiffs(requestFilters, _mainBranch))
-            .Returns([new JobDiff(_referenceTestJob, _onDemandTestJob)]);
+        _filterManager.Setup(m => m.GetTestBuildDiffs("chain", requestFilters, _mainBranch))
+            .Returns([new JobDiff("chain", _referenceTestJob, _onDemandTestJob)]);
 
         var requestManager = GetRequestManager(workspace);
 
-        await requestManager.Register(request, [new(_referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false);
+        await requestManager.Register(request, [new("chain", _referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false);
     }
 
     [Test]
@@ -358,7 +358,7 @@ internal sealed class RequestManagerTests
         )), Is.True);
 
         var requestFilters = new[] { "integration" };
-        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, GetUserEmail);
+        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, s_userEmail);
 
         var workspace = GetWorkspace(branchReference, onDemandStore);
 
@@ -385,15 +385,15 @@ internal sealed class RequestManagerTests
             []
         ));
 
-        _filterManager.Setup(m => m.GetTestBuildDiffs(requestFilters, _mainBranch))
-            .Returns([new JobDiff(_referenceTestJob, _onDemandTestJob)]);
+        _filterManager.Setup(m => m.GetTestBuildDiffs("chain", requestFilters, _mainBranch))
+            .Returns([new JobDiff("chain", _referenceTestJob, _onDemandTestJob)]);
 
         _jenkinsClient.Setup(c => c.TriggerBuild(OnDemandJobKind.Test, _onDemandTestJob, It.Is<TriggerParameters>(p => p.UpstreamBuildNumber == onDemandRootBuild.BuildNumber)))
             .Returns(Task.CompletedTask);
 
         var requestManager = GetRequestManager(workspace);
 
-        await requestManager.Register(request, [new(_referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false);
+        await requestManager.Register(request, [new("chain", _referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false);
     }
 
     [Test]
@@ -405,7 +405,7 @@ internal sealed class RequestManagerTests
 
         var onDemandRoot = new BuildReference(_onDemandRootJob, RandomData.NextBuildNumber);
 
-        var diffs = new List<JobDiff> { new(_referenceTestJob, _onDemandTestJob) };
+        var diffs = new List<JobDiff> { new("chain", _referenceTestJob, _onDemandTestJob) };
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
 
         var workspace = GetWorkspace(onDemandStore);

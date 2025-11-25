@@ -46,7 +46,9 @@ internal sealed record TriggerConfig(OnDemandJobKind JobKind, TriggerParameter P
 
 internal sealed class RootFilter(string name, string pattern)
 {
-    private readonly Regex _regex = new(pattern);
+    public static readonly string DefaultChain = string.Empty;
+
+    private readonly Regex _regex = new(pattern, RegexOptions.Compiled, TimeSpan.FromMilliseconds(100));
 
     public string Name { get; } = name;
     public string Pattern { get; } = pattern;
@@ -63,15 +65,24 @@ internal sealed class RootFilter(string name, string pattern)
         return HashCode.Combine(Name, Pattern);
     }
 
-    public bool Matches(RootName rootName)
+    public bool Matches(RootName rootName, [NotNullWhen(true)] out string? chain)
     {
-        return _regex.IsMatch(rootName.Value);
+        var match = _regex.Match(rootName.Value);
+        if (match.Success)
+        {
+            chain = match.Groups.Keys.Contains("chain") ? match.Groups["chain"].Value : DefaultChain;
+        }
+        else
+        {
+            chain = null;
+        }
+        return match.Success;
     }
 }
 
 internal sealed class TestFilter(string name, string pattern, string group)
 {
-    private readonly Regex _regex = new(pattern);
+    private readonly Regex _regex = new(pattern, RegexOptions.Compiled, TimeSpan.FromMilliseconds(100));
 
     public string Name { get; } = name;
     public string Pattern { get; } = pattern;
@@ -90,9 +101,18 @@ internal sealed class TestFilter(string name, string pattern, string group)
         return HashCode.Combine(Name, Pattern, Group);
     }
 
-    public bool Matches(TestName testName)
+    public bool Matches(TestName testName, [NotNullWhen(true)] out string? chain)
     {
-        return _regex.IsMatch(testName.Value);
+        var match = _regex.Match(testName.Value);
+        if (match.Success)
+        {
+            chain = match.Groups.Keys.Contains("chain") ? match.Groups["chain"].Value : RootFilter.DefaultChain;
+        }
+        else
+        {
+            chain = null;
+        }
+        return match.Success;
     }
 }
 
@@ -110,7 +130,7 @@ internal sealed class JenkinsConfig
     private readonly Dictionary<string, TestFilter> _testFilterByName;
 
     public JenkinsConfig(string url)
-        : this(url, [], [], [], [], [], [], [], s_emptyMailConfig)
+        : this(url, [], [], [], [], [], [], string.Empty, [], s_emptyMailConfig)
     {
     }
 
@@ -123,6 +143,7 @@ internal sealed class JenkinsConfig
         OnDemandJobConfig[] onDemandJobs,
         TriggerConfig[] triggerConfigs,
         RootFilter[] rootFilters,
+        string chainTestGroup,
         TestFilter[] testFilters,
         MailConfig mailConfig)
     {
@@ -134,6 +155,7 @@ internal sealed class JenkinsConfig
         TriggerConfigs = triggerConfigs;
         RootFilters = rootFilters;
         _rootFilterByName = RootFilters.ToDictionary(f => f.Name);
+        ChainTestGroup = chainTestGroup;
         TestFilters = testFilters;
         _testFilterByName = testFilters.ToDictionary(f => f.Name);
         MailConfig = mailConfig;
@@ -147,6 +169,7 @@ internal sealed class JenkinsConfig
         OnDemandJobConfig[]? onDemandJobs = null,
         TriggerConfig[]? triggerConfigs = null,
         RootFilter[]? rootFilters = null,
+        string? chainTestGroup = null,
         TestFilter[]? testFilters = null,
         MailConfig? mailConfig = null
     )
@@ -159,6 +182,7 @@ internal sealed class JenkinsConfig
             onDemandJobs ?? [],
             triggerConfigs ?? [],
             rootFilters ?? [],
+            chainTestGroup ?? string.Empty,
             testFilters ?? [],
             mailConfig ?? s_emptyMailConfig
         );
@@ -171,6 +195,7 @@ internal sealed class JenkinsConfig
     public OnDemandJobConfig[] OnDemandJobs { get; }
     public TriggerConfig[] TriggerConfigs { get; }
     public RootFilter[] RootFilters { get; }
+    public string ChainTestGroup { get; }
     public TestFilter[] TestFilters { get; }
     public MailConfig MailConfig { get; }
 

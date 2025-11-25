@@ -33,7 +33,7 @@ internal sealed class TestFilterTests
     {
         var filter = new TestFilter("MyFilter", @"Test\d+", "tests");
         var testName = new TestName("Test123");
-        var result = filter.Matches(testName);
+        var result = filter.Matches(testName, out _);
         Assert.That(result, Is.True);
     }
 
@@ -42,7 +42,7 @@ internal sealed class TestFilterTests
     {
         var filter = new TestFilter("MyFilter", @"Test\d+", "tests");
         var testName = new TestName("TestABC");
-        var result = filter.Matches(testName);
+        var result = filter.Matches(testName, out _);
         Assert.That(result, Is.False);
     }
 
@@ -51,8 +51,28 @@ internal sealed class TestFilterTests
     {
         var filter = new TestFilter("MyFilter", "", "tests");
         var testName = new TestName("Test123");
-        var result = filter.Matches(testName);
+        var result = filter.Matches(testName, out _);
         Assert.That(result, Is.True);
+    }
+
+    [Test]
+    public void Matches_WithChainGroup_MatchesAndReturnsChain()
+    {
+        var filter = new TestFilter("MyFilter", "(?<chain>FrontEnd)", "tests");
+        var testName = new TestName("FrontEnd-Tests");
+        var result = filter.Matches(testName, out var chain);
+        Assert.That(result, Is.True);
+        Assert.That(chain, Is.EqualTo("FrontEnd"));
+    }
+
+    [Test]
+    public void Matches_WithChainGroup_DoesNotMatchAndReturnsNull()
+    {
+        var filter = new TestFilter("MyFilter", "(?<chain>FrontEnd)", "tests");
+        var testName = new TestName("BackEnd-Tests");
+        var result = filter.Matches(testName, out var chain);
+        Assert.That(result, Is.False);
+        Assert.That(chain, Is.Null);
     }
 
     [Test]
