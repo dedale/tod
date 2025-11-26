@@ -29,7 +29,7 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
         // Can be done when reusing all builds
         if (requestState.IsDone)
         {
-            reportSender.Send(requestState, workspace);
+            await reportSender.Send(requestState, workspace).ConfigureAwait(false);
         }
     }
 
@@ -58,12 +58,12 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
 
                     if (update.IsDone)
                     {
-                        reportSender.Send(update, workspace);
+                        await reportSender.Send(update, workspace).ConfigureAwait(false);
                     }
                 }
 
                 Log.Information("Request {RequestId} updated", update.Request.Id);
-                update.LogChainStatuses();
+                update.LogChainStatus(onDemandRoot.JobName);
             }
             finally
             {
@@ -89,7 +89,7 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
 
             if (update.IsDone)
             {
-                reportSender.Send(update, workspace);
+                await reportSender.Send(update, workspace).ConfigureAwait(false);
             }
         }
     }
@@ -106,11 +106,11 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
 
                 if (update.IsDone)
                 {
-                    reportSender.Send(update, workspace);
+                    await reportSender.Send(update, workspace).ConfigureAwait(false);
                 }
 
                 Log.Information("Request {RequestId} updated", update.Request.Id);
-                update.LogChainStatuses();
+                update.LogChainStatus(rootBuild.JobName);
             }
             finally
             {

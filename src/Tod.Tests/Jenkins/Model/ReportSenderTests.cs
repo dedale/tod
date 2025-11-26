@@ -17,6 +17,7 @@ internal sealed class ReportSenderTests
 
     private TempDirectory _temp;
     private Mock<IRequestReportBuilder> _mockReportBuilder;
+    private Mock<IJobLinker> _mockJobLinker;
     private Mock<IMailSender> _mockMailSender;
     private ReportSender _reportSender;
 
@@ -25,8 +26,9 @@ internal sealed class ReportSenderTests
     {
         _temp = new TempDirectory();
         _mockReportBuilder = new Mock<IRequestReportBuilder>(MockBehavior.Strict);
+        _mockJobLinker = new Mock<IJobLinker>(MockBehavior.Strict);
         _mockMailSender = new Mock<IMailSender>(MockBehavior.Strict);
-        _reportSender = new ReportSender(_mockReportBuilder.Object, _mockMailSender.Object);
+        _reportSender = new ReportSender(_mockReportBuilder.Object, _mockJobLinker.Object, _mockMailSender.Object);
     }
 
     [TearDown]
@@ -34,6 +36,7 @@ internal sealed class ReportSenderTests
     {
         _temp.Dispose();
         _mockReportBuilder.VerifyAll();
+        _mockJobLinker.VerifyAll();
         _mockMailSender.VerifyAll();
     }
 
@@ -91,7 +94,7 @@ internal sealed class ReportSenderTests
         _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.IsAny<string>()))
             .Returns(Task.CompletedTask);
 
-        _reportSender.Send(requestState, workspace);
+        await _reportSender.Send(requestState, workspace).ConfigureAwait(false);
     }
 
     [Test]
@@ -136,7 +139,7 @@ internal sealed class ReportSenderTests
         _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.IsAny<string>()))
             .Returns(Task.CompletedTask);
 
-        _reportSender.Send(requestState, workspace);
+        await _reportSender.Send(requestState, workspace).ConfigureAwait(false);
     }
 
     [Test]
@@ -152,7 +155,7 @@ internal sealed class ReportSenderTests
         var requestState = await CreateRequestState(onDemandStore, refBranch: requestBranch).ConfigureAwait(false);
         var workspace = GetWorkspace(referenceStore, onDemandStore);
 
-        Assert.Throws<InvalidOperationException>(() => _reportSender.Send(requestState, workspace));
+        Assert.ThrowsAsync<InvalidOperationException>(() => _reportSender.Send(requestState, workspace));
     }
 
     [Test]
@@ -181,10 +184,13 @@ internal sealed class ReportSenderTests
                 It.IsAny<OnDemandBuilds>()))
             .Returns(report);
 
+        _mockJobLinker.Setup(j => j.GetUrl(It.IsAny<JobName>()))
+            .Returns("http://example.org/job-link");
+
         _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.IsAny<string>()))
             .Returns(Task.CompletedTask);
 
-        Assert.DoesNotThrow(() => _reportSender.Send(requestState, workspace));
+        Assert.DoesNotThrowAsync(() => _reportSender.Send(requestState, workspace));
     }
 
     private async Task Send_FailedTestDiff(FailedTestDiff failedTestDiff, string inMail)
@@ -216,10 +222,13 @@ internal sealed class ReportSenderTests
                 It.IsAny<OnDemandBuilds>()))
             .Returns(report);
 
+        _mockJobLinker.Setup(j => j.GetUrl(It.IsAny<JobName>(), It.IsAny<int>()))
+            .Returns("http://example.org/job-link");
+
         _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.Is<string>(m => m.Contains(inMail))))
             .Returns(Task.CompletedTask);
 
-        Assert.DoesNotThrow(() => _reportSender.Send(requestState, workspace));
+        Assert.DoesNotThrowAsync(() => _reportSender.Send(requestState, workspace));
     }
 
     [Test]
@@ -230,12 +239,16 @@ internal sealed class ReportSenderTests
         return Send_FailedTestDiff(failedTestsDiff, "Diff Status: OK");
     }
 
-    [Test]
-    public Task Send_FailedTestsDiffNewFailures_InMail()
+    [TestCase(1, "Diff Status: 1 New Failure")]
+    [TestCase(2, "Diff Status: 2 New Failures")]
+    public Task Send_FailedTestsDiffNewFailures_InMail(int count, string status)
     {
-        var failedTestsDiff = new FailedTestDiff(TestBuildDiffStatus.NewFailures, [], [new FailedTest("ClassName", "TestName", "Details")]);
+        var failedTests = Enumerable.Range(1, count)
+            .Select(i => new FailedTest("ClassName", $"TestName{i}", "Details"))
+            .ToArray();
+        var failedTestsDiff = new FailedTestDiff(TestBuildDiffStatus.NewFailures, [], failedTests);
 
-        return Send_FailedTestDiff(failedTestsDiff, "Diff Status: New Failures");
+        return Send_FailedTestDiff(failedTestsDiff, status);
     }
 
     [Test]
@@ -246,22 +259,68 @@ internal sealed class ReportSenderTests
         return Send_FailedTestDiff(failedTestsDiff, "Diff Status: Same Failures");
     }
 
-    [Test]
-    public Task Send_FailedTestsDiffUpdatedFailures_InMail()
+    [TestCase(1, "Diff Status: 1 Updated Failure")]
+    [TestCase(2, "Diff Status: 2 Updated Failures")]
+    public Task Send_FailedTestsDiffUpdatedFailures_InMail(int count, string status)
     {
-        var failedTestsDiff = new FailedTestDiff(TestBuildDiffStatus.UpdatedFailures, [new FailedTest("ClassName", "TestName", "Details")], []);
+        var failedTests = Enumerable.Range(1, count)
+            .Select(i => new FailedTest("ClassName", $"TestName{i}", "Details"))
+            .ToArray();
+        var failedTestsDiff = new FailedTestDiff(TestBuildDiffStatus.UpdatedFailures, failedTests, []);
 
-        return Send_FailedTestDiff(failedTestsDiff, "Diff Status: Updated Failures");
+        return Send_FailedTestDiff(failedTestsDiff, status);
     }
 
-    [Test]
-    public Task Send_FailedTestsDiffAllCases_InMail()
+    [TestCase(1, 1, "Diff Status: 1 New Failure ❌, 1 Updated Failure ❌, Same Failures ⚠️")]
+    [TestCase(2, 1, "Diff Status: 2 New Failures ❌, 1 Updated Failure ❌, Same Failures ⚠️")]
+    [TestCase(1, 2, "Diff Status: 1 New Failure ❌, 2 Updated Failures ❌, Same Failures ⚠️")]
+    [TestCase(2, 2, "Diff Status: 2 New Failures ❌, 2 Updated Failures ❌, Same Failures ⚠️")]
+    public Task Send_FailedTestsDiffAllCases_InMail(int added, int updated, string statusMessage)
     {
+        var addedFailedTests = Enumerable.Range(1, added)
+            .Select(i => new FailedTest("ClassName1", $"TestName{i}", "Details"))
+            .ToArray();
+        var updatedFailedTests = Enumerable.Range(1, updated)
+            .Select(i => new FailedTest("ClassName2", $"TestName{i}", "Details"))
+            .ToArray();
         var status = TestBuildDiffStatus.NewFailures
             | TestBuildDiffStatus.SameFailures
             | TestBuildDiffStatus.UpdatedFailures;
-        var failedTestsDiff = new FailedTestDiff(status, [new FailedTest("ClassName1", "TestName1", "Details1")], [new FailedTest("ClassName2", "TestName2", "Details2")]);
+        var failedTestsDiff = new FailedTestDiff(status, updatedFailedTests, addedFailedTests);
 
-        return Send_FailedTestDiff(failedTestsDiff, "Diff Status: New Failures ❌, Updated Failures ❌, Same Failures ⚠️");
+        return Send_FailedTestDiff(failedTestsDiff, statusMessage);
+    }
+}
+
+[TestFixture]
+internal sealed class JenkinsJobLinkerTests
+{
+    [Test]
+    public void GetUrl_KnownJob_ReturnsCorrectUrl()
+    {
+        var config = new JenkinsConfig("http://jenkins.example.org");
+        var linker = new JenkinsJobLinker(config);
+        var jobName = new JobName("MY-job");
+        var buildNumber = 42;
+        Assert.That(linker.GetUrl(jobName, buildNumber), Is.EqualTo("http://jenkins.example.org/job/MY-job/42"));
+    }
+
+    [Test]
+    public void GetUrl_KnownJobWithoutBuildNumber_ReturnsCorrectUrl()
+    {
+        var config = new JenkinsConfig("http://jenkins.example.org");
+        var linker = new JenkinsJobLinker(config);
+        var jobName = new JobName("MY-job");
+        Assert.That(linker.GetUrl(jobName), Is.EqualTo("http://jenkins.example.org/job/MY-job/"));
+    }
+
+    [Test]
+    public void GetUrl_JobPath_ReturnsCorrectUrl()
+    {
+        var config = new JenkinsConfig("http://jenkins.example.org");
+        var linker = new JenkinsJobLinker(config);
+        var jobName = new JobName("Very/Long/JobName");
+        var buildNumber = 7;
+        Assert.That(linker.GetUrl(jobName, buildNumber), Is.EqualTo("http://jenkins.example.org/job/Very/job/Long/job/JobName/7"));
     }
 }

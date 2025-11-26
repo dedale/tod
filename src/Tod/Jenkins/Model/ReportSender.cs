@@ -110,21 +110,66 @@ internal sealed class RequestReportBuilder : IRequestReportBuilder
 
 internal interface IReportSender
 {
-    void Send(RequestState request, Workspace workspace);
+    Task Send(RequestState request, Workspace workspace);
 }
 
-internal sealed class ReportSender(IRequestReportBuilder builder, IMailSender mailSender) : IReportSender
+internal interface IJobLinker
 {
+    string GetUrl(JobName job);
+    string GetUrl(JobName job, int buildNumber);
+}
+
+internal sealed class JenkinsJobLinker(JenkinsConfig config) : IJobLinker
+{
+    public string GetUrl(JobName job)
+    {
+        return $"{config.Url}/{job.UrlPath}/";
+    }
+    public string GetUrl(JobName job, int buildNumber)
+    {
+        return $"{config.Url}/{job.UrlPath}/{buildNumber}";
+    }
+}
+
+internal static class IJobLinkerExtensions
+{
+    public static string GetUrl(this IJobLinker linker, BuildReferenceResult buildReferenceResult)
+    {
+        return buildReferenceResult.Number > 0
+            ? linker.GetUrl(buildReferenceResult.JobName, buildReferenceResult.Number)
+            : linker.GetUrl(buildReferenceResult.JobName);
+    }
+}
+
+internal sealed class ReportSender(IRequestReportBuilder builder, IJobLinker jobLinker, IMailSender mailSender) : IReportSender
+{
+    private sealed record Counts(int Added, int Update)
+    {
+        public static readonly Counts Zero = new(0, 0);
+
+        public Counts Add(Counts other) => new(Added + other.Added, Update + other.Update);
+    }
+
+    private static Counts CountFailedTests(RequestReport report)
+    {
+        return report.ChainReports.SelectMany(chainReport =>
+            chainReport.BuildDiffs.Select(buildDiffResult =>
+                buildDiffResult.Diff.Match(
+                    onNotComparable: _ => Counts.Zero,
+                    onComparable: diff => new Counts(diff.Added.Length, diff.Updated.Length)
+                ))).Aggregate(Counts.Zero, (acc, counts) => acc.Add(counts));
+    }
+
     private static XElement GetElement(FailedTestDiff diff)
     {
         var statuses = new List<string>();
         if (diff.Status.HasFlag(TestBuildDiffStatus.NewFailures))
         {
-            statuses.Add("New Failures ❌");
+            statuses.Add($"{diff.Added.Length} New Failure{(diff.Added.Length > 1 ? "s" : "")} ❌");
         }
         if (diff.Status.HasFlag(TestBuildDiffStatus.UpdatedFailures))
         {
-            statuses.Add("Updated Failures ❌");
+            statuses.Add($"{diff.Updated.Length} Updated Failure{(diff.Updated.Length > 1 ? "s" : "")} ❌");
         }
         if (diff.Status.HasFlag(TestBuildDiffStatus.SameFailures))
         {
@@ -145,16 +190,20 @@ internal sealed class ReportSender(IRequestReportBuilder builder, IMailSender ma
         );
     }
 
-    private static XElement GetElement(BuildDiffResult buildDiffResult)
+    private XElement GetElement(BuildDiffResult buildDiffResult)
     {
         return new XElement("li",
-            new XElement("h4", $"{buildDiffResult.Result.Id}: {buildDiffResult.Result.Status}"),
+            new XElement("h4",
+                new XElement("a",
+                    new XAttribute("href", jobLinker.GetUrl(buildDiffResult.Result)),
+                    buildDiffResult.Result.Id),
+                $": {buildDiffResult.Result.Status}"),
             buildDiffResult.Diff.Match(
                 onNotComparable: message => new XElement("p", $"Diff: {message}"),
                 onComparable: GetElement));
     }
 
-    private static XElement GetElement(ChainReport chainReport)
+    private XElement GetElement(ChainReport chainReport)
     {
         return new XElement("li",
             new XElement("h3", $"{chainReport.RootResult.Id}: {chainReport.RootResult.Status}"),
@@ -168,8 +217,10 @@ internal sealed class ReportSender(IRequestReportBuilder builder, IMailSender ma
             onDone: buildRef => $"{buildRef} (done)");
     }
 
-    private static XElement GetBody(RequestState request, RequestReport report)
+    private XElement GetBody(RequestState request, RequestReport report)
     {
+        var (newFailedTests, updatedFailedTests) = CountFailedTests(report);
+
         return new XElement("body",
             new XElement("h1", "Test On Demand Report"),
             new XElement("ul",
@@ -179,24 +230,28 @@ internal sealed class ReportSender(IRequestReportBuilder builder, IMailSender ma
                 new XElement("li", $"Ref Commit: {request.Request.GitReference.Commit} (on {request.Request.GitReference.Branch})"),
                 new XElement("li", $"Test Filters: {string.Join(" ", request.Request.GetFilters())}")
             ),
+            new XElement("h2", "Summary"),
+            new XElement("ul",
+                new XElement("li", $"{newFailedTests} New Failed Test{(newFailedTests > 1 ? "s" : "")}"),
+                new XElement("li", $"{updatedFailedTests} Updated Failed Test{(updatedFailedTests > 1 ? "s" : "")}")),
             new XElement("h2", "Chain Reports"),
             new XElement("ul", request.ChainDiffs.Select(chainDiff => new XElement("li",
                 new XElement("p", $"{GetLabel(chainDiff.OnDemandRoot)} chain status: {chainDiff.Status}")))),
             new XElement("ul", report.ChainReports.Select(GetElement)));
     }
 
-    private void Send(RequestState request, RequestReport report)
+    private Task Send(RequestState request, RequestReport report)
     {
         Log.Information("Sending report for request {RequestId} to {UserEmail}", request.Request.Id, request.Request.UserEmail);
 
         var doc = new XDocument(new XElement("html", GetBody(request, report)));
-        mailSender.Send(request.Request.UserEmail, "On-Demand Report", doc.ToString());
+        return mailSender.Send(request.Request.UserEmail, "On-Demand Report", doc.ToString());
     }
 
-    public void Send(RequestState request, Workspace workspace)
+    public Task Send(RequestState request, Workspace workspace)
     {
         var branchReference = workspace.BranchReferences.Single(r => r.BranchName == request.Request.GitReference.Branch);
         var report = builder.Build(request, branchReference, workspace.OnDemandBuilds);
-        Send(request, report);
+        return Send(request, report);
     }
 }

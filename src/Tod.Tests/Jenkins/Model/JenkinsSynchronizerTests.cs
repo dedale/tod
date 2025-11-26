@@ -413,7 +413,7 @@ internal sealed class JenkinsSynchronizerTests
     }
 
     [Test]
-    public async Task Update_OnDemandMissingParameter_CannotPost()
+    public async Task Update_OnDemandMissingParameter_CannotPost([Values(false, true)] bool success)
     {
         using var mocks = StoreMocks.New()
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
@@ -424,7 +424,7 @@ internal sealed class JenkinsSynchronizerTests
         onDemandBuilds.TryAddRoot(_onDemandRootJob);
         onDemandBuilds.TryAddTest(_onDemandTestJob1);
         onDemandBuilds.TryAddTest(_onDemandTestJob2);
-        var builds = RandomBuilds.Generate(1, commitCount: 0).ToArray();
+        var builds = RandomBuilds.Generate(1, commitCount: 0, success: [success]).ToArray();
         var build = builds[0];
         var commit = RandomData.NextSha1();
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);

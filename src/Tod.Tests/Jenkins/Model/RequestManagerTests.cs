@@ -271,7 +271,8 @@ internal sealed class RequestManagerTests
         _filterManager.Setup(m => m.GetTestBuildDiffs("chain", requestFilters, _mainBranch))
             .Returns([new JobDiff("chain", _referenceTestJob, _onDemandTestJob)]);
 
-        _reportSender.Setup(x => x.Send(It.Is<RequestState>(r => r.Request.Id == request.Id && r.IsDone == true), It.IsAny<Workspace>()));
+        _reportSender.Setup(x => x.Send(It.Is<RequestState>(r => r.Request.Id == request.Id && r.IsDone == true), It.IsAny<Workspace>()))
+            .Returns(Task.CompletedTask);
 
         var rootDiffs = new JobDiff[] { new("chain", _referenceRootJob, _onDemandRootJob) };
 
@@ -437,7 +438,8 @@ internal sealed class RequestManagerTests
         var workspace = GetWorkspace(onDemandStore);
         workspace.OnDemandRequests.Add(requestState);
 
-        _reportSender.Setup(x => x.Send(It.Is<RequestState>(r => r.Request.Id == requestState.Request.Id && r.IsDone == true), It.IsAny<Workspace>()));
+        _reportSender.Setup(x => x.Send(It.Is<RequestState>(r => r.Request.Id == requestState.Request.Id && r.IsDone == true), It.IsAny<Workspace>()))
+            .Returns(Task.CompletedTask);
 
         var requestManager = GetRequestManager(workspace);
         await requestManager.PostOnDemandRootBuild(onDemandRoot, requestState.Request.Commit, false).ConfigureAwait(false);
@@ -469,7 +471,8 @@ internal sealed class RequestManagerTests
 
         workspace.OnDemandRequests.Add(requestState);
 
-        _reportSender.Setup(x => x.Send(It.Is<RequestState>(r => r.Request.Id == requestState.Request.Id && r.IsDone == true), It.IsAny<Workspace>()));
+        _reportSender.Setup(x => x.Send(It.Is<RequestState>(r => r.Request.Id == requestState.Request.Id && r.IsDone == true), It.IsAny<Workspace>()))
+            .Returns(Task.CompletedTask);
 
         var requestManager = GetRequestManager(workspace);
 

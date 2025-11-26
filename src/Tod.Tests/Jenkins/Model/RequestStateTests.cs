@@ -29,6 +29,33 @@ internal sealed class RequestStateTests
     }
 
     [Test]
+    public async Task LogChainStatuses_WithOneTest_DoesNotThrow()
+    {
+        var diffs = new List<RequestBuildDiff>
+        {
+            new(new("MainTest1"), new("OnDemandTest1")),
+        };
+        using var mocks = OnDemandStoreMocks(out var onDemandStore);
+        var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
+
+        Assert.DoesNotThrow(() => requestState.LogChainStatus(_onDemandRootJob));
+    }
+
+    [Test]
+    public async Task LogChainStatuses_WithMultipleTests_DoesNotThrow()
+    {
+        var diffs = new List<RequestBuildDiff>
+        {
+            new(new("MainTest1"), new("OnDemandTest1")),
+            new(new("MainTest2"), new("OnDemandTest2")),
+        };
+        using var mocks = OnDemandStoreMocks(out var onDemandStore);
+        var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
+
+        Assert.DoesNotThrow(() => requestState.LogChainStatus(_onDemandRootJob));
+    }
+
+    [Test]
     public async Task DoneReferenceTestBuild_WithMatchingBuild_IsDone()
     {
         var diffs = new List<RequestBuildDiff>

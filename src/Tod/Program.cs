@@ -33,7 +33,7 @@ internal static class Program
         var workSpace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
         var filterManager = new FilterManager(config, jobGroups);
         var mailSender = new MailSender(config.MailConfig);
-        var reportSender = new ReportSender(new RequestReportBuilder(), mailSender);
+        var reportSender = new ReportSender(new RequestReportBuilder(), new JenkinsJobLinker(config), mailSender);
         var requestManager = new RequestManager(workSpace, filterManager, jenkinsClient, reportSender);
         var jenkinsSynchronizer = new JenkinsSynchronizer(jenkinsClient, requestManager);
         await jenkinsSynchronizer.Update(workSpace).ConfigureAwait(false);
@@ -62,7 +62,7 @@ internal static class Program
         }
 
         var mailSender = new MailSender(config.MailConfig);
-        var reportSender = new ReportSender(new RequestReportBuilder(), mailSender);
+        var reportSender = new ReportSender(new RequestReportBuilder(), new JenkinsJobLinker(config), mailSender);
         var requestManager = new RequestManager(workspace, filterManager, jenkinsClient, reportSender);
         var request = Request.Create(commits.First(), gitReference, [.. options.TestFilters], UserDirectory.CurrentUserEmail);
         await requestManager.Register(request, rootDiffs).ConfigureAwait(false);
