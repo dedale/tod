@@ -57,4 +57,12 @@ internal sealed class JobsOptions : BaseOptions
     public IEnumerable<string> TestFilters { get; set; }
 }
 
+[ExcludeFromCodeCoverage]
+[Verb("report", HelpText = "Send report for a request")]
+internal sealed class ReportOptions : BaseOptions
+{
+    [Option('i', "request-id", Required = true, HelpText = "Request ID to report on")]
+    public string RequestId { get; set; }
+}
+
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.

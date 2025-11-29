@@ -77,7 +77,7 @@ internal sealed class FilterManager(JenkinsConfig config, JobGroups jobGroups) :
             throw new InvalidOperationException($"Unknown test filter{(unknownFilters.Count > 1 ? "s" : "")}: {string.Join(", ", unknownFilters.Select(f => $"'{f}'"))}");
         }
 
-        // if no filter in ChainTestGroup, add all filters from that group that matches the rootChain
+        // if no filter in ChainTestGroup, add all filters from that group that match the rootChain
         if (!filters.Any(f => f.Group == config.ChainTestGroup))
         {
             var testNames = jobGroups.ByTest.Keys.ToList();

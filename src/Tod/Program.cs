@@ -93,14 +93,42 @@ internal static class Program
         var chains = chainBuilder.Get(commits.First(), gitReference, rootDiffs, [.. options.TestFilters]);
         foreach (var chain in chains)
         {
-            Log.Information("Root Job; {RootJob}", chain.OnDemandRoot);
+            Log.Information("Root Job; {RootJob}", chain.OnDemandRoot.JobName);
             foreach (var testBuildDiff in chain.TestBuildDiffs)
             {
-                Log.Information("  Test Job: {TestJob}", testBuildDiff.OnDemandBuild);
+                Log.Information("  Test Job: {TestJob}", testBuildDiff.OnDemandBuild.JobName);
             }
         }
         return Task.FromResult(0);
     }
+
+    private static async Task<int> Report(ReportOptions options)
+    {
+        if (!Guid.TryParse(options.RequestId, out var requestId))
+        {
+            Log.Error("Invalid request ID format: '{RequestId}'", options.RequestId);
+            return 1;
+        }
+        var config = JenkinsConfig.Load(options.ConfigPath);
+        var reportSender = new ReportSender(
+            new RequestReportBuilder(),
+            new JenkinsJobLinker(config),
+            new MailSender(config.MailConfig)
+        );
+        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
+        var cachedRequest = workspace.OnDemandRequests.AllRequests.FirstOrDefault(r => r.Value.Request.Id == requestId);
+        if (cachedRequest == null)
+        {
+            Log.Error("Request with ID '{RequestId}' not found in workspace", requestId);
+            return 1;
+        }
+        await reportSender.Send(cachedRequest.Value, workspace).ConfigureAwait(false);
+        return 0;
+    }
+
+    // TODO list
+    // TODO report
+    // TODO abort/cancel
 
     private static async Task<int> Main(string[] args)
     {
@@ -112,10 +140,11 @@ internal static class Program
         {
             Log.Debug(Environment.CommandLine);
 
-            return await Parser.Default.ParseArguments<SyncOptions, NewOptions, JobsOptions>(args).MapResult(
+            return await Parser.Default.ParseArguments<SyncOptions, NewOptions, JobsOptions, ReportOptions>(args).MapResult(
                 (SyncOptions options) => Sync(options),
                 (NewOptions options) => New(options),
                 (JobsOptions options) => Jobs(options),
+                (ReportOptions options) => Report(options),
                 errors => Task.FromResult(1)).ConfigureAwait(false);
         }
         catch (Exception ex)

@@ -40,6 +40,9 @@ internal sealed class OnDemandRequests
     [JsonIgnore]
     public List<CachedRequest> ActiveRequests => [.. _requestById.Values.Where(r => r.Value.ChainDiffs.Any(cd => cd.Status != ChainStatus.Done))];
 
+    [JsonIgnore]
+    public List<CachedRequest> AllRequests => [.. _requestById.Values];
+
     public CachedRequest Add(RequestState requestState)
     {
         var cached = CachedRequest.New(requestState, Path.Combine(_requestPath, $"{requestState.Request.Id}.json"));

@@ -1,5 +1,4 @@
-﻿using LibGit2Sharp;
-using Serilog;
+﻿using Serilog;
 using System.Text.Json.Serialization;
 using Tod.Git;
 

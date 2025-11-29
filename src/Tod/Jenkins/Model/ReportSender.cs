@@ -22,7 +22,7 @@ internal sealed record BuildReferenceResult(JobName JobName, int Number, BuildSt
 
     public static BuildReferenceResult Done(BaseBuild build) => Done(build.Reference, build.IsSuccessful);
 
-    public string Id => Number > 0 ? $"{JobName}#{Number}" : JobName.Value;
+    public string Id => Number > 0 ? $"{JobName} #{Number}" : JobName.Value;
 }
 
 internal abstract class BuildDiff

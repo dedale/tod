@@ -124,6 +124,35 @@ internal sealed class OnDemandRequestsTests : IDisposable
     }
 
     [Test]
+    public void AllRequests_WithNoRequests_ReturnsEmptyCollection()
+    {
+        Assert.That(_requests.AllRequests, Is.Empty);
+    }
+
+    [Test]
+    public async Task AllRequests_WithOnlyDoneRequests_ReturnsEmptyCollection()
+    {
+        using var mocks = OnDemandStoreMocks(out var onDemandStore);
+        var requestState = await CreateRequestStateDone(onDemandStore).ConfigureAwait(false);
+        _requests.Add(requestState);
+
+        Assert.That(_requests.AllRequests, Is.Not.Empty);
+        Assert.That(_requests.AllRequests.Single().Value.Request.Id, Is.EqualTo(requestState.Request.Id));
+    }
+
+    [Test]
+    public async Task AllRequests_WithActiveAndDoneRequests_ReturnsAllRequests()
+    {
+        using var mocks = OnDemandStoreMocks(out var onDemandStore);
+        var activeState = await CreateRequestStateTriggered(onDemandStore).ConfigureAwait(false);
+        var doneState = await CreateRequestStateDone(onDemandStore).ConfigureAwait(false);
+        _requests.Add(activeState);
+        _requests.Add(doneState);
+
+        Assert.That(_requests.AllRequests.Select(r => r.Value.Request.Id), Is.EquivalentTo([activeState.Request.Id, doneState.Request.Id]));
+    }
+
+    [Test]
     public async Task Add_NewRequest_AddsToCollection()
     {
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
