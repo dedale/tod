@@ -1,4 +1,5 @@
 ﻿using NUnit.Framework;
+using System.Diagnostics;
 using Tod.Jenkins;
 
 namespace Tod.Tests.Jenkins;
@@ -39,7 +40,8 @@ internal sealed class RequestReportBuilderTests
             .WithReferenceStore(_mainBranch, _mainBuildJob, out var referenceStore)
             .WithOnDemandStore(_onDemandBuildJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandBuildJob)
-            .WithNewTestBuilds(_onDemandTestJob);
+            .WithNewTestBuilds(_onDemandTestJob)
+            .WithFlakies(out var flakyStore);
 
         // Arrange
         var onDemandRoot = new BuildReference(_onDemandBuildJob, 100);
@@ -54,8 +56,10 @@ internal sealed class RequestReportBuilderTests
         var rootBuild = RandomData.NextRootBuild(_onDemandBuildJob.Value, 100, isSuccessful: success, testJobNames: [_onDemandTestJob.Value]);
         onDemandBuilds.TryAdd(rootBuild);
 
+        var flakyTests = new FlakyTests(flakyStore);
+
         // Act
-        var report = new RequestReportBuilder().Build(requestState, branchReference, onDemandBuilds);
+        var report = RequestReportBuilder.Instance.Build(requestState, [branchReference], onDemandBuilds, flakyTests);
 
         // Assert
         Assert.That(report.ChainReports[0].RootResult.JobName.Value, Is.EqualTo(_onDemandBuildJob.Value));
@@ -69,7 +73,8 @@ internal sealed class RequestReportBuilderTests
         using var mocks = StoreMocks.New()
             .WithReferenceStore(_mainBranch, _mainBuildJob, out var referenceStore)
             .WithOnDemandStore(_onDemandBuildJob, out var onDemandStore)
-            .WithRootJobs(_onDemandBuildJob);
+            .WithRootJobs(_onDemandBuildJob)
+            .WithFlakies(out var flakyStore);
 
         // Arrange
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
@@ -78,9 +83,10 @@ internal sealed class RequestReportBuilderTests
         branchReference.TryAddRoot(_mainBuildJob);
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandBuildJob);
+        var flakyTests = new FlakyTests(flakyStore);
 
         // Act
-        var report = new RequestReportBuilder().Build(requestState, branchReference, onDemandBuilds);
+        var report = RequestReportBuilder.Instance.Build(requestState, [branchReference], onDemandBuilds, flakyTests);
 
         // Assert
         Assert.That(report.ChainReports[0].RootResult.JobName.Value, Is.EqualTo(_onDemandBuildJob.Value));
@@ -94,7 +100,8 @@ internal sealed class RequestReportBuilderTests
         using var mocks = StoreMocks.New()
             .WithReferenceStore(_mainBranch, _mainBuildJob, out var referenceStore)
             .WithOnDemandStore(_onDemandBuildJob, out var onDemandStore)
-            .WithRootJobs(_onDemandBuildJob);
+            .WithRootJobs(_onDemandBuildJob)
+            .WithFlakies(out var flakyStore);
 
         // Arrange
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
@@ -102,9 +109,10 @@ internal sealed class RequestReportBuilderTests
         branchReference.TryAddRoot(_mainBuildJob);
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandBuildJob);
+        var flakyTests = new FlakyTests(flakyStore);
 
         // Act
-        var report = new RequestReportBuilder().Build(requestState, branchReference, onDemandBuilds);
+        var report = RequestReportBuilder.Instance.Build(requestState, [branchReference], onDemandBuilds, flakyTests);
 
         // Assert
         var chainReport = report.ChainReports[0];
@@ -124,7 +132,8 @@ internal sealed class RequestReportBuilderTests
             .WithReferenceStore(_mainBranch, _mainBuildJob, out var referenceStore)
             .WithOnDemandStore(_onDemandBuildJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandBuildJob)
-            .WithTestobs(_onDemandTestJob);
+            .WithTestobs(_onDemandTestJob)
+            .WithFlakies(out var flakyStore);
 
         // Arrange
         var rootBuildNumber = RandomData.NextBuildNumber;
@@ -137,9 +146,10 @@ internal sealed class RequestReportBuilderTests
         onDemandBuilds.TryAddRoot(_onDemandBuildJob);
         var onDemandRootBuild = RandomData.NextRootBuild(_onDemandBuildJob.Value, rootBuildNumber, testJobNames: [_onDemandTestJob.Value]);
         onDemandBuilds.TryAdd(onDemandRootBuild);
+        var flakyTests = new FlakyTests(flakyStore);
 
         // Act
-        var report = new RequestReportBuilder().Build(requestState, branchReference, onDemandBuilds);
+        var report = RequestReportBuilder.Instance.Build(requestState, [branchReference], onDemandBuilds, flakyTests);
 
         // Assert
         var chainReport = report.ChainReports[0];
@@ -161,7 +171,8 @@ internal sealed class RequestReportBuilderTests
             .WithNewTestBuilds(_mainTestJob)
             .WithOnDemandStore(_onDemandBuildJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandBuildJob)
-            .WithNewTestBuilds(_onDemandTestJob);
+            .WithNewTestBuilds(_onDemandTestJob)
+            .WithFlakies(out var flakyStore);
 
         // Arrange
         var onDemandRoot = new BuildReference(_onDemandBuildJob, RandomData.NextBuildNumber);
@@ -182,9 +193,10 @@ internal sealed class RequestReportBuilderTests
         onDemandBuilds.TryAddTest(_onDemandTestJob);
         var testBuild = RandomData.NextTestBuild(_onDemandTestJob.Value, onDemandTest.BuildNumber);
         onDemandBuilds.TryAdd(testBuild);
+        var flakyTests = new FlakyTests(flakyStore);
 
         // Act
-        var report = new RequestReportBuilder().Build(requestState, branchReference, onDemandBuilds);
+        var report = RequestReportBuilder.Instance.Build(requestState, [branchReference], onDemandBuilds, flakyTests);
 
         // Assert
         var chainReport = report.ChainReports[0];
@@ -205,7 +217,8 @@ internal sealed class RequestReportBuilderTests
             .WithNewTestBuilds(_mainTestJob)
             .WithOnDemandStore(_onDemandBuildJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandBuildJob)
-            .WithNewTestBuilds(_onDemandTestJob);
+            .WithNewTestBuilds(_onDemandTestJob)
+            .WithFlakies(out var flakyStore);
 
         // Arrange
         var referenceRoot = new BuildReference(_mainBuildJob, RandomData.NextBuildNumber);
@@ -232,8 +245,10 @@ internal sealed class RequestReportBuilderTests
         var onDemandTestBuild = RandomData.NextTestBuild(_onDemandTestJob.Value, onDemandTest.BuildNumber);
         onDemandBuilds.TryAdd(onDemandTestBuild);
 
+        var flakyTests = new FlakyTests(flakyStore);
+
         // Act
-        var report = new RequestReportBuilder().Build(requestState, branchReference, onDemandBuilds);
+        var report = RequestReportBuilder.Instance.Build(requestState, [branchReference], onDemandBuilds, flakyTests);
 
         // Assert
         var chainReport = report.ChainReports[0];
@@ -254,7 +269,8 @@ internal sealed class RequestReportBuilderTests
             .WithNewTestBuilds(_mainTestJob)
             .WithOnDemandStore(_onDemandBuildJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandBuildJob)
-            .WithNewTestBuilds(_onDemandTestJob);
+            .WithNewTestBuilds(_onDemandTestJob)
+            .WithFlakies(out var flakyStore);
 
         // Arrange
         var referenceRoot = new BuildReference(_mainBuildJob, RandomData.NextBuildNumber);
@@ -300,8 +316,10 @@ internal sealed class RequestReportBuilderTests
             ]);
         onDemandBuilds.TryAdd(onDemandTestBuild);
 
+        var flakyTests = new FlakyTests(flakyStore);
+
         // Act
-        var report = new RequestReportBuilder().Build(requestState, branchReference, onDemandBuilds);
+        var report = RequestReportBuilder.Instance.Build(requestState, [branchReference], onDemandBuilds, flakyTests);
 
         // Assert
         var chainReport = report.ChainReports[0];
@@ -312,10 +330,12 @@ internal sealed class RequestReportBuilderTests
             onNotComparable: _ => (FailedTestDiff?)null,
             onComparable: diff => diff);
         Assert.That(diffResult, Is.Not.Null);
-        Assert.That(diffResult!.Added, Has.Length.EqualTo(1));
-        Assert.That(diffResult.Added[0].ClassName, Is.EqualTo("ClassB"));
-        Assert.That(diffResult.Added[0].TestName, Is.EqualTo("Test2"));
-        Assert.That(diffResult.Updated, Is.Empty);
+        Debug.Assert(diffResult != null);
+        Assert.That(diffResult.FailedTests, Has.Length.EqualTo(1));
+        var failedTestResult = diffResult.FailedTests[0];
+        Assert.That(failedTestResult.Test.ClassName, Is.EqualTo("ClassB"));
+        Assert.That(failedTestResult.Test.TestName, Is.EqualTo("Test2"));
+        Assert.That(failedTestResult.Newness, Is.EqualTo(Newness.New));
     }
 
     [Test]
@@ -325,7 +345,8 @@ internal sealed class RequestReportBuilderTests
             .WithReferenceStore(_mainBranch, _mainBuildJob, out var referenceStore)
             .WithOnDemandStore(_onDemandBuildJob, out var onDemandStore)
             .WithRootJobs(_onDemandBuildJob)
-            .WithNewTestBuilds(_onDemandTestJob);
+            .WithNewTestBuilds(_onDemandTestJob)
+            .WithFlakies(out var flakyStore);
 
         // Arrange
         var branchReference = new BranchReference(referenceStore);
@@ -348,13 +369,37 @@ internal sealed class RequestReportBuilderTests
         Func<OnDemandJobKind, JobName, TriggerParameters, Task> triggerBuild = (_, _, _) => Task.CompletedTask;
         var requestState = await RequestState.New(request, chains, onDemandBuilds, triggerBuild).ConfigureAwait(false);
 
+        var flakyTests = new FlakyTests(flakyStore);
+
         // Act
-        var report = new RequestReportBuilder().Build(requestState, branchReference, onDemandBuilds);
+        var report = RequestReportBuilder.Instance.Build(requestState, [branchReference], onDemandBuilds, flakyTests);
 
         // Assert
         var chainReport = report.ChainReports[0];
         Assert.That(chainReport.BuildDiffs, Has.Length.EqualTo(2));
         Assert.That(chainReport.BuildDiffs[0].Result.JobName.Value, Is.EqualTo("CUSTOM-test1"));
         Assert.That(chainReport.BuildDiffs[1].Result.JobName.Value, Is.EqualTo("CUSTOM-test2"));
+    }
+
+    [Test]
+    public async Task Send_NoMatchingBranchReference_ThrowsInvalidOperationException()
+    {
+        var requestBranch = new BranchName("feature");
+
+        using var mocks = StoreMocks.New()
+            .WithReferenceStore(_mainBranch, _mainBuildJob, out var referenceStore)
+            .WithOnDemandStore(_onDemandBuildJob, out var onDemandStore)
+            .WithRootJobs(_onDemandBuildJob)
+            .WithTestobs(_onDemandTestJob)
+            .WithFlakies(out var flakyStore);
+
+        var referenceRoot = new BuildReference(_mainBuildJob, RandomData.NextBuildNumber);
+        var requestState = await CreateRequestState(onDemandStore, referenceRoot: referenceRoot).ConfigureAwait(false);
+
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+
+        var flakyTests = new FlakyTests(flakyStore);
+
+        Assert.Throws<InvalidOperationException>(() => RequestReportBuilder.Instance.Build(requestState, [], onDemandBuilds, flakyTests));
     }
 }

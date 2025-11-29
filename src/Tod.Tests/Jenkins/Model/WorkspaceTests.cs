@@ -54,10 +54,14 @@ internal sealed class WorkspaceTests
             var onDemandBuilds = new OnDemandBuilds(onDemandStore);
             onDemandBuilds.TryAddRoot(new JobName("CUSTOM-build"));
 
+            var flakyStore = workspaceStore.FlakyStore;
+            var flakyTests = new FlakyTests(flakyStore);
+
             var workspace = new Workspace(
                 [branchReference],
                 onDemandBuilds,
-                new OnDemandRequests(Path.Combine(temp.Path, "requests"))
+                new OnDemandRequests(Path.Combine(temp.Path, "requests")),
+                flakyTests
             );
             var request = Request.Create(RandomData.NextSha1(), new(new("main"), RandomData.NextSha1()), ["integration"], s_userEmail);
 
@@ -86,6 +90,7 @@ internal sealed class WorkspaceTests
                 []
             );
             workspace.OnDemandBuilds.TryAdd(onDemandRootBuild);
+            workspaceStore.FlakyStore.Save(workspace.FlakyTests);
             var clone = Workspace.Load(temp.Path, new WorkspaceStore(temp.Path));
             var branchReferences = clone.BranchReferences.ToList();
             Assert.That(branchReferences, Has.Count.EqualTo(1));
@@ -95,6 +100,7 @@ internal sealed class WorkspaceTests
             Assert.That(branchReferences[0].TestBuilds[1], Has.Count.EqualTo(0)); // MAIN-test2
             Assert.That(clone.OnDemandBuilds.RootBuilds, Has.Count.EqualTo(1));
             Assert.That(clone.OnDemandRequests.ActiveRequests.Single().Value.Request.Id, Is.EqualTo(request.Id));
+            // TODO Assert flaky tests loaded
         }
     }
 

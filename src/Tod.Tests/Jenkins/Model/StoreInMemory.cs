@@ -78,6 +78,27 @@ internal sealed class InMemoryOnDemandStore : IOnDemandStore
     public IByJobNameStore TestStore => _testStore;
 }
 
+internal sealed class InMemoryFlakyStore : IFlakyStore
+{
+    public static InMemoryFlakyStore Default = new();
+
+    private InMemoryFlakyStore()
+    {
+    }
+
+    private FlakyTests _flakyTests = new(Default);
+
+    public FlakyTests Load()
+    {
+        return _flakyTests;
+    }
+
+    public void Save(FlakyTests flakyTests)
+    {
+        _flakyTests = flakyTests;
+    }
+}
+
 internal sealed class InMemoryWorkspaceStore : IWorkspaceStore
 {
     private readonly Dictionary<BranchName, InMemoryReferenceStore> _referenceByBranch = [];
@@ -97,4 +118,5 @@ internal sealed class InMemoryWorkspaceStore : IWorkspaceStore
     }
     
     public IOnDemandStore OnDemandStore => _onDemandStore;
+    public IFlakyStore FlakyStore => InMemoryFlakyStore.Default;
 }

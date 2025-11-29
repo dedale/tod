@@ -67,12 +67,26 @@ internal sealed class RequestReport(ChainReport[] chainReports)
 
 internal interface IRequestReportBuilder
 {
-    RequestReport Build(RequestState requestState, BranchReference branchReference, OnDemandBuilds onDemandBuilds);
+    RequestReport Build(RequestState requestState, IEnumerable<BranchReference> branchReferences, OnDemandBuilds onDemandBuilds, IFlakyTests flakyTests);
+}
+
+internal static class IRequestReportBuilderExtensions
+{
+    public static RequestReport Build(this IRequestReportBuilder builder, RequestState requestState, Workspace workspace)
+    {
+        return builder.Build(requestState, workspace.BranchReferences, workspace.OnDemandBuilds, workspace.FlakyTests);
+    }
 }
 
 internal sealed class RequestReportBuilder : IRequestReportBuilder
 {
-    public RequestReport Build(RequestState requestState, BranchReference branchReference, OnDemandBuilds onDemandBuilds)
+    public static readonly RequestReportBuilder Instance = new();
+
+    private RequestReportBuilder()
+    {
+    }
+
+    private static RequestReport Build(RequestState requestState, BranchReference branchReference, OnDemandBuilds onDemandBuilds, IFlakyTests flakyTests)
     {
         var chainReports = new List<ChainReport>();
         foreach (var chainDiff in requestState.ChainDiffs)
@@ -95,7 +109,7 @@ internal sealed class RequestReportBuilder : IRequestReportBuilder
                             onDone: referenceBuildRef =>
                             {
                                 var referenceTestBuild = branchReference.GetTestBuild(referenceBuildRef);
-                                var failedTestsDiff = FailedTestDiffer.Diff(referenceTestBuild.FailedTests, onDemandTestBuild.FailedTests);
+                                var failedTestsDiff = FailedTestDiffer.Diff(referenceTestBuild.JobName, referenceTestBuild.FailedTests, onDemandTestBuild.FailedTests, flakyTests);
                                 buildDiffs.Add(new(BuildReferenceResult.Done(onDemandTestBuild), BuildDiff.Diff(failedTestsDiff)));
                             }
                         );
@@ -106,10 +120,17 @@ internal sealed class RequestReportBuilder : IRequestReportBuilder
         }
         return new RequestReport([.. chainReports]);
     }
+
+    public RequestReport Build(RequestState request, IEnumerable<BranchReference> branchReferences, OnDemandBuilds onDemandBuilds, IFlakyTests flakyTests)
+    {
+        var branchReference = branchReferences.Single(r => r.BranchName == request.Request.GitReference.Branch);
+        return Build(request, branchReference, onDemandBuilds, flakyTests);
+    }
 }
 
 internal interface IReportSender
 {
+    Task Send(RequestState request, RequestReport report);
     Task Send(RequestState request, Workspace workspace);
 }
 
@@ -141,7 +162,7 @@ internal static class IJobLinkerExtensions
     }
 }
 
-internal sealed class ReportSender(IRequestReportBuilder builder, IJobLinker jobLinker, IMailSender mailSender) : IReportSender
+internal sealed class ReportSender(IJobLinker jobLinker, IMailSender mailSender) : IReportSender
 {
     private sealed record Counts(int Added, int Update)
     {
@@ -156,20 +177,45 @@ internal sealed class ReportSender(IRequestReportBuilder builder, IJobLinker job
             chainReport.BuildDiffs.Select(buildDiffResult =>
                 buildDiffResult.Diff.Match(
                     onNotComparable: _ => Counts.Zero,
-                    onComparable: diff => new Counts(diff.Added.Length, diff.Updated.Length)
+                    onComparable: diff => new Counts(diff.FailedTests.Count(t => t.Newness == Newness.New), diff.FailedTests.Count(t => t.Newness == Newness.Updated))
                 ))).Aggregate(Counts.Zero, (acc, counts) => acc.Add(counts));
     }
 
     private static XElement GetElement(FailedTestDiff diff)
     {
         var statuses = new List<string>();
+        int added = 0;
+        int addedFlaky = 0;
+        int updated = 0;
+        int updatedFlaky = 0;
+        foreach (var result in diff.FailedTests)
+        {
+            switch (result.Newness)
+            {
+                case Newness.New:
+                    added++;
+                    if (result.IsFlaky)
+                    {
+                        addedFlaky++;
+                    }
+                    break;
+                case Newness.Updated:
+                    updated++;
+                    if (result.IsFlaky)
+                    {
+                        updatedFlaky++;
+                    }
+                    break;
+            }
+        }
+
         if (diff.Status.HasFlag(TestBuildDiffStatus.NewFailures))
         {
-            statuses.Add($"{diff.Added.Length} New Failure{(diff.Added.Length > 1 ? "s" : "")} ❌");
+            statuses.Add($"{added} New Failure{(added > 1 ? "s" : "")} ❌{(addedFlaky > 0 ? $" ({addedFlaky} flaky test{(addedFlaky > 1 ? "s" : "")})" : "")}");
         }
         if (diff.Status.HasFlag(TestBuildDiffStatus.UpdatedFailures))
         {
-            statuses.Add($"{diff.Updated.Length} Updated Failure{(diff.Updated.Length > 1 ? "s" : "")} ❌");
+            statuses.Add($"{updated} Updated Failure{(updated > 1 ? "s" : "")} ❌{(updatedFlaky > 0 ? $" ({updatedFlaky} flaky test{(updatedFlaky > 1 ? "s" : "")})" : "")}");
         }
         if (diff.Status.HasFlag(TestBuildDiffStatus.SameFailures))
         {
@@ -181,11 +227,9 @@ internal sealed class ReportSender(IRequestReportBuilder builder, IJobLinker job
         }
         return new XElement("div",
             new XElement("p", $"Diff Status: {string.Join(", ", statuses)}"),
-            diff.Added.Length > 0 || diff.Updated.Length > 0 ? new XElement("ul",
-                from test in diff.Added
-                select new XElement("li", $"Added: {test.ClassName} {test.TestName}"),
-                from test in diff.Updated
-                select new XElement("li", $"Updated: {test.ClassName} {test.TestName}")
+            diff.FailedTests.Length > 0 ? new XElement("ul",
+                from result in diff.FailedTests
+                select new XElement("li", $"{result.Newness}: {result.Test.ClassName} {result.Test.TestName}{(result.IsFlaky ? " (flaky test)" : "")}")
             ) : null
         );
     }
@@ -240,7 +284,7 @@ internal sealed class ReportSender(IRequestReportBuilder builder, IJobLinker job
             new XElement("ul", report.ChainReports.Select(GetElement)));
     }
 
-    private Task Send(RequestState request, RequestReport report)
+    public Task Send(RequestState request, RequestReport report)
     {
         Log.Information("Sending report for request {RequestId} to {UserEmail}", request.Request.Id, request.Request.UserEmail);
 
@@ -248,10 +292,9 @@ internal sealed class ReportSender(IRequestReportBuilder builder, IJobLinker job
         return mailSender.Send(request.Request.UserEmail, "On-Demand Report", doc.ToString());
     }
 
-    public Task Send(RequestState request, Workspace workspace)
+    public Task Send(RequestState requestState, Workspace workspace)
     {
-        var branchReference = workspace.BranchReferences.Single(r => r.BranchName == request.Request.GitReference.Branch);
-        var report = builder.Build(request, branchReference, workspace.OnDemandBuilds);
-        return Send(request, report);
+        var report = RequestReportBuilder.Instance.Build(requestState, workspace);
+        return Send(requestState, report);
     }
 }

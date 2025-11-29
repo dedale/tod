@@ -195,5 +195,9 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
         }
         await Update(workspace.OnDemandBuilds).ConfigureAwait(false);
         Log.Information("Workspace synchronization done");
+
+        Log.Information("Flaky tests analysis started");
+        workspace.FlakyTests.Update(workspace.BranchReferences);
+        Log.Information("Flaky tests analysis done");
     }
 }

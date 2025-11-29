@@ -58,20 +58,20 @@ internal sealed class RequestManagerTests
         return AddBranchReference(_mainBranch, referenceStore, out sha1, out _);
     }
 
-    private Workspace GetWorkspace(BranchReference branchReference, IOnDemandStore onDemandStore)
+    private Workspace GetWorkspace(BranchReference branchReference, IOnDemandStore onDemandStore, IFlakyStore flakyStore)
     {
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         var onDemandRequests = new OnDemandRequests(Path.Combine(_temp.Path, "requests"));
-        var workspace = new Workspace([], onDemandBuilds, onDemandRequests);
+        var workspace = new Workspace([], onDemandBuilds, onDemandRequests, new FlakyTests(flakyStore));
         workspace.Add(branchReference);
         return workspace;
     }
 
-    private Workspace GetWorkspace(IOnDemandStore onDemandStore)
+    private Workspace GetWorkspace(IOnDemandStore onDemandStore, IFlakyStore flakyStore)
     {
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         var onDemandRequests = new OnDemandRequests(Path.Combine(_temp.Path, "requests"));
-        var workspace = new Workspace([], onDemandBuilds, onDemandRequests);
+        var workspace = new Workspace([], onDemandBuilds, onDemandRequests, new FlakyTests(flakyStore));
         return workspace;
     }
 
@@ -106,7 +106,8 @@ internal sealed class RequestManagerTests
             .WithNewRootBuilds(_referenceRootJob)
             .WithTestobs(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
-            .WithRootJobs(_onDemandRootJob);
+            .WithRootJobs(_onDemandRootJob)
+            .WithFlakies(out var flakyStore);
 
         var branchReference = AddBranchReference(_mainBranch, referenceStore, out Sha1 sha1, out RootBuild rootBuild);
 
@@ -121,7 +122,7 @@ internal sealed class RequestManagerTests
         _filterManager.Setup(m => m.GetTestBuildDiffs("chain", requestFilters, _mainBranch))
             .Returns([new("chain", _referenceTestJob, _onDemandTestJob)]);
 
-        var workspace = GetWorkspace(branchReference, onDemandStore);
+        var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
 
         Assert.That(workspace.OnDemandRequests.ActiveRequests, Is.Empty);
 
@@ -139,13 +140,14 @@ internal sealed class RequestManagerTests
             .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
             .WithNewRootBuilds(_referenceRootJob)
             .WithTestobs(_referenceTestJob)
-            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore);
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithFlakies(out var flakyStore);
 
         var branchReference = AddMainBranchReference(referenceStore);
 
         var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("unknown"), ["integration"], s_userEmail);
 
-        var workspace = GetWorkspace(branchReference, onDemandStore);
+        var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
         var requestManager = GetRequestManager(workspace);
 
         Assert.That(() => requestManager.Register(request, [new("chain", _referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false),
@@ -159,13 +161,14 @@ internal sealed class RequestManagerTests
             .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
             .WithNewRootBuilds(_referenceRootJob)
             .WithTestobs(_referenceTestJob)
-            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore);
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithFlakies(out var flakyStore);
 
         var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _mainBranch, ["integration"], s_userEmail);
 
         var branchReference = new BranchReference(referenceStore);
         branchReference.TryAddRoot(_referenceRootJob);
-        var workspace = GetWorkspace(branchReference, onDemandStore);
+        var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
         var requestManager = GetRequestManager(workspace);
 
         Assert.That(() => requestManager.Register(request, [new("chain", _referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false),
@@ -180,7 +183,8 @@ internal sealed class RequestManagerTests
             .WithNewRootBuilds(_referenceRootJob)
             .WithNewTestBuilds(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
-            .WithRootJobs(_onDemandRootJob);
+            .WithRootJobs(_onDemandRootJob)
+            .WithFlakies(out var flakyStore);
 
         var branchReference = AddBranchReference(_mainBranch, referenceStore, out Sha1 sha1, out RootBuild rootBuild);
 
@@ -205,7 +209,7 @@ internal sealed class RequestManagerTests
         _filterManager.Setup(m => m.GetTestBuildDiffs("chain", requestFilters, _mainBranch))
             .Returns([new JobDiff("chain", _referenceTestJob, _onDemandTestJob)]);
 
-        var workspace = GetWorkspace(branchReference, onDemandStore);
+        var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
         var requestManager = GetRequestManager(workspace);
 
         await requestManager.Register(request, [new("chain", _referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false);
@@ -223,7 +227,8 @@ internal sealed class RequestManagerTests
             .WithNewTestBuilds(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandRootJob)
-            .WithNewTestBuilds(_onDemandTestJob);
+            .WithNewTestBuilds(_onDemandTestJob)
+            .WithFlakies(out var flakyStore);
 
         var branchReference = AddBranchReference(_mainBranch, referenceStore, out Sha1 sha1, out RootBuild rootBuild);
 
@@ -253,7 +258,7 @@ internal sealed class RequestManagerTests
             []
         );
 
-        var workspace = GetWorkspace(branchReference, onDemandStore);
+        var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
 
         workspace.OnDemandBuilds.TryAdd(onDemandRootBuild);
 
@@ -289,7 +294,8 @@ internal sealed class RequestManagerTests
             .WithNewRootBuilds(_referenceRootJob)
             .WithNewTestBuilds(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
-            .WithNewRootBuilds(_onDemandRootJob);
+            .WithNewRootBuilds(_onDemandRootJob)
+            .WithFlakies(out var flakyStore);
 
         var branchReference = AddBranchReference(_mainBranch, referenceStore, out Sha1 sha1, out RootBuild rootBuild);
 
@@ -308,7 +314,7 @@ internal sealed class RequestManagerTests
         var requestFilters = new[] { "integration" };
         var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, s_userEmail);
 
-        var workspace = GetWorkspace(branchReference, onDemandStore);
+        var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
 
         var onDemandRootBuild = new RootBuild(
             _onDemandRootJob,
@@ -342,7 +348,8 @@ internal sealed class RequestManagerTests
             .WithNewTestBuilds(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandRootJob)
-            .WithNewTestBuilds(_onDemandTestJob);
+            .WithNewTestBuilds(_onDemandTestJob)
+            .WithFlakies(out var flakyStore);
 
         var branchReference = AddBranchReference(_mainBranch, referenceStore, out Sha1 sha1, out RootBuild rootBuild);
 
@@ -361,7 +368,7 @@ internal sealed class RequestManagerTests
         var requestFilters = new[] { "integration" };
         var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, s_userEmail);
 
-        var workspace = GetWorkspace(branchReference, onDemandStore);
+        var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
 
         var onDemandRootBuild = new RootBuild(
             _onDemandRootJob,
@@ -402,14 +409,15 @@ internal sealed class RequestManagerTests
     {
         using var mocks = StoreMocks.New()
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
-            .WithRootJobs(_onDemandRootJob);
+            .WithRootJobs(_onDemandRootJob)
+            .WithFlakies(out var flakyStore);
 
         var onDemandRoot = new BuildReference(_onDemandRootJob, RandomData.NextBuildNumber);
 
         var diffs = new List<JobDiff> { new("chain", _referenceTestJob, _onDemandTestJob) };
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
 
-        var workspace = GetWorkspace(onDemandStore);
+        var workspace = GetWorkspace(onDemandStore, flakyStore);
         workspace.OnDemandRequests.Add(requestState);
 
         _jenkinsClient.Setup(c => c.TriggerBuild(OnDemandJobKind.Test, _onDemandTestJob, It.Is<TriggerParameters>(p => p.UpstreamBuildNumber == onDemandRoot.BuildNumber)))
@@ -425,8 +433,12 @@ internal sealed class RequestManagerTests
     public async Task TriggerOnDemandTests_FailedRootBuild_TriggersNone()
     {
         using var mocks = StoreMocks.New()
+            .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+            .WithNewRootBuilds(_referenceRootJob)
+            .WithTestobs(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
-            .WithRootJobs(_onDemandRootJob);
+            .WithRootJobs(_onDemandRootJob)
+            .WithFlakies(out var flakyStore);
 
         var onDemandRoot = new BuildReference(_onDemandRootJob, RandomData.NextBuildNumber);
 
@@ -435,7 +447,8 @@ internal sealed class RequestManagerTests
         };
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
 
-        var workspace = GetWorkspace(onDemandStore);
+        var branchReference = AddBranchReference(_mainBranch, referenceStore, out Sha1 sha1, out RootBuild rootBuild);
+        var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
         workspace.OnDemandRequests.Add(requestState);
 
         _reportSender.Setup(x => x.Send(It.Is<RequestState>(r => r.Request.Id == requestState.Request.Id && r.IsDone == true), It.IsAny<Workspace>()))
@@ -457,7 +470,8 @@ internal sealed class RequestManagerTests
             .WithNewTestBuilds(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithRootJobs(_onDemandRootJob)
-            .WithNewTestBuilds(_onDemandTestJob);
+            .WithNewTestBuilds(_onDemandTestJob)
+            .WithFlakies(out var flakyStore);
 
         var branchReference = AddMainBranchReference(referenceStore, out Sha1 sha1);
 
@@ -467,7 +481,7 @@ internal sealed class RequestManagerTests
         var onDemandRoot = new BuildReference(_onDemandRootJob, RandomData.NextBuildNumber);
         requestState = await requestState.TriggerTests(onDemandRoot, job => Task.FromResult(testBuildNumber)).ConfigureAwait(false);
 
-        var workspace = GetWorkspace(branchReference, onDemandStore);
+        var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
 
         workspace.OnDemandRequests.Add(requestState);
 

@@ -1,4 +1,5 @@
 ﻿using NUnit.Framework;
+using Tod.Jenkins;
 using Tod.Tests.Jenkins;
 
 namespace Tod.Tests;
@@ -6,6 +7,9 @@ namespace Tod.Tests;
 [TestFixture]
 internal sealed class FailedTestDifferTests
 {
+    private static readonly JobName s_referenceJob = new("MAIN-Test");
+    private static readonly FlakyTests s_flakyTests = new(InMemoryFlakyStore.Default);
+
     private static (FailedTest[] reference, FailedTest[] onDemand) GetSampleData(
         Action<List<FailedTest>>? updateReference = null,
         Action<List<FailedTest>>? updateOnDemand = null)
@@ -30,10 +34,9 @@ internal sealed class FailedTestDifferTests
     private static void TestDiffAdded(FailedTest added)
     {
         var (reference, onDemand) = GetSampleData(updateOnDemand: onDemand => onDemand.Add(added));
-        var diff = FailedTestDiffer.Diff(reference, onDemand);
+        var diff = FailedTestDiffer.Diff(s_referenceJob, reference, onDemand, s_flakyTests);
         Assert.That(diff.Status, Is.EqualTo(TestBuildDiffStatus.NewFailures | TestBuildDiffStatus.SameFailures));
-        Assert.That(diff.Added, Is.EqualTo([added]));
-        Assert.That(diff.Updated, Is.Empty);
+        Assert.That(diff.FailedTests, Is.EqualTo([new FailedTestResult(added, Newness.New, false)]));
     }
 
     private static void TestDiffUpdated(FailedTest old, FailedTest updated)
@@ -41,19 +44,17 @@ internal sealed class FailedTestDifferTests
         var (reference, onDemand) = GetSampleData(
             updateReference: reference => reference.Add(old),
             updateOnDemand: onDemand => onDemand.Add(updated));
-        var diff = FailedTestDiffer.Diff(reference, onDemand);
+        var diff = FailedTestDiffer.Diff(s_referenceJob, reference, onDemand, s_flakyTests);
         Assert.That(diff.Status, Is.EqualTo(TestBuildDiffStatus.UpdatedFailures | TestBuildDiffStatus.SameFailures));
-        Assert.That(diff.Added, Is.Empty);
-        Assert.That(diff.Updated, Is.EqualTo([updated]));
+        Assert.That(diff.FailedTests, Is.EqualTo([new FailedTestResult(updated, Newness.Updated, false)]));
     }
 
     private static void TestDiffRemoved(FailedTest removed)
     {
         var (reference, onDemand) = GetSampleData(updateReference: reference => reference.Add(removed));
-        var diff = FailedTestDiffer.Diff(reference, onDemand);
+        var diff = FailedTestDiffer.Diff(s_referenceJob, reference, onDemand, s_flakyTests);
         Assert.That(diff.Status, Is.EqualTo(TestBuildDiffStatus.SameFailures));
-        Assert.That(diff.Added, Is.Empty);
-        Assert.That(diff.Updated, Is.Empty);
+        Assert.That(diff.FailedTests, Is.Empty);
     }
 
     [Test]
@@ -139,8 +140,7 @@ internal sealed class FailedTestDifferTests
     {
         var reference = new List<FailedTest>();
         var onDemand = new List<FailedTest>();
-        var allAdded = new List<FailedTest>();
-        var allUpdated = new List<FailedTest>();
+        var allResults = new List<FailedTestResult>();
         var testDiffs = new[] { first, second, third };
         var i = 0;
         AddTestDiffs(i++);
@@ -153,10 +153,9 @@ internal sealed class FailedTestDifferTests
         reference.Shuffle();
         onDemand.Shuffle();
 
-        var diff = FailedTestDiffer.Diff(reference, onDemand);
+        var diff = FailedTestDiffer.Diff(s_referenceJob, reference, onDemand, s_flakyTests);
         Assert.That(diff.Status, Is.EqualTo(TestBuildDiffStatus.NewFailures | TestBuildDiffStatus.UpdatedFailures | TestBuildDiffStatus.SameFailures));
-        Assert.That(diff.Added, Is.EquivalentTo(allAdded));
-        Assert.That(diff.Updated, Is.EquivalentTo(allUpdated));
+        Assert.That(diff.FailedTests, Is.EquivalentTo(allResults));
 
         void AddTestDiffs(int i)
         {
@@ -167,14 +166,14 @@ internal sealed class FailedTestDifferTests
                 {
                     case TestDiff.Added:
                         var added = new FailedTest($"Class{i}", $"Test{j}", "New error");
-                        allAdded.Add(added);
+                        allResults.Add(new FailedTestResult(added, Newness.New, false));
                         onDemand.Add(added);
                         break;
                     case TestDiff.Upated:
                         reference.Add(new FailedTest($"Class{i}", $"Test{j}", "Old error"));
                         var updated = new FailedTest($"Class{i}", $"Test{j}", "New error");
                         onDemand.Add(updated);
-                        allUpdated.Add(updated);
+                        allResults.Add(new FailedTestResult(updated, Newness.Updated, false));
                         break;
                     case TestDiff.Removed:
                         reference.Add(new FailedTest($"Class{i}", $"Test{j}", "Old error"));

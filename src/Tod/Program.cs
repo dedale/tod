@@ -33,7 +33,7 @@ internal static class Program
         var workSpace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
         var filterManager = new FilterManager(config, jobGroups);
         var mailSender = new MailSender(config.MailConfig);
-        var reportSender = new ReportSender(new RequestReportBuilder(), new JenkinsJobLinker(config), mailSender);
+        var reportSender = new ReportSender(new JenkinsJobLinker(config), mailSender);
         var requestManager = new RequestManager(workSpace, filterManager, jenkinsClient, reportSender);
         var jenkinsSynchronizer = new JenkinsSynchronizer(jenkinsClient, requestManager);
         await jenkinsSynchronizer.Update(workSpace).ConfigureAwait(false);
@@ -62,7 +62,7 @@ internal static class Program
         }
 
         var mailSender = new MailSender(config.MailConfig);
-        var reportSender = new ReportSender(new RequestReportBuilder(), new JenkinsJobLinker(config), mailSender);
+        var reportSender = new ReportSender(new JenkinsJobLinker(config), mailSender);
         var requestManager = new RequestManager(workspace, filterManager, jenkinsClient, reportSender);
         var request = Request.Create(commits.First(), gitReference, [.. options.TestFilters], UserDirectory.CurrentUserEmail);
         await requestManager.Register(request, rootDiffs).ConfigureAwait(false);
@@ -111,7 +111,6 @@ internal static class Program
         }
         var config = JenkinsConfig.Load(options.ConfigPath);
         var reportSender = new ReportSender(
-            new RequestReportBuilder(),
             new JenkinsJobLinker(config),
             new MailSender(config.MailConfig)
         );
@@ -122,7 +121,8 @@ internal static class Program
             Log.Error("Request with ID '{RequestId}' not found in workspace", requestId);
             return 1;
         }
-        await reportSender.Send(cachedRequest.Value, workspace).ConfigureAwait(false);
+        var report = RequestReportBuilder.Instance.Build(cachedRequest.Value, workspace);
+        await reportSender.Send(cachedRequest.Value, report).ConfigureAwait(false);
         return 0;
     }
 

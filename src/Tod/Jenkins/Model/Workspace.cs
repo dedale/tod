@@ -3,11 +3,12 @@ using Tod.Git;
 
 namespace Tod.Jenkins;
 
-internal sealed class Workspace(List<BranchReference> branchReferences, OnDemandBuilds onDemandBuilds, OnDemandRequests onDemandRequests)
+internal sealed class Workspace(List<BranchReference> branchReferences, OnDemandBuilds onDemandBuilds, OnDemandRequests onDemandRequests, FlakyTests flakyTests)
 {
     public IEnumerable<BranchReference> BranchReferences { get; } = branchReferences;
     public OnDemandBuilds OnDemandBuilds { get; } = onDemandBuilds;
     public OnDemandRequests OnDemandRequests { get; } = onDemandRequests;
+    public FlakyTests FlakyTests { get; } = flakyTests;
 
     public void Add(BranchReference branchReference)
     {
@@ -65,7 +66,11 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
         // TODO Store for requests
         var onDemandRequests = new OnDemandRequests(Path.Combine(dir, "Requests"));
 
-        var workspace = new Workspace(branchReferences, onDemandBuilds, onDemandRequests);
+        var flakyStore = workspaceStore.FlakyStore;
+        var flakyTests = new FlakyTests(flakyStore);
+        flakyStore.Save(flakyTests);
+
+        var workspace = new Workspace(branchReferences, onDemandBuilds, onDemandRequests, flakyTests);
         return workspace;
     }
 
@@ -80,7 +85,8 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
         }
         var onDemandBuilds = new OnDemandBuilds(workspaceStore.OnDemandStore);
         var onDemandRequests = new OnDemandRequests(Path.Combine(dir, "Requests"));
-        return new Workspace(branchReferences, onDemandBuilds, onDemandRequests);
+        var flakyTests = workspaceStore.FlakyStore.Load();
+        return new Workspace(branchReferences, onDemandBuilds, onDemandRequests, flakyTests);
     }
 }
 

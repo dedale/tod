@@ -1,4 +1,5 @@
 ﻿using NUnit.Framework;
+using System.Diagnostics;
 using Tod.Jenkins;
 
 namespace Tod.Tests.Jenkins;
@@ -64,8 +65,7 @@ internal sealed class BuildDiffTests
     {
         var failedTestDiff = new FailedTestDiff(
             TestBuildDiffStatus.NewFailures,
-            [],
-            [new FailedTest("ClassA", "Test1", "Error")]);
+            [new FailedTestResult(new FailedTest("ClassA", "Test1", "Error"), Newness.Updated, false)]);
         BuildDiff.Diff(failedTestDiff).Match(
             onNotComparable: _ => Assert.Fail("Should be comparable"),
             onComparable: diff => Assert.That(diff, Is.SameAs(failedTestDiff)));
@@ -77,18 +77,17 @@ internal sealed class BuildDiffTests
         // Arrange
         var failedTestDiff = new FailedTestDiff(
             TestBuildDiffStatus.UpdatedFailures,
-            [new FailedTest("ClassB", "Test2", "Updated error")],
-            []);
+            [new FailedTestResult(new FailedTest("ClassB", "Test2", "Updated error"), Newness.Updated, false)]);
         var result = BuildDiff.Diff(failedTestDiff).Match(
             onNotComparable: _ => -1,
-            onComparable: diff => diff.Updated.Length);
+            onComparable: diff => diff.FailedTests.Length);
         Assert.That(result, Is.EqualTo(1));
     }
 
     [Test]
     public void Diff_WithEmptyFailedTestDiff_CallsOnComparable()
     {
-        var failedTestDiff = new FailedTestDiff(TestBuildDiffStatus.OK, [], []);
+        var failedTestDiff = new FailedTestDiff(TestBuildDiffStatus.OK, []);
         var result = BuildDiff.Diff(failedTestDiff).Match(
             onNotComparable: _ => false,
             onComparable: _ => true);
@@ -100,24 +99,24 @@ internal sealed class BuildDiffTests
     {
         var updated = new[]
         {
-            new FailedTest("ClassA", "Test1", "Updated error 1"),
-            new FailedTest("ClassB", "Test2", "Updated error 2")
+            new FailedTestResult(new FailedTest("ClassA", "Test1", "Updated error 1"), Newness.Updated, false),
+            new FailedTestResult(new FailedTest("ClassB", "Test2", "Updated error 2"), Newness.Updated, false)
         };
         var added = new[]
         {
-            new FailedTest("ClassC", "Test3", "New error 1"),
-            new FailedTest("ClassD", "Test4", "New error 2")
+            new FailedTestResult(new FailedTest("ClassC", "Test3", "New error 1"), Newness.New, false),
+            new FailedTestResult(new FailedTest("ClassD", "Test4", "New error 2"), Newness.New, false)
         };
         var failedTestDiff = new FailedTestDiff(
             TestBuildDiffStatus.NewFailures | TestBuildDiffStatus.UpdatedFailures,
-            updated,
-            added);
+            updated.Concat(added).ToArray());
         var capturedDiff = BuildDiff.Diff(failedTestDiff).Match(
             onNotComparable: _ => (FailedTestDiff?)null,
             onComparable: diff => diff);
         Assert.That(capturedDiff, Is.Not.Null);
-        Assert.That(capturedDiff!.Updated, Has.Length.EqualTo(2));
-        Assert.That(capturedDiff.Added, Has.Length.EqualTo(2));
+        Debug.Assert(capturedDiff != null);
+        Assert.That(capturedDiff.FailedTests.Count(t => t.Newness == Newness.Updated), Is.EqualTo(2));
+        Assert.That(capturedDiff.FailedTests.Count(t => t.Newness == Newness.New), Is.EqualTo(2));
         Assert.That(capturedDiff.Status, Is.EqualTo(TestBuildDiffStatus.NewFailures | TestBuildDiffStatus.UpdatedFailures));
     }
 

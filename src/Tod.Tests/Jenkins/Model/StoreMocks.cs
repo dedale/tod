@@ -5,7 +5,17 @@ namespace Tod.Tests.Jenkins;
 
 internal class StoreMocks : IDisposable
 {
-    private readonly List<Mock> _mocks = [];
+    private readonly List<Mock> _mocks;
+
+    private StoreMocks(List<Mock> mocks)
+    {
+        _mocks = mocks;
+    }
+
+    private StoreMocks()
+        : this([])
+    {
+    }
 
     public static StoreMocks New()
     {
@@ -103,6 +113,28 @@ internal class StoreMocks : IDisposable
         _mocks.Add(testStore);
         onDemandStore = mockOnDemandStore.Object;
         return new BuildStoreMocks(BuildBranch.OnDemand, rootStore, testStore);
+    }
+
+    public StoreMocks WithFlakies(out IFlakyStore flakyStore)
+    {
+        return WithFlakies(false, out flakyStore);
+    }
+
+    public StoreMocks WithSavedFlakies(out IFlakyStore flakyStore)
+    {
+        return WithFlakies(true, out flakyStore);
+    }
+
+    private StoreMocks WithFlakies(bool saved, out IFlakyStore flakyStore)
+    {
+        var mockFlakyStore = new Mock<IFlakyStore>(MockBehavior.Strict);
+        if (saved)
+        {
+            mockFlakyStore.Setup(x => x.Save(It.IsAny<FlakyTests>()));
+        }
+        _mocks.Add(mockFlakyStore);
+        flakyStore = mockFlakyStore.Object;
+        return this;
     }
 
     public void Dispose()

@@ -1,4 +1,6 @@
-﻿namespace Tod;
+﻿using Tod.Jenkins;
+
+namespace Tod;
 
 [Flags]
 internal enum TestBuildDiffStatus
@@ -9,11 +11,18 @@ internal enum TestBuildDiffStatus
     SameFailures = 1 << 2
 }
 
-internal sealed class FailedTestDiff(TestBuildDiffStatus status, FailedTest[] updated, FailedTest[] added)
+internal enum Newness
+{
+    New,
+    Updated,
+}
+
+internal sealed record FailedTestResult(FailedTest Test, Newness Newness, bool IsFlaky);
+
+internal sealed class FailedTestDiff(TestBuildDiffStatus status, FailedTestResult[] failedTests)
 {
     public TestBuildDiffStatus Status { get; } = status;
-    public FailedTest[] Updated { get; } = updated;
-    public FailedTest[] Added { get; } = added;
+    public FailedTestResult[] FailedTests { get; } = failedTests;
 }
 
 internal static class FailedTestDiffer
@@ -25,8 +34,10 @@ internal static class FailedTestDiffer
     }
 
     public static FailedTestDiff Diff(
+        JobName referenceJob,
         IReadOnlyCollection<FailedTest> referenceFailedTests,
-        IReadOnlyCollection<FailedTest> onDemandFailedTests)
+        IReadOnlyCollection<FailedTest> onDemandFailedTests,
+        IFlakyTests flakyTests)
     {
         var status = TestBuildDiffStatus.OK;
         var sortedReference = referenceFailedTests
@@ -37,8 +48,7 @@ internal static class FailedTestDiffer
             .Select(t => new KeyedFailedTest(t))
             .OrderBy(x => x.Key)
             .ToArray();
-        var updated = new List<FailedTest>();
-        var added = new List<FailedTest>();
+        var testResults = new List<FailedTestResult>();
         var (i, j) = (0, 0);
         while (i < sortedReference.Length && j < sortedOnDemand.Length)
         {
@@ -51,7 +61,7 @@ internal static class FailedTestDiffer
                 if (!reference.FailedTest.Equals(onDemand.FailedTest))
                 {
                     // Updated
-                    updated.Add(onDemand.FailedTest);
+                    testResults.Add(new FailedTestResult(onDemand.FailedTest, Newness.Updated, flakyTests.IsFlaky(referenceJob, onDemand.FailedTest)));
                     status |= TestBuildDiffStatus.UpdatedFailures;
                 }
                 else
@@ -69,7 +79,7 @@ internal static class FailedTestDiffer
             else
             {
                 // OnDemand only
-                added.Add(onDemand.FailedTest);
+                testResults.Add(new FailedTestResult(onDemand.FailedTest, Newness.New, flakyTests.IsFlaky(referenceJob, onDemand.FailedTest)));
                 status |= TestBuildDiffStatus.NewFailures;
                 j++;
             }
@@ -77,10 +87,10 @@ internal static class FailedTestDiffer
         // Handle remaining items in onDemand that come after all reference items
         while (j < sortedOnDemand.Length)
         {
-            added.Add(sortedOnDemand[j].FailedTest);
+            testResults.Add(new FailedTestResult(sortedOnDemand[j].FailedTest, Newness.New, flakyTests.IsFlaky(referenceJob, sortedOnDemand[j].FailedTest)));
             status |= TestBuildDiffStatus.NewFailures;
             j++;
         }
-        return new FailedTestDiff(status, [.. updated], [.. added]);
+        return new FailedTestDiff(status, [.. testResults]);
     }
 }

@@ -89,7 +89,7 @@ internal static class RandomData
         );
     }
 
-    public static TestBuild NextTestBuild(string testJobName = "MyTestJob", int buildNumber = 0, BuildReference? rootBuild = null)
+    public static TestBuild NextTestBuild(string testJobName = "MyTestJob", int buildNumber = 0, BuildReference? rootBuild = null, FailedTest[]? failedTests = null)
     {
         return new TestBuild(
             new JobName(testJobName),
@@ -99,7 +99,12 @@ internal static class RandomData
             DateTime.UtcNow,
             true,
             rootBuild ?? new BuildReference("MyJob", 42),
-            []
+            failedTests ?? []
         );
+    }
+
+    public static bool IsFlaky(double probability = 0.5)
+    {
+        return s_random.NextDouble() < probability;
     }
 }

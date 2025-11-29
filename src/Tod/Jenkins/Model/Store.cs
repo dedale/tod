@@ -30,11 +30,18 @@ internal interface IOnDemandStore
     IByJobNameStore TestStore { get; }
 }
 
+internal interface IFlakyStore
+{
+    FlakyTests Load();
+    void Save(FlakyTests flakyTests);
+}
+
 internal interface IWorkspaceStore
 {
     IEnumerable<BranchName> Branches { get; }
     IReferenceStore GetReferenceStore(BranchName branch);
     IOnDemandStore OnDemandStore { get; }
+    IFlakyStore FlakyStore { get; }
 }
 
 internal abstract class BuildBranch
@@ -159,6 +166,26 @@ internal sealed class OnDemandStore(string dir) : IOnDemandStore
     public IByJobNameStore TestStore { get; } = new ByJobNameStoreFactory(BuildBranch.OnDemand, Path.Combine(dir, "TestBuilds.json")).New();
 }
 
+internal sealed class FlakyStore(string jsonPath) : IFlakyStore
+{
+    public FlakyTests Load()
+    {
+        if (!File.Exists(jsonPath))
+        {
+            return new FlakyTests(this);
+        }
+        var serializable = JsonSerializer.Deserialize<FlakyTests.Serializable>(File.ReadAllText(jsonPath))!;
+        return serializable.FromSerializable(this);
+    }
+
+    public void Save(FlakyTests flakyTests)
+    {
+        var json = JsonSerializer.Serialize(flakyTests.ToSerializable());
+        Directory.CreateDirectory(Path.GetDirectoryName(jsonPath)!);
+        File.WriteAllText(jsonPath, json);
+    }
+}
+
 internal sealed class WorkspaceStore : IWorkspaceStore
 {
     private readonly string _dir;
@@ -176,6 +203,7 @@ internal sealed class WorkspaceStore : IWorkspaceStore
         _branchJson = Path.Combine(dir, "Branches.json");
         _branches = File.Exists(_branchJson) ? JsonSerializer.Deserialize<List<BranchName>>(File.ReadAllText(_branchJson))!.ToHashSet() : [];
         OnDemandStore = new OnDemandStore(Path.Combine(_dir, "OnDemand"));
+        FlakyStore = new FlakyStore(Path.Combine(_dir, "FlakyTests.json"));
     }
 
     private void Save()
@@ -203,4 +231,5 @@ internal sealed class WorkspaceStore : IWorkspaceStore
     }
 
     public IOnDemandStore OnDemandStore { get; }
+    public IFlakyStore FlakyStore { get; }
 }
