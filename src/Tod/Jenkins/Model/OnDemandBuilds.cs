@@ -40,6 +40,11 @@ internal sealed class OnDemandBuilds(BuildCollections<RootBuild> rootBuilds, Bui
         TestBuilds.GetOrAdd(testJobName);
     }
 
+    public void RemoveTest(JobName testJobName)
+    {
+        TestBuilds.Remove(testJobName);
+    }
+
     public bool TryAdd(TestBuild testBuild)
     {
         return TestBuilds.GetOrAdd(testBuild.JobName).TryAdd(testBuild);

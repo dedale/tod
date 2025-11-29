@@ -7,6 +7,7 @@ internal interface IByJobNameStore
     BuildBranch BuildBranch { get; }
     IEnumerable<JobName> JobNames { get; }
     void Add(JobName jobName);
+    void Remove(JobName jobName);
     void Save<T>(JobName jobName, T item);
     T Load<T>(JobName jobName, Func<JobName, T> create);
 }
@@ -90,6 +91,15 @@ internal sealed class ByJobNameStore : IByJobNameStore
         if (_jobNames.Add(jobName))
         {
             Directory.CreateDirectory(_jsonDir);
+            var json = JsonSerializer.Serialize(_jobNames);
+            File.WriteAllText(_jsonPath, json);
+        }
+    }
+
+    public void Remove(JobName jobName)
+    {
+        if (_jobNames.Remove(jobName))
+        {
             var json = JsonSerializer.Serialize(_jobNames);
             File.WriteAllText(_jsonPath, json);
         }

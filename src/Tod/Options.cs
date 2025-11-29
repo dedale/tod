@@ -58,6 +58,14 @@ internal sealed class JobsOptions : BaseOptions
 }
 
 [ExcludeFromCodeCoverage]
+[Verb("rm-job", HelpText = "Remove jobs from workspace")]
+internal sealed class RemoveJobOptions : BaseOptions
+{
+    [Option('g', "group", Required = true, HelpText = "Name of job group")]
+    public string GroupName { get; set; }
+}
+
+[ExcludeFromCodeCoverage]
 [Verb("report", HelpText = "Send report for a request")]
 internal sealed class ReportOptions : BaseOptions
 {

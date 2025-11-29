@@ -76,6 +76,12 @@ internal class StoreMocks : IDisposable
             }
             return WithTestobs(jobs);
         }
+
+        public BuildStoreMocks WithRemoved(JobName job)
+        {
+            testStore.Setup(s => s.Remove(job));
+            return this;
+        }
     }
 
     public BuildStoreMocks WithOnDemandStore(JobName rootJob, out IOnDemandStore onDemandStore)

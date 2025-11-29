@@ -72,6 +72,11 @@ internal sealed class BranchReference
         TestBuilds.GetOrAdd(testJobName);
     }
 
+    public void RemoveTest(JobName testJobName)
+    {
+        TestBuilds.Remove(testJobName);
+    }
+
     public bool TryAdd(TestBuild testBuild)
     {
         return TestBuilds.GetOrAdd(testBuild.JobName).TryAdd(testBuild);

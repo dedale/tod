@@ -16,6 +16,12 @@ internal sealed class InMemoryByJobNameStore(BuildBranch buildBranch) : IByJobNa
         _jobs.Add(jobName);
     }
 
+    public void Remove(JobName jobName)
+    {
+        _jobs.Remove(jobName);
+        _store.Remove(jobName);
+    }
+
     public T Load<T>(JobName jobName, Func<JobName, T> create)
     {
         if (_store.TryGetValue(jobName, out var item))

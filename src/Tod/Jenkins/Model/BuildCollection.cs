@@ -181,6 +181,17 @@ internal sealed class BuildCollections<T> : IEnumerable<BuildCollection<T>> wher
         return collection;
     }
 
+    public void Remove(JobName jobName)
+    {
+        if (_byJobName.ContainsKey(jobName))
+        {
+            var i = Enumerable.Range(0, _collections.Count).First(index => _collections[index].JobName == jobName);
+            _collections.RemoveAt(i);
+            _byJobName.Remove(jobName);
+            _byJobNameStore.Remove(jobName);
+        }
+    }
+
     public BuildCollection<T> this[int i] => _collections[i];
 
     // for testing

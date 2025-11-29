@@ -65,6 +65,25 @@ internal sealed class OnDemandBuildsTests
     }
 
     [Test]
+    public void RemoveTest_WithTestJob_RemovesAllBuilds()
+    {
+        var testJobName = new JobName("MyTestJob");
+        var otherTestJobName = new JobName("OtherTestJob");
+        using var mocks = StoreMocks.New()
+            .WithOnDemandStore(_rootJob, out var onDemandStore)
+            .WithNewTestBuilds(testJobName)
+            .WithNewTestBuilds(otherTestJobName)
+            .WithRemoved(testJobName);
+        var onDemandBuilds = new OnDemandBuilds(onDemandStore);
+        onDemandBuilds.TryAdd(RandomData.NextTestBuild(testJobName: testJobName.Value));
+        onDemandBuilds.TryAdd(RandomData.NextTestBuild(testJobName: otherTestJobName.Value));
+        Assert.That(onDemandBuilds.TestBuilds, Has.Count.EqualTo(2));
+        Assert.That(onDemandBuilds.TestBuilds.Select(c => c.JobName), Is.EquivalentTo([testJobName, otherTestJobName]));
+        onDemandBuilds.RemoveTest(testJobName);
+        Assert.That(onDemandBuilds.TestBuilds.Select(c => c.JobName), Is.EquivalentTo([otherTestJobName]));
+    }
+
+    [Test]
     public void TryAdd_TestBuildTwice_OnlyFirstTime()
     {
         var testJobName = new JobName("MyTestJob");
