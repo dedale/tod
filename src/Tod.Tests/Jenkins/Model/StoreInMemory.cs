@@ -67,7 +67,7 @@ internal sealed class InMemoryOnDemandStore : IOnDemandStore
 {
     private readonly InMemoryByJobNameStore _rootStore;
     private readonly InMemoryByJobNameStore _testStore;
- 
+
     public InMemoryOnDemandStore()
     {
         _rootStore = new InMemoryByJobNameStore(BuildBranch.OnDemand);
@@ -103,9 +103,9 @@ internal sealed class InMemoryWorkspaceStore : IWorkspaceStore
 {
     private readonly Dictionary<BranchName, InMemoryReferenceStore> _referenceByBranch = [];
     private readonly InMemoryOnDemandStore _onDemandStore = new();
-    
+
     public IEnumerable<BranchName> Branches => _referenceByBranch.Keys;
-    
+
     public IReferenceStore GetReferenceStore(BranchName branch)
     {
         if (_referenceByBranch.TryGetValue(branch, out var referenceStore))
@@ -116,7 +116,7 @@ internal sealed class InMemoryWorkspaceStore : IWorkspaceStore
         _referenceByBranch.Add(branch, referenceStore);
         return referenceStore;
     }
-    
+
     public IOnDemandStore OnDemandStore => _onDemandStore;
     public IFlakyStore FlakyStore => InMemoryFlakyStore.Default;
 }

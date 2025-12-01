@@ -59,7 +59,7 @@ internal class StoreMocks : IDisposable
             rootStore.Setup(s => s.Save(job, It.IsAny<BuildCollection<RootBuild>.InnerCollection.Serializable>()));
             return WithRootJobs(job);
         }
-        
+
         public BuildStoreMocks WithTestobs(params JobName[] jobs)
         {
             testStore.Setup(s => s.BuildBranch).Returns(buildBranch);

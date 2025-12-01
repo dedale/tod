@@ -8,6 +8,10 @@ internal sealed record TestId(string ClassName, string TestName) : IComparable<T
 {
     public int CompareTo(TestId? other)
     {
+        if (ReferenceEquals(this, other))
+        {
+            return 0;
+        }
         if (other is null)
         {
             return 1;
@@ -132,7 +136,7 @@ internal sealed class FlakyTests : IFlakyTests
                     .Where(kvp => kvp.Value.IsFlaky)
                     .Select(kvp => kvp.Key)
                     .ToHashSet();
-                Log.Information("Found {FlakyCount} flaky tests in {JobName} in {ElapsedMilliseconds} ms", flakies.Count, collection.JobName, stopwatch.ElapsedMilliseconds);
+                Log.Debug("Found {FlakyCount} flaky tests in {JobName} in {ElapsedMilliseconds} ms", flakies.Count, collection.JobName, stopwatch.ElapsedMilliseconds);
                 _flakiesByJob.Add(collection.JobName, flakies);
             }
         }

@@ -506,7 +506,7 @@ internal sealed class BranchReferenceTests
             branchReference.TryAddRoot(_rootJob);
             var rootBuild = RandomData.NextRootBuild(jobName: _rootJob.Value, commits: 3);
             branchReference.TryAdd(rootBuild);
- 
+
             var branchReferences = new[] { branchReference };
             var commits = new[] { RandomData.NextSha1(), RandomData.NextSha1() };
 

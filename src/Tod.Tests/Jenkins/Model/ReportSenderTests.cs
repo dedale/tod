@@ -59,10 +59,10 @@ internal sealed class ReportSenderTests
     {
         var branchReference = new BranchReference(referenceStore);
         branchReference.TryAddRoot(_referenceRootJob);
-     
+
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandRootJob);
-        
+
         return new Workspace([branchReference], onDemandBuilds, new OnDemandRequests(_temp.Path), new FlakyTests(flakyStore));
     }
 

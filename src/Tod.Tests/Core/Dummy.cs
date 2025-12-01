@@ -45,22 +45,22 @@ internal sealed class Dummy(List<RequestTestBuildReference> references) : IWithC
 internal sealed class LockedDummy : IDisposable
 {
     public ILockedJson<Dummy> Value { get; }
-    
+
     public LockedDummy(Dummy dummy, string path, string reason)
     {
         Value = LockedJsonSerializer<Dummy, Dummy.Serializable>.New(dummy, path, reason, true);
     }
-    
+
     private LockedDummy(ILockedJson<Dummy> lockedJson)
     {
         Value = lockedJson;
     }
-    
+
     public static LockedDummy Load(string path, string reason)
     {
         return new LockedDummy(LockedJsonSerializer<Dummy, Dummy.Serializable>.Load(path, reason, true));
     }
-    
+
     public static Dummy LoadUnlocked(string path)
     {
         return LockedJsonSerializer<Dummy, Dummy.Serializable>.LoadUnlocked(path);

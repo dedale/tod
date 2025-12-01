@@ -25,5 +25,5 @@
   <ItemGroup>
     <InternalsVisibleTo Include="$(AssemblyName).Benchmarks" />
   </ItemGroup>
-  
+
 </Project>

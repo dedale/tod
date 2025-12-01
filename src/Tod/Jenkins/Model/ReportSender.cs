@@ -355,7 +355,7 @@ table.tests tr:nth-child(odd) {
         {
             statuses.Add("✅ OK");
         }
-        
+
         yield return new XElement("tr",
             new XAttribute("colspan", "2"),
             statuses);

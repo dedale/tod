@@ -447,10 +447,10 @@ internal sealed class RequestStateTests
         var referenceRoot2 = new BuildReference("MainBuild2", RandomData.NextBuildNumber);
         var onDemandRoot1 = new BuildReference(onDemandRootJob1, RandomData.NextBuildNumber);
         var onDemandRoot2 = new BuildReference(onDemandRootJob2, RandomData.NextBuildNumber);
-        
+
         var diffs1 = new List<RequestBuildDiff> { new(new("MainTest1"), new("OnDemandTest1")) };
         var diffs2 = new List<RequestBuildDiff> { new(new("MainTest2"), new("OnDemandTest2")) };
-        
+
         var chains = new RequestChain[]
         {
             new(referenceRoot1, RequestRootBuildReference.Queue(onDemandRootJob1, _request.Commit), [.. diffs1]),
@@ -474,7 +474,7 @@ internal sealed class RequestStateTests
         Assert.That(result1, Is.True);
         Assert.That(foundChain1, Is.Not.Null);
         Assert.That(foundChain1!.ReferenceRoot, Is.EqualTo(referenceRoot1));
-        
+
         Assert.That(result2, Is.True);
         Assert.That(foundChain2, Is.Not.Null);
         Assert.That(foundChain2!.ReferenceRoot, Is.EqualTo(referenceRoot2));
@@ -586,7 +586,7 @@ internal sealed class RequestStateTests
         var referenceRoot2 = new BuildReference("MainBuild2", RandomData.NextBuildNumber);
         var onDemandRoot1 = new BuildReference(onDemandRootJob1, RandomData.NextBuildNumber);
         var onDemandRoot2 = new BuildReference(onDemandRootJob2, RandomData.NextBuildNumber);
-        
+
         var diffs1 = new List<RequestBuildDiff> { new(new("MainTest1"), new("OnDemandTest1")) };
         var diffs2 = new List<RequestBuildDiff> { new(new("MainTest2"), new("OnDemandTest2")) };
 
@@ -619,7 +619,7 @@ internal sealed class RequestStateTests
                 Assert.That(commit, Is.EqualTo(_request.Commit));
             },
             onDone: _ => Assert.Fail("Expected triggered on-demand root"));
-        
+
         Assert.That(result2, Is.True);
         Assert.That(foundChain2, Is.Not.Null);
         foundChain2!.OnDemandRoot.Match(

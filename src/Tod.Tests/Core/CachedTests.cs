@@ -83,7 +83,7 @@ internal sealed class CachedTests
         Dummy.New().SaveNew(testFilePath);
 
         var cached = new Cached<Dummy, Dummy.Serializable>(testFilePath);
-        
+
         // Multiple reads without modification
         var value1 = cached.Value;
         var value2 = cached.Value;
@@ -114,7 +114,7 @@ internal sealed class CachedTests
             Assert.That(ReferenceEquals(initialInstance, currentValue), Is.False);
             Assert.That(currentValue.References, Has.Count.EqualTo(1));
             Assert.That(currentValue.References[0].JobName.Value, Is.EqualTo($"Job{i}"));
-            
+
             initialInstance = currentValue;
         }
     }
@@ -124,7 +124,7 @@ internal sealed class CachedTests
     {
         using var temp = new TempDirectory();
         var testFilePath = Path.Combine(temp.Path, $"testfile_{Guid.NewGuid()}.json");
-        
+
         var jobName = new JobName("TestJob");
         var buildNumber = RandomData.NextBuildNumber;
         var originalDummy = new Dummy([

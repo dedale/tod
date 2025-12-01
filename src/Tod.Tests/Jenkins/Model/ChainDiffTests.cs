@@ -15,10 +15,10 @@ internal sealed class ChainDiffTests
         var onDemandRootRef = new BuildReference("CUSTOM-build", RandomData.NextBuildNumber);
         var onDemandRoot = RequestRootBuildReference.Queue(onDemandRootRef.JobName, commit)
             .DoneQueued(onDemandRootRef.BuildNumber);
-        
+
         var buildDiff = new RequestBuildDiff(new JobName("REF-test"), new JobName("CUSTOM-test"))
             .QueueOnDemand();
-        
+
         var chainDiff = new ChainDiff(
             ChainStatus.TestsTriggered,
             referenceRoot,
@@ -44,13 +44,13 @@ internal sealed class ChainDiffTests
         var buildDiff = new RequestBuildDiff(new JobName("REF-test"), new JobName("CUSTOM-test"))
             .QueueOnDemand()
             .DoneOnDemand(300);
-        
+
         var chainDiff = new ChainDiff(
             ChainStatus.Done,
             referenceRoot,
             onDemandRoot,
             [buildDiff]);
-        
+
         // Act
         Assert.That(() => chainDiff.TriggerTests(onDemandRootRef, _ => Task.FromException(new NotImplementedException())),
             Throws.InvalidOperationException.And.Message.EqualTo("Already done"));

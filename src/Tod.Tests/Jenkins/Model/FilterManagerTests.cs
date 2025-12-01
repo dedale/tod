@@ -156,7 +156,7 @@ internal sealed class FilterManagerTests
         var rootGroup1 = new JobGroup(referenceJobByBranch, new("CUSTOM-build"));
         var rootGroup2 = new JobGroup(new Dictionary<BranchName, JobName> { [_mainBranch] = new("MAIN-deploy") }, new("CUSTOM-deploy"));
         var rootGroup3 = new JobGroup(new Dictionary<BranchName, JobName> { [_mainBranch] = new("MAIN-package") }, new("CUSTOM-package"));
-        
+
         var byRoot = new Dictionary<RootName, JobGroup>
         {
             [new RootName("build")] = rootGroup1,
@@ -185,7 +185,7 @@ internal sealed class FilterManagerTests
         var referenceJobByBranch = new Dictionary<BranchName, JobName> { [_mainBranch] = new("MAIN-build") };
         var rootGroup1 = new JobGroup(referenceJobByBranch, new("CUSTOM-build"));
         var rootGroup2 = new JobGroup(new Dictionary<BranchName, JobName> { [_mainBranch] = new("MAIN-deploy") }, new("CUSTOM-deploy"));
-        
+
         var byRoot = new Dictionary<RootName, JobGroup>
         {
             [new RootName("build")] = rootGroup1,
@@ -213,7 +213,7 @@ internal sealed class FilterManagerTests
                 [_prodBranch] = new("PROD-build")
             }, 
             new("CUSTOM-build"));
-        
+
         var byRoot = new Dictionary<RootName, JobGroup>
         {
             [new RootName("build")] = rootGroup,

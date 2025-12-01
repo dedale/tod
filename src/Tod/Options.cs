@@ -69,7 +69,7 @@ internal sealed class RemoveJobOptions : BaseOptions
 [Verb("report", HelpText = "Send report for a request")]
 internal sealed class ReportOptions : BaseOptions
 {
-    [Option('i', "request-id", Required = true, HelpText = "Request ID to report on")]
+    [Option('r', "request-id", Required = true, HelpText = "Request ID to report on")]
     public string RequestId { get; set; }
 }
 
