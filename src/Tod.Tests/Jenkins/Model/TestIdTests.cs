@@ -29,4 +29,11 @@ internal sealed class TestIdTests
         var testId = new TestId("Class", "Test");
         Assert.That(testId.CompareTo(null), Is.EqualTo(1));
     }
+
+    [Test]
+    public void CompareTo_SameInstance_ReturnsZero()
+    {
+        var testId = new TestId("Class", "Test");
+        Assert.That(testId.CompareTo(testId), Is.Zero);
+    }
 }
