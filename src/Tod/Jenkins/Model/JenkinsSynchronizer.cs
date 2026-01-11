@@ -30,18 +30,19 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     scheduled
                 );
 
-                Log.Information("Adding root build {RootBuild} ({IsSuccessful})", rootBuild, rootBuild.IsSuccessful ? "Success" : "Failure");
+                Log.Information("Adding root build {JobName} #{BuildNumber} ({IsSuccessful})", rootBuild.JobName, rootBuild.BuildNumber, rootBuild.IsSuccessful ? "Success" : "Failure");
                 rootBuilds.TryAdd(rootBuild);
             }
         }
     }
 
-    private async Task Update(BranchReference branchReference)
+    private async Task<bool> Update(BranchReference branchReference)
     {
         Log.Information("Updating builds for reference branch {BranchName}", branchReference.BranchName);
 
         await UpdateReferenceRootBuilds(branchReference.RootBuilds).ConfigureAwait(false);
 
+        var newTestBuilds = false;
         foreach (var testBuilds in branchReference.TestBuilds)
         {
             var builds = await jenkinsClient.GetLastBuilds(testBuilds.JobName).ConfigureAwait(false);
@@ -75,6 +76,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                 Log.Information("Adding test build {JobName} #{BuildNumber} ({IsSuccessful})",
                     testBuild.JobName, testBuild.BuildNumber, testBuild.IsSuccessful ? "Success" : $"{testData.FailCount} failed tests");
                 testBuilds.TryAdd(testBuild);
+                newTestBuilds = true;
 
                 foreach (var rootBuild in testBuild.RootBuilds)
                 {
@@ -82,6 +84,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                 }
             }
         }
+        return newTestBuilds;
     }
 
     private async Task UpdateOnDemandRootBuilds(BuildCollections<RootBuild> allRootBuilds)
@@ -122,7 +125,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     scheduled
                 );
 
-                Log.Information("Adding root build {RootBuild} ({IsSuccessful})", rootBuild, rootBuild.IsSuccessful ? "Success" : "Failure");
+                Log.Information("Adding root build {JobName} #{BuildNumber} ({IsSuccessful})", rootBuild.JobName, rootBuild.BuildNumber, rootBuild.IsSuccessful ? "Success" : "Failure");
                 rootBuilds.TryAdd(rootBuild);
 
                 if (commits.Length == 1)
@@ -189,15 +192,19 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
     public async Task Update(Workspace workspace)
     {
         Log.Information("Workspace synchronization started");
+        var updateFlakies = false;
         foreach (var branchReference in workspace.BranchReferences)
         {
-            await Update(branchReference).ConfigureAwait(false);
+            updateFlakies |= await Update(branchReference).ConfigureAwait(false);
         }
         await Update(workspace.OnDemandBuilds).ConfigureAwait(false);
         Log.Information("Workspace synchronization done");
 
-        Log.Information("Flaky tests analysis started");
-        workspace.FlakyTests.Update(workspace.BranchReferences);
-        Log.Information("Flaky tests analysis done");
+        if (updateFlakies)
+        {
+            Log.Information("Flaky tests analysis started");
+            workspace.FlakyTests.Update(workspace.BranchReferences);
+            Log.Information("Flaky tests analysis done");
+        }
     }
 }

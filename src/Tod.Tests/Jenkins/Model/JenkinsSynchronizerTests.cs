@@ -38,7 +38,7 @@ internal sealed class JenkinsSynchronizerTests
                 .WithNewRootBuilds(_refRootJob)
                 .WithTestobs(_refTestJob1, _refTestJob2)
                 .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
-                .WithSavedFlakies(out var flakyStore);
+                .WithFlakies(out var flakyStore);
 
             var branchReference = new BranchReference(referenceStore);
             branchReference.TryAddRoot(_refRootJob);
@@ -92,7 +92,7 @@ internal sealed class JenkinsSynchronizerTests
             .WithNewRootBuilds(_refRootJob)
             .WithTestobs(_refTestJob1, _refTestJob2)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
-            .WithSavedFlakies(out var flakyStore);
+            .WithFlakies(out var flakyStore);
 
         var branchReference = new BranchReference(referenceStore);
         branchReference.TryAddRoot(_refRootJob);
@@ -212,7 +212,7 @@ internal sealed class JenkinsSynchronizerTests
             .WithNewRootBuilds(_refRootJob)
             .WithNewTestBuilds(testJobName)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
-            .WithSavedFlakies(out var flakyStore);
+            .WithFlakies(out var flakyStore);
 
         var branchReference = new BranchReference(referenceStore);
         branchReference.TryAddRoot(_refRootJob);
@@ -271,7 +271,7 @@ internal sealed class JenkinsSynchronizerTests
             .WithNewTestBuilds(testJobName)
             .WithNewTestBuilds(otherTestJobName)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
-            .WithSavedFlakies(out var flakyStore);
+            .WithFlakies(out var flakyStore);
 
         var branchReference = new BranchReference(referenceStore);
         branchReference.TryAddRoot(_refRootJob);
@@ -384,7 +384,7 @@ internal sealed class JenkinsSynchronizerTests
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandRootJob)
             .WithTestobs(_onDemandTestJob1, _onDemandTestJob2)
-            .WithSavedFlakies(out var flakyStore);
+            .WithFlakies(out var flakyStore);
 
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandRootJob);
@@ -426,7 +426,7 @@ internal sealed class JenkinsSynchronizerTests
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandRootJob)
             .WithTestobs(_onDemandTestJob1, _onDemandTestJob2)
-            .WithSavedFlakies(out var flakyStore);
+            .WithFlakies(out var flakyStore);
 
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandRootJob);
@@ -464,7 +464,7 @@ internal sealed class JenkinsSynchronizerTests
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandRootJob)
             .WithTestobs(_onDemandTestJob1, _onDemandTestJob2)
-            .WithSavedFlakies(out var flakyStore);
+            .WithFlakies(out var flakyStore);
 
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandRootJob);
@@ -502,7 +502,7 @@ internal sealed class JenkinsSynchronizerTests
             .WithNewRootBuilds(_onDemandRootJob)
             .WithNewTestBuilds(_onDemandTestJob1)
             .WithTestobs(_onDemandTestJob2)
-            .WithSavedFlakies(out var flakyStore);
+            .WithFlakies(out var flakyStore);
 
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandRootJob);
@@ -555,7 +555,7 @@ internal sealed class JenkinsSynchronizerTests
             .WithNewRootBuilds(_onDemandRootJob)
             .WithNewTestBuilds(_onDemandTestJob1)
             .WithTestobs(_onDemandTestJob2)
-            .WithSavedFlakies(out var flakyStore);
+            .WithFlakies(out var flakyStore);
 
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandRootJob);
@@ -603,7 +603,7 @@ internal sealed class JenkinsSynchronizerTests
             .WithNewRootBuilds(_onDemandRootJob)
             .WithNewTestBuilds(_onDemandTestJob1)
             .WithTestobs(_onDemandTestJob2)
-            .WithSavedFlakies(out var flakyStore);
+            .WithFlakies(out var flakyStore);
 
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandRootJob);
@@ -653,7 +653,7 @@ internal sealed class JenkinsSynchronizerTests
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandRootJob)
             .WithNewTestBuilds(testJobName)
-            .WithSavedFlakies(out var flakyStore);
+            .WithFlakies(out var flakyStore);
 
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandRootJob);
@@ -710,7 +710,7 @@ internal sealed class JenkinsSynchronizerTests
             .WithNewRootBuilds(_onDemandRootJob)
             .WithNewTestBuilds(testJobName)
             .WithNewTestBuilds(otherTestJobName)
-            .WithSavedFlakies(out var flakyStore);
+            .WithFlakies(out var flakyStore);
 
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandRootJob);
