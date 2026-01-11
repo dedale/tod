@@ -48,8 +48,9 @@ internal abstract class BuildDiff
     public static BuildDiff Diff(FailedTestDiff diff) => new Comparable(diff);
 }
 
-internal sealed class BuildDiffResult(BuildReferenceResult result, BuildDiff diff)
+internal sealed class BuildDiffResult(BuildReferenceResult reference, BuildReferenceResult result, BuildDiff diff)
 {
+    public BuildReferenceResult Reference { get; } = reference;
     public BuildReferenceResult Result { get; } = result;
     public BuildDiff Diff { get; } = diff;
 }
@@ -98,19 +99,28 @@ internal sealed class RequestReportBuilder : IRequestReportBuilder
             var buildDiffs = new List<BuildDiffResult>();
             foreach (var diff in chainDiff.TestBuildDiffs)
             {
+                TestBuild? referenceTestBuild = null;
+                var referenceResult = diff.ReferenceBuild.Match(
+                    onPending: jobName => BuildReferenceResult.Pending(jobName),
+                    onDone: referenceBuildRef =>
+                    {
+                        referenceTestBuild = branchReference.GetTestBuild(referenceBuildRef);
+                        return BuildReferenceResult.Done(referenceTestBuild);
+                    }
+                );
+
                 diff.OnDemandBuild.Match(
-                    onPending: jobName => buildDiffs.Add(new(BuildReferenceResult.Pending(jobName), BuildDiff.OnDemandPending)),
-                    onQueued: jobName => buildDiffs.Add(new(BuildReferenceResult.Queued(jobName), BuildDiff.OnDemandTriggered(jobName))),
+                    onPending: jobName => buildDiffs.Add(new(referenceResult, BuildReferenceResult.Pending(jobName), BuildDiff.OnDemandPending)),
+                    onQueued: jobName => buildDiffs.Add(new(referenceResult, BuildReferenceResult.Queued(jobName), BuildDiff.OnDemandTriggered(jobName))),
                     onDone: onDemandBuildRef =>
                     {
                         var onDemandTestBuild = onDemandBuilds.GetTestBuild(onDemandBuildRef);
                         diff.ReferenceBuild.Match(
-                            onPending: jobName => buildDiffs.Add(new(BuildReferenceResult.Done(onDemandBuildRef, onDemandTestBuild.IsSuccessful), BuildDiff.ReferencePending)),
+                            onPending: jobName => buildDiffs.Add(new(referenceResult, BuildReferenceResult.Done(onDemandBuildRef, onDemandTestBuild.IsSuccessful), BuildDiff.ReferencePending)),
                             onDone: referenceBuildRef =>
                             {
-                                var referenceTestBuild = branchReference.GetTestBuild(referenceBuildRef);
-                                var failedTestsDiff = FailedTestDiffer.Diff(referenceTestBuild.JobName, referenceTestBuild.FailedTests, onDemandTestBuild.FailedTests, flakyTests);
-                                buildDiffs.Add(new(BuildReferenceResult.Done(onDemandTestBuild), BuildDiff.Diff(failedTestsDiff)));
+                                var failedTestsDiff = FailedTestDiffer.Diff(referenceTestBuild!.JobName, referenceTestBuild.FailedTests, onDemandTestBuild.FailedTests, flakyTests);
+                                buildDiffs.Add(new(referenceResult, BuildReferenceResult.Done(onDemandTestBuild), BuildDiff.Diff(failedTestsDiff)));
                             }
                         );
                     }
@@ -154,6 +164,11 @@ internal sealed class JenkinsJobLinker(JenkinsConfig config) : IJobLinker
 
 internal static class IJobLinkerExtensions
 {
+    public static string GetUrl(this IJobLinker linker, BuildReference buildReference)
+    {
+        return linker.GetUrl(buildReference.JobName, buildReference.BuildNumber);
+    }
+
     public static string GetUrl(this IJobLinker linker, BuildReferenceResult buildReferenceResult)
     {
         return buildReferenceResult.Number > 0
@@ -169,9 +184,6 @@ internal sealed class ReportSender(IJobLinker jobLinker, IMailSender mailSender)
         return new XElement("head",
             new XElement("meta",
                 new XAttribute("charset", "UTF-8")),
-            /*new XElement("meta",
-                new XAttribute("name", "viewport"),
-                new XAttribute("content", "width=device-width, initial-scale=1.0"))*/
             new XElement("style", @"
 body {
   font-family: ""Segoe UI"", Roboto, sans-serif;
@@ -186,6 +198,7 @@ table {
   margin-bottom: 20px;
   background: #fff;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  table-layout: auto;
 }
 
 th, td {
@@ -225,7 +238,7 @@ table.tests th, table.tests td {
   border-bottom: 1px solid #eee;
 }
 
-/*
+/* alternative colors
 table.tests th {
   background: #f0f2f5;
   font-weight: 600;
@@ -240,7 +253,6 @@ table.tests tr:nth-child(odd) {
 }
 */
 
-
 table.tests th {
   background: #e8f0fe;
   font-weight: 600;
@@ -254,16 +266,24 @@ table.tests tr:nth-child(odd) {
   background-color: #ffffff;
 }
 
+.test-info {  
+  font-size: 0.9em;
+  color: #555;
+  width: 1%;
+  white-space: nowrap;
+}
+
+pre {
+  white-space: normal;
+}
+
 .test-name {
   font-family: monospace;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 600px;
-}
-.test-info {
-  font-size: 0.9em;
-  color: #555;
+  font-size: 11px;
 }
 
 .label {
@@ -286,11 +306,11 @@ table.tests tr:nth-child(odd) {
         );
     }
 
-    private sealed record Counts(int Added, int Update)
+    private sealed record Counts(int Added, int Update, int Flaky)
     {
-        public static readonly Counts Zero = new(0, 0);
+        public static readonly Counts Zero = new(0, 0, 0);
 
-        public Counts Add(Counts other) => new(Added + other.Added, Update + other.Update);
+        public Counts Add(Counts other) => new(Added + other.Added, Update + other.Update, Flaky + other.Flaky);
     }
 
     private static Counts CountFailedTests(RequestReport report)
@@ -299,11 +319,14 @@ table.tests tr:nth-child(odd) {
             chainReport.BuildDiffs.Select(buildDiffResult =>
                 buildDiffResult.Diff.Match(
                     onNotComparable: _ => Counts.Zero,
-                    onComparable: diff => new Counts(diff.FailedTests.Count(t => t.Newness == Newness.New), diff.FailedTests.Count(t => t.Newness == Newness.Updated))
+                    onComparable: diff => new Counts(
+                        diff.FailedTests.Count(t => t.Newness == Newness.New),
+                        diff.FailedTests.Count(t => t.Newness == Newness.Updated),
+                        diff.FailedTests.Count(t => t.IsFlaky))
                 ))).Aggregate(Counts.Zero, (acc, counts) => acc.Add(counts));
     }
 
-    private static IEnumerable<object> GetElements(FailedTestDiff diff)
+    private static IEnumerable<object?> GetElements(FailedTestDiff diff)
     {
         var statuses = new List<object>();
         int added = 0;
@@ -349,7 +372,7 @@ table.tests tr:nth-child(odd) {
             {
                 statuses.Add(new XElement("br"));
             }
-            statuses.Add("⚠️ same failed tests (not included in report)");
+            statuses.Add("⚠ same failed tests (not included in report)");
         }
         if (diff.Status == TestBuildDiffStatus.OK)
         {
@@ -357,8 +380,9 @@ table.tests tr:nth-child(odd) {
         }
 
         yield return new XElement("tr",
-            new XAttribute("colspan", "2"),
-            statuses);
+            new XElement("td",
+                new XAttribute("colspan", "2"),
+                statuses));
 
         yield return diff.FailedTests.Length > 0 ? diff.FailedTests
             .Select(result => new XElement("tr",
@@ -371,18 +395,29 @@ table.tests tr:nth-child(odd) {
                     result.Newness == Newness.New ? new XElement("span",
                         new XAttribute("class", "label new"),
                         "new") : null),
-                // TODO: title="full name"
                 new XElement("td",
                     new XAttribute("class", "test-name"),
-                    $"{result.Test.ClassName} {result.Test.TestName}"))) : new XElement("tr",
-                new XElement("td"),
-                new XElement("td"));
+                    new XElement("span",
+                        new XAttribute("style", "color:#2a5db0;"),
+                        new XAttribute("title", $"{result.Test.ClassName} {result.Test.TestName}"),
+                        $"{result.Test.ClassName} {result.Test.TestName}"),
+                    new XElement("pre",
+                        Shorten(result.Test.ErrorDetails))))) : null;
+    }
+
+    private static string Shorten(string details)
+    {
+        if (details.Length <= 2100)
+        {
+            return details;
+        }
+        return string.Concat(details.AsSpan(0, 2000), "...");
     }
 
     private IEnumerable<object> GetLink(BuildReferenceResult result, string emoji)
     {
+        yield return emoji;
         yield return new XElement("a",
-            emoji,
             new XAttribute("href", jobLinker.GetUrl(result)),
             result.Id);
         yield return $": {result.Status}";
@@ -394,7 +429,9 @@ table.tests tr:nth-child(odd) {
             new XElement("th",
                 new XAttribute("colspan", "2"),
                 new XAttribute("class", "build-header")),
-            GetLink(buildDiffResult.Result, "⚙"));
+            GetLink(buildDiffResult.Result, "🧪"),
+            " vs ",
+            GetLink(buildDiffResult.Reference, "📘"));
 
         yield return buildDiffResult.Diff.Match(
             onNotComparable: message => (object)new XElement("tr",
@@ -402,13 +439,6 @@ table.tests tr:nth-child(odd) {
                     new XAttribute("colspan", "2"),
                     $"Diff: {message}")),
             onComparable: GetElements);
-
-        //return new XElement("li",
-        //    new XElement("h4",
-        //        GetLink(buildDiffResult.Result, "⚙")),
-        //    buildDiffResult.Diff.Match(
-        //        onNotComparable: message => (object)new XElement("p", $"Diff: {message}"),
-        //        onComparable: GetElements));
     }
 
     private XElement GetElement(ChainReport chainReport)
@@ -419,20 +449,32 @@ table.tests tr:nth-child(odd) {
                 new XElement("th",
                     new XAttribute("colspan", "2"),
                     new XAttribute("class", "build-header")),
-                GetLink(chainReport.RootResult, "🧪")),
+                GetLink(chainReport.RootResult, "⚙")),
             chainReport.BuildDiffs.Select(GetElement));
     }
 
-    private static string GetLabel(RequestRootBuildReference buildReference)
+    private XElement GetLink(RequestRootBuildReference buildReference)
     {
         return buildReference.Match(
-            onQueued: (job, _) => $"{job} (⏳ queued)",
-            onDone: buildRef => $"{buildRef} (✅ done)");
+            onQueued: (job, _) => new XElement("a",
+                new XAttribute("href", jobLinker.GetUrl(job)),
+                job),
+            onDone: buildRef => new XElement("a",
+                new XAttribute("href", jobLinker.GetUrl(buildRef)),
+                buildRef));
     }
 
-    private XElement GetBody(RequestState request, RequestReport report)
+    private XElement GetBody(RequestState request, RequestReport report, bool full)
     {
-        var (newFailedTests, updatedFailedTests) = CountFailedTests(report);
+        var (newFailedTests, updatedFailedTests, flakyTests) = CountFailedTests(report);
+
+        var failedTestsSummary = newFailedTests + updatedFailedTests == 0
+            ? "💚 none"
+            : $"🔴 {string.Join(", ", new string?[] {
+                newFailedTests > 0 ? $"{newFailedTests} New" : null,
+                updatedFailedTests > 0 ? $"{updatedFailedTests} Updated" : null,
+                flakyTests > 0 ? $" (incl. 🟠 {flakyTests} Flaky)" : null
+            }.Where(x => x != null))}";
 
         return new XElement("body",
             new XElement("h1", "Test On Demand Report"),
@@ -455,7 +497,7 @@ table.tests tr:nth-child(odd) {
                     new XElement("td", string.Join(" ", request.Request.GetFilters()))),
                 newFailedTests + updatedFailedTests > 0 ? new XElement("tr",
                     new XElement("th", $"🧪 Failed test{(newFailedTests + updatedFailedTests > 1 ? "s" : "")}"),
-                    new XElement("td", $"{(newFailedTests > 0 ? $"🔴 {newFailedTests} New" : "")}{(updatedFailedTests > 0 ? $"🟠 {updatedFailedTests} Updated" : "")}")) : null),
+                    new XElement("td", failedTestsSummary)) : null),
             new XElement("table",
                 new XAttribute("class", "chains"),
                 new XElement("tr",
@@ -463,20 +505,26 @@ table.tests tr:nth-child(odd) {
                     new XElement("th", "Root Build"),
                     new XElement("th", "Test Builds")),
                 request.ChainDiffs.Select(chainDiff => new XElement("tr",
-                    new XElement("td", GetLabel(chainDiff.OnDemandRoot)),
+                    new XElement("td", GetLink(chainDiff.OnDemandRoot)),
                     new XElement("td", $"{(chainDiff.Status == ChainStatus.RootTriggered ? "⏳" : "✅")} {chainDiff.Status}"),
                     new XElement("td", $"{(chainDiff.Status == ChainStatus.RootTriggered ? "" : chainDiff.Status == ChainStatus.TestsTriggered ? "⏳" : "🏁")} {chainDiff.Status}")))),
-            report.ChainReports.Select(GetElement));
+            full ? report.ChainReports.Select(GetElement) : null);
+    }
+
+    private XDocument GetDoc(RequestState request, RequestReport report, bool full)
+    {
+        return new XDocument(new XElement("html",
+            GetHead(),
+            GetBody(request, report, full)));
     }
 
     public Task Send(RequestState request, RequestReport report)
     {
         Log.Information("Sending report for request {RequestId} to {UserEmail}", request.Request.Id, request.Request.UserEmail);
 
-        var doc = new XDocument(new XElement("html",
-            GetHead(),
-            GetBody(request, report)));
-        return mailSender.Send(request.Request.UserEmail, "On-Demand Report", doc.ToString());
+        var body = GetDoc(request, report, false);
+        var attachment = GetDoc(request, report, true);
+        return mailSender.Send(request.Request.UserEmail, "On-Demand Report", body.ToString(), attachment.ToString());
     }
 
     public Task Send(RequestState requestState, Workspace workspace)

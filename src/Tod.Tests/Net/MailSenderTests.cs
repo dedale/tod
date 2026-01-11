@@ -14,7 +14,7 @@ internal sealed class MailSenderTests
         var config = new MailConfig("noreply@exampe.org", "smtp.local");
         var sender = new MailSender(config);
         var toUser = "user@example.org";
-        await sender.Send(toUser, "Subject", "body", SendMail).ConfigureAwait(false);
+        await sender.Send(toUser, "Subject", "body", "attachment", SendMail).ConfigureAwait(false);
 
         Task SendMail(MailMessage message)
         {

@@ -82,7 +82,10 @@ internal sealed class ReportSenderTests
             BuildReferenceResult.Pending(_onDemandRootJob),
             [])]);
 
-        _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.IsAny<string>()))
+        _mockJobLinker.Setup(j => j.GetUrl(It.IsAny<JobName>()))
+            .Returns("http://example.org/job-link");
+
+        _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.IsAny<string>(), It.IsAny<string>()))
             .Returns(Task.CompletedTask);
 
         await _reportSender.Send(requestState, report).ConfigureAwait(false);
@@ -124,7 +127,10 @@ internal sealed class ReportSenderTests
 
         var report = new RequestReport([new ChainReport(BuildReferenceResult.Pending(_onDemandRootJob), [])]);
 
-        _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.IsAny<string>()))
+        _mockJobLinker.Setup(j => j.GetUrl(It.IsAny<JobName>()))
+            .Returns("http://example.org/job-link");
+
+        _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.IsAny<string>(), It.IsAny<string>()))
             .Returns(Task.CompletedTask);
 
         await _reportSender.Send(requestState, report).ConfigureAwait(false);
@@ -143,6 +149,7 @@ internal sealed class ReportSenderTests
         var workspace = GetWorkspace(referenceStore, onDemandStore, flakyStore);
 
         var buildDiffResult = new BuildDiffResult(
+            BuildReferenceResult.Done(new(_referenceTestJob, RandomData.NextBuildNumber), true),
             BuildReferenceResult.Queued(_onDemandTestJob),
             BuildDiff.OnDemandTriggered(_onDemandTestJob));
 
@@ -152,8 +159,10 @@ internal sealed class ReportSenderTests
 
         _mockJobLinker.Setup(j => j.GetUrl(It.IsAny<JobName>()))
             .Returns("http://example.org/job-link");
+        _mockJobLinker.Setup(j => j.GetUrl(It.IsAny<JobName>(), It.IsAny<int>()))
+            .Returns("http://example.org/job-link");
 
-        _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.IsAny<string>()))
+        _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.IsAny<string>(), It.IsAny<string>()))
             .Returns(Task.CompletedTask);
 
         Assert.DoesNotThrowAsync(() => _reportSender.Send(requestState, report));
@@ -172,6 +181,7 @@ internal sealed class ReportSenderTests
         var workspace = GetWorkspace(referenceStore, onDemandStore, flakyStore);
 
         var buildDiffResult = new BuildDiffResult(
+            BuildReferenceResult.Done(new(_referenceTestJob, RandomData.NextBuildNumber), true),
             BuildReferenceResult.Queued(_onDemandTestJob),
             BuildDiff.OnDemandTriggered(_onDemandTestJob));
 
@@ -182,7 +192,7 @@ internal sealed class ReportSenderTests
         _mockJobLinker.Setup(j => j.GetUrl(It.IsAny<JobName>()))
             .Returns("http://example.org/job-link");
 
-        _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.IsAny<string>()))
+        _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.IsAny<string>(), It.IsAny<string>()))
             .Returns(Task.CompletedTask);
 
         Assert.DoesNotThrowAsync(() => _reportSender.Send(requestState, workspace));
@@ -204,6 +214,7 @@ internal sealed class ReportSenderTests
         var workspace = GetWorkspace(referenceStore, onDemandStore, flakyStore);
 
         var buildDiffResult = new BuildDiffResult(
+            BuildReferenceResult.Done(new(_referenceTestJob, RandomData.NextBuildNumber), true),
             BuildReferenceResult.Done(onDemandTest, true),
             BuildDiff.Diff(failedTestDiff));
 
@@ -211,10 +222,12 @@ internal sealed class ReportSenderTests
             BuildReferenceResult.Done(onDemandRoot, true),
             [buildDiffResult])]);
 
+        _mockJobLinker.Setup(j => j.GetUrl(It.IsAny<JobName>()))
+            .Returns("http://example.org/job-link");
         _mockJobLinker.Setup(j => j.GetUrl(It.IsAny<JobName>(), It.IsAny<int>()))
             .Returns("http://example.org/job-link");
 
-        _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.Is<string>(m => m.Contains(inMail))))
+        _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.IsAny<string>(), It.Is<string>(m => m.Contains(inMail))))
             .Returns(Task.CompletedTask);
 
         Assert.DoesNotThrowAsync(() => _reportSender.Send(requestState, report));
@@ -225,11 +238,11 @@ internal sealed class ReportSenderTests
     {
         var failedTestsDiff = new FailedTestDiff(TestBuildDiffStatus.OK, []);
 
-        return Send_FailedTestDiff(failedTestsDiff, "Diff Status: OK");
+        return Send_FailedTestDiff(failedTestsDiff, "✅ OK");
     }
 
-    [TestCase(1, "Diff Status: 1 New Failure")]
-    [TestCase(2, "Diff Status: 2 New Failures")]
+    [TestCase(1, "🔴 1 new failed test")]
+    [TestCase(2, "🔴 2 new failed tests")]
     public Task Send_FailedTestsDiffNewFailures_InMail(int count, string status)
     {
         var failedTestResults = Enumerable.Range(1, count)
@@ -240,8 +253,8 @@ internal sealed class ReportSenderTests
         return Send_FailedTestDiff(failedTestsDiff, status);
     }
 
-    [TestCase(1, "Diff Status: 1 New Failure ❌ (1 flaky test)")]
-    [TestCase(2, "Diff Status: 2 New Failures ❌ (2 flaky tests)")]
+    [TestCase(1, "🔴 1 new failed test (incl. 🟠 1 flaky)")]
+    [TestCase(2, "🔴 2 new failed tests (incl. 🟠 2 flaky)")]
     public Task Send_FailedTestsDiffNewFlakyFailures_InMail(int count, string status)
     {
         var failedTestResults = Enumerable.Range(1, count)
@@ -257,11 +270,11 @@ internal sealed class ReportSenderTests
     {
         var failedTestsDiff = new FailedTestDiff(TestBuildDiffStatus.SameFailures, []);
 
-        return Send_FailedTestDiff(failedTestsDiff, "Diff Status: Same Failures");
+        return Send_FailedTestDiff(failedTestsDiff, "⚠ same failed tests (not included in report)");
     }
 
-    [TestCase(1, "Diff Status: 1 Updated Failure")]
-    [TestCase(2, "Diff Status: 2 Updated Failures")]
+    [TestCase(1, "🔴 1 updated failed test")]
+    [TestCase(2, "🔴 2 updated failed tests")]
     public Task Send_FailedTestsDiffUpdatedFailures_InMail(int count, string status)
     {
         var failedTestResults = Enumerable.Range(1, count)
@@ -272,8 +285,8 @@ internal sealed class ReportSenderTests
         return Send_FailedTestDiff(failedTestsDiff, status);
     }
 
-    [TestCase(1, "Diff Status: 1 Updated Failure ❌ (1 flaky test)")]
-    [TestCase(2, "Diff Status: 2 Updated Failures ❌ (2 flaky tests)")]
+    [TestCase(1, "🔴 1 updated failed test (incl. 🟠 1 flaky)")]
+    [TestCase(2, "🔴 2 updated failed tests (incl. 🟠 2 flaky)")]
     public Task Send_FailedTestsDiffFlakyUpdatedFailures_InMail(int count, string status)
     {
         var failedTestResults = Enumerable.Range(1, count)
@@ -284,10 +297,10 @@ internal sealed class ReportSenderTests
         return Send_FailedTestDiff(failedTestsDiff, status);
     }
 
-    [TestCase(1, 1, "Diff Status: 1 New Failure ❌, 1 Updated Failure ❌, Same Failures ⚠️")]
-    [TestCase(2, 1, "Diff Status: 2 New Failures ❌, 1 Updated Failure ❌, Same Failures ⚠️")]
-    [TestCase(1, 2, "Diff Status: 1 New Failure ❌, 2 Updated Failures ❌, Same Failures ⚠️")]
-    [TestCase(2, 2, "Diff Status: 2 New Failures ❌, 2 Updated Failures ❌, Same Failures ⚠️")]
+    [TestCase(1, 1, "🔴 1 new failed test<br />🔴 1 updated failed test<br />⚠ same failed tests (not included in report)")]
+    [TestCase(2, 1, "🔴 2 new failed tests<br />🔴 1 updated failed test<br />⚠ same failed tests (not included in report)")]
+    [TestCase(1, 2, "🔴 1 new failed test<br />🔴 2 updated failed tests<br />⚠ same failed tests (not included in report)")]
+    [TestCase(2, 2, "🔴 2 new failed tests<br />🔴 2 updated failed tests<br />⚠ same failed tests (not included in report)")]
     public Task Send_FailedTestsDiffAllCases_InMail(int added, int updated, string statusMessage)
     {
         var failedTestResults = Enumerable.Range(1, added)
@@ -305,10 +318,10 @@ internal sealed class ReportSenderTests
         return Send_FailedTestDiff(failedTestsDiff, statusMessage);
     }
 
-    [TestCase(1, 1, "Diff Status: 1 New Failure ❌ (1 flaky test), 1 Updated Failure ❌ (1 flaky test), Same Failures ⚠️")]
-    [TestCase(2, 1, "Diff Status: 2 New Failures ❌ (2 flaky tests), 1 Updated Failure ❌ (1 flaky test), Same Failures ⚠️")]
-    [TestCase(1, 2, "Diff Status: 1 New Failure ❌ (1 flaky test), 2 Updated Failures ❌ (2 flaky tests), Same Failures ⚠️")]
-    [TestCase(2, 2, "Diff Status: 2 New Failures ❌ (2 flaky tests), 2 Updated Failures ❌ (2 flaky tests), Same Failures ⚠️")]
+    [TestCase(1, 1, "🔴 1 new failed test (incl. 🟠 1 flaky)<br />🔴 1 updated failed test (incl. 🟠 1 flaky)<br />⚠ same failed tests (not included in report)")]
+    [TestCase(2, 1, "🔴 2 new failed tests (incl. 🟠 2 flaky)<br />🔴 1 updated failed test (incl. 🟠 1 flaky)<br />⚠ same failed tests (not included in report)")]
+    [TestCase(1, 2, "🔴 1 new failed test (incl. 🟠 1 flaky)<br />🔴 2 updated failed tests (incl. 🟠 2 flaky)<br />⚠ same failed tests (not included in report)")]
+    [TestCase(2, 2, "🔴 2 new failed tests (incl. 🟠 2 flaky)<br />🔴 2 updated failed tests (incl. 🟠 2 flaky)<br />⚠ same failed tests (not included in report)")]
     public Task Send_FailedTestsDiffAllFlakyCases_InMail(int added, int updated, string statusMessage)
     {
         var failedTestResults = Enumerable.Range(1, added)
