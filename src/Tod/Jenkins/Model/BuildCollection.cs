@@ -169,6 +169,8 @@ internal sealed class BuildCollections<T> : IEnumerable<BuildCollection<T>> wher
         _byJobNameStore = byJobNameStore;
     }
 
+    public bool Contains(JobName jobName) => _byJobName.ContainsKey(jobName);
+
     public BuildCollection<T> GetOrAdd(JobName jobName)
     {
         if (!_byJobName.TryGetValue(jobName, out var collection))

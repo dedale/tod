@@ -1,4 +1,5 @@
-﻿using Tod.Git;
+﻿using LibGit2Sharp;
+using Tod.Git;
 
 namespace Tod.Jenkins;
 
@@ -56,10 +57,10 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
         var onDemandStore = workspaceStore.OnDemandStore;
         var onDemandBuilds = new OnDemandBuilds(onDemandRootJobs, onDemandStore);
 
-        var onDemandJobNames = jobGroups.ByTest.Values.Select(x => x.OnDemandJob);
-        foreach (var jobName in onDemandJobNames)
+        var onDemandTestJobs = jobGroups.ByTest.Values.Select(x => x.OnDemandJob);
+        foreach (var testJob in onDemandTestJobs)
         {
-            onDemandBuilds.TryAddTest(jobName);
+            onDemandBuilds.TryAddTest(testJob);
         }
 
         // TODO Store for requests
@@ -86,6 +87,103 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
         var onDemandRequests = new OnDemandRequests(Path.Combine(dir, "Requests"));
         var flakyTests = workspaceStore.FlakyStore.Load();
         return new Workspace(branchReferences, onDemandBuilds, onDemandRequests, flakyTests);
+    }
+
+    public void UpdateJobs(IWorkspaceStore workspaceStore, JobGroups jobGroups)
+    {
+        var branchReferenceByBranch = BranchReferences.ToDictionary(br => br.BranchName, br => br);
+
+        var rootJobNamesByBranch = jobGroups.ByRoot.Values
+            .SelectMany(x => x.ReferenceJobByBranch)
+            .GroupBy(kvp => kvp.Key)
+            .ToDictionary(g => g.Key, g => g.Select(kvp => kvp.Value).ToHashSet());
+        foreach (var branch in rootJobNamesByBranch.Keys)
+        {
+            if (branchReferenceByBranch.TryGetValue(branch, out var branchReference))
+            {
+                foreach (var rootJob in rootJobNamesByBranch[branch])
+                {
+                    if (!branchReference.RootBuilds.Contains(rootJob))
+                    {
+                        branchReference.TryAddRoot(rootJob);
+                    }
+                }
+                foreach (var rootJob in branchReference.RootBuilds.Select(b => b.JobName).ToList())
+                {
+                    if (!rootJobNamesByBranch[branch].Contains(rootJob))
+                    {
+                        branchReference.RemoveRoot(rootJob);
+                    }
+                }
+            }
+            else
+            {
+                var referenceStore = workspaceStore.GetReferenceStore(branch);
+                branchReference = new BranchReference(referenceStore);
+                foreach (var rootJob in rootJobNamesByBranch[branch])
+                {
+                    branchReference.TryAddRoot(rootJob);
+                }
+                branchReferences.Add(branchReference);
+            }
+        }
+
+        var testJobNamesByBranch = jobGroups.ByTest.Values
+            .SelectMany(x => x.ReferenceJobByBranch)
+            .GroupBy(kvp => kvp.Key)
+            .ToDictionary(g => g.Key, g => g.Select(kvp => kvp.Value).ToHashSet());
+        foreach (var branchReference in branchReferences)
+        {
+            var branch = branchReference.BranchName;
+            if (testJobNamesByBranch.TryGetValue(branch, out var testJobs))
+            {
+                foreach (var testJob in testJobs)
+                {
+                    if (!branchReference.TestBuilds.Contains(testJob))
+                    {
+                        branchReference.TryAddTest(testJob);
+                    }
+                }
+                foreach (var testJob in branchReference.TestBuilds.Select(b => b.JobName).ToList())
+                {
+                    if (!testJobNamesByBranch[branch].Contains(testJob))
+                    {
+                        branchReference.RemoveTest(testJob);
+                    }
+                }
+            }
+        }
+
+        var onDemandRootJobs = jobGroups.ByRoot.Values.Select(x => x.OnDemandJob).ToHashSet();
+        foreach (var rootJob in onDemandRootJobs)
+        {
+            if (!OnDemandBuilds.RootBuilds.Contains(rootJob))
+            {
+                OnDemandBuilds.TryAddRoot(rootJob);
+            }
+        }
+        foreach (var rootJob in OnDemandBuilds.RootBuilds.Select(b => b.JobName).ToList())
+        {
+            if (!onDemandRootJobs.Contains(rootJob))
+            {
+                OnDemandBuilds.RemoveRoot(rootJob);
+            }
+        }
+        var onDemandTestJobs = jobGroups.ByTest.Values.Select(x => x.OnDemandJob).ToHashSet();
+        foreach (var testJob in onDemandTestJobs)
+        {
+            if (!OnDemandBuilds.TestBuilds.Contains(testJob))
+            {
+                OnDemandBuilds.TryAddTest(testJob);
+            }
+        }
+        foreach (var testJob in OnDemandBuilds.TestBuilds.Select(b => b.JobName).ToList())
+        {
+            if (!onDemandTestJobs.Contains(testJob))
+            {
+                OnDemandBuilds.RemoveTest(testJob);
+            }
+        }
     }
 }
 

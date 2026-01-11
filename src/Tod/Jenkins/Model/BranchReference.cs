@@ -32,6 +32,11 @@ internal sealed class BranchReference
         RootBuilds.GetOrAdd(rootJobName);
     }
 
+    public void RemoveRoot(JobName rootJobName)
+    {
+        RootBuilds.Remove(rootJobName);
+    }
+
     public bool TryAdd(RootBuild rootBuild)
     {
         if (RootBuilds.GetOrAdd(rootBuild.JobName).TryAdd(rootBuild))

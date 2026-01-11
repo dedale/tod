@@ -12,6 +12,10 @@ internal sealed class OnDemandBuilds(BuildCollections<RootBuild> rootBuilds, Bui
     public OnDemandBuilds(IEnumerable<JobName> rootJobs, IOnDemandStore onDemandStore)
         : this(new BuildCollections<RootBuild>(rootJobs, onDemandStore.RootStore), new BuildCollections<TestBuild>(onDemandStore.TestStore))
     {
+        foreach (var rootJob in rootJobs)
+        {
+            onDemandStore.RootStore.Add(rootJob);
+        }
     }
 
     public BuildCollections<RootBuild> RootBuilds { get; } = rootBuilds;
@@ -20,6 +24,11 @@ internal sealed class OnDemandBuilds(BuildCollections<RootBuild> rootBuilds, Bui
     public void TryAddRoot(JobName rootJobName)
     {
         RootBuilds.GetOrAdd(rootJobName);
+    }
+
+    public void RemoveRoot(JobName rootJobName)
+    {
+        RootBuilds.Remove(rootJobName);
     }
 
     public bool TryAdd(RootBuild rootBuild)

@@ -216,9 +216,8 @@ internal sealed class WorkspaceStore : IWorkspaceStore
 
     public IReferenceStore GetReferenceStore(BranchName branch)
     {
-        if (!_branches.Contains(branch))
+        if (_branches.Add(branch))
         {
-            _branches.Add(branch);
             Save();
         }
         if (_referenceByBranch.TryGetValue(branch, out var referenceStore))

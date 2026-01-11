@@ -104,16 +104,19 @@ internal sealed class WorkspaceTests
         }
     }
 
-    private static async Task<JobGroups> GetJobGroups()
+    private static async Task<JobGroups> GetJobGroups(params JobName[] extraJobs)
     {
         var refJobConfigs = new[]
         {
-            new ReferenceJobConfig("MAIN-(?<root>build)", new("main"), true),
+            new ReferenceJobConfig("MAIN-(?<root>.*build)", new("main"), true),
             new ReferenceJobConfig("MAIN-(?<test>.*)", new("main"), false),
+
+            new ReferenceJobConfig("PROD-(?<root>.*build)", new("PROD"), true),
+            new ReferenceJobConfig("PROD-(?<test>.*)", new("PROD"), false),
         };
         var onDemandJobConfigs = new[]
         {
-            new OnDemandJobConfig("CUSTOM-(?<root>build)", true),
+            new OnDemandJobConfig("CUSTOM-(?<root>.*build)", true),
             new OnDemandJobConfig("CUSTOM-(?<test>.*)", false),
         };
         var testFilters = new[]
@@ -122,13 +125,14 @@ internal sealed class WorkspaceTests
         };
         var config = JenkinsConfig.New("http://localhost:8080", referenceJobs: refJobConfigs, onDemandJobs: onDemandJobConfigs, testFilters: testFilters);
         var jenkinsClient = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        jenkinsClient.Setup(x => x.GetJobNames(config.MultiBranchFolders)).ReturnsAsync(
-        [
-            new JobName("MAIN-build"),
-            new JobName("MAIN-tests"),
-            new JobName("CUSTOM-build"),
-            new JobName("CUSTOM-tests"),
-        ]);
+        var allJobs = new List<JobName> {
+            new("MAIN-build"),
+            new("MAIN-tests"),
+            new("CUSTOM-build"),
+            new("CUSTOM-tests"),
+        };
+        allJobs.AddRange(extraJobs);
+        jenkinsClient.Setup(x => x.GetJobNames(config.MultiBranchFolders)).ReturnsAsync([.. allJobs]);
         var jobManager = new JobManager(config, jenkinsClient.Object);
         var jobGroups = await jobManager.TryLoad().ConfigureAwait(false);
         Debug.Assert(jobGroups is not null);
@@ -260,5 +264,137 @@ internal sealed class WorkspaceTests
         workspace.BranchReferences.First().TryAdd(rootBuild);
         var gitReference = workspace.GetGitReference(filterManager, null, rootFilters, commits, out var rootDiffs);
         Assert.That(gitReference, Is.Null);
+    }
+
+    [Test]
+    public async Task UpdateJobs_WithNewJobs_AddsJob()
+    {
+        using var temp = new TempDirectory();
+
+        var initialJobGroups = await GetJobGroups().ConfigureAwait(false);
+        var workspace = Workspace.New(temp.Path, initialJobGroups);
+
+        var updatedJobGroups = await GetJobGroups([
+            new JobName("MAIN-Domain-build"),
+            new JobName("MAIN-Domain-tests"),
+            new JobName("CUSTOM-Domain-build"),
+            new JobName("CUSTOM-Domain-tests"),
+        ]).ConfigureAwait(false);
+        Debug.Assert(updatedJobGroups is not null);
+        var workspaceStore = new WorkspaceStore(temp.Path);
+        workspace.UpdateJobs(workspaceStore, updatedJobGroups);
+
+        using (Assert.EnterMultipleScope())
+        {
+            for (var i = 0; i < 2; i++)
+            {
+                Assert.That(workspace.BranchReferences.Count(), Is.EqualTo(1));
+                var branchReference = workspace.BranchReferences.First();
+                var rootJobNames = branchReference.RootBuilds.Select(b => b.JobName.Value).ToList();
+                Assert.That(rootJobNames, Is.EquivalentTo(["MAIN-build", "MAIN-Domain-build"]));
+                var testJobNames = branchReference.TestBuilds.Select(b => b.JobName.Value).ToList();
+                Assert.That(testJobNames, Is.EquivalentTo(["MAIN-tests", "MAIN-Domain-tests"]));
+                rootJobNames = [.. workspace.OnDemandBuilds.RootBuilds.Select(b => b.JobName.Value)];
+                Assert.That(rootJobNames, Is.EquivalentTo(["CUSTOM-build", "CUSTOM-Domain-build"]));
+                testJobNames = [.. workspace.OnDemandBuilds.TestBuilds.Select(b => b.JobName.Value)];
+                Assert.That(testJobNames, Is.EquivalentTo(["CUSTOM-tests", "CUSTOM-Domain-tests"]));
+
+                if (i == 0)
+                {
+                    workspace = Workspace.Load(temp.Path, new WorkspaceStore(temp.Path));
+                }
+            }
+        }
+    }
+
+    [Test]
+    public async Task UpdateJobs_WithNewBranch_AddsJob()
+    {
+        using var temp = new TempDirectory();
+
+        var initialJobGroups = await GetJobGroups().ConfigureAwait(false);
+        var workspace = Workspace.New(temp.Path, initialJobGroups);
+
+        var updatedJobGroups = await GetJobGroups([
+            new JobName("PROD-build"),
+            new JobName("PROD-tests"),
+        ]).ConfigureAwait(false);
+        Debug.Assert(updatedJobGroups is not null);
+        var workspaceStore = new WorkspaceStore(temp.Path);
+        workspace.UpdateJobs(workspaceStore, updatedJobGroups);
+
+        using (Assert.EnterMultipleScope())
+        {
+            for (var i = 0; i < 2; i++)
+            {
+                Assert.That(workspace.BranchReferences.Count(), Is.EqualTo(2));
+                var branchReferenceByBranch = workspace.BranchReferences.ToDictionary(b => b.BranchName.Value);
+
+                var mainReference = branchReferenceByBranch["main"];
+                var rootJobNames = mainReference.RootBuilds.Select(b => b.JobName.Value).ToList();
+                Assert.That(rootJobNames, Is.EquivalentTo(["MAIN-build"]));
+                var testJobNames = mainReference.TestBuilds.Select(b => b.JobName.Value).ToList();
+                Assert.That(testJobNames, Is.EquivalentTo(["MAIN-tests"]));
+
+                var prodReference = branchReferenceByBranch["PROD"];
+                rootJobNames = [.. prodReference.RootBuilds.Select(b => b.JobName.Value)];
+                Assert.That(rootJobNames, Is.EquivalentTo(["PROD-build"]));
+                testJobNames = [.. prodReference.TestBuilds.Select(b => b.JobName.Value)];
+                Assert.That(testJobNames, Is.EquivalentTo(["PROD-tests"]));
+
+                rootJobNames = [.. workspace.OnDemandBuilds.RootBuilds.Select(b => b.JobName.Value)];
+                Assert.That(rootJobNames, Is.EquivalentTo(["CUSTOM-build"]));
+                testJobNames = [.. workspace.OnDemandBuilds.TestBuilds.Select(b => b.JobName.Value)];
+                Assert.That(testJobNames, Is.EquivalentTo(["CUSTOM-tests"]));
+
+                if (i == 0)
+                {
+                    workspace = Workspace.Load(temp.Path, new WorkspaceStore(temp.Path));
+                }
+            }
+        }
+    }
+
+    [Test]
+    public async Task UpdateJobs_WithRemovedJobs_AddsJob()
+    {
+        using var temp = new TempDirectory();
+
+        var initialJobGroups = await GetJobGroups([
+            new JobName("MAIN-Domain-build"),
+            new JobName("MAIN-Domain-tests"),
+            new JobName("CUSTOM-Domain-build"),
+            new JobName("CUSTOM-Domain-tests"),
+        ]).ConfigureAwait(false);
+        var workspace = Workspace.New(temp.Path, initialJobGroups);
+
+        var updatedJobGroups = await GetJobGroups().ConfigureAwait(false);
+        Debug.Assert(updatedJobGroups is not null);
+        var workspaceStore = new WorkspaceStore(temp.Path);
+        workspace.UpdateJobs(workspaceStore, updatedJobGroups);
+
+        workspace = Workspace.Load(temp.Path, new WorkspaceStore(temp.Path));
+
+        using (Assert.EnterMultipleScope())
+        {
+            for (var i = 0; i < 2; i++)
+            {
+                Assert.That(workspace.BranchReferences.Count(), Is.EqualTo(1));
+                var branchReference = workspace.BranchReferences.First();
+                var rootJobNames = branchReference.RootBuilds.Select(b => b.JobName.Value).ToList();
+                Assert.That(rootJobNames, Is.EqualTo(["MAIN-build"]));
+                var testJobNames = branchReference.TestBuilds.Select(b => b.JobName.Value).ToList();
+                Assert.That(testJobNames, Is.EqualTo(["MAIN-tests"]));
+                rootJobNames = [.. workspace.OnDemandBuilds.RootBuilds.Select(b => b.JobName.Value)];
+                Assert.That(rootJobNames, Is.EqualTo(["CUSTOM-build"]));
+                testJobNames = [.. workspace.OnDemandBuilds.TestBuilds.Select(b => b.JobName.Value)];
+                Assert.That(testJobNames, Is.EqualTo(["CUSTOM-tests"]));
+
+                if (i == 0)
+                {
+                    workspace = Workspace.Load(temp.Path, new WorkspaceStore(temp.Path));
+                }
+            }
+        }
     }
 }

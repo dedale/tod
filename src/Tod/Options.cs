@@ -19,11 +19,14 @@ internal abstract class BaseOptions
 }
 
 [ExcludeFromCodeCoverage]
-[Verb("sync", HelpText = "Sync builds")]
+[Verb("sync", HelpText = "Sync builds or jobs")]
 internal sealed class SyncOptions : BaseOptions
 {
     [Option('u', "user-token", Required = true, HelpText = "User token for Jenkins authentication")]
     public string UserToken { get; set; }
+
+    [Option('j', "jobs", HelpText = "Synchronize jobs")]
+    public bool Jobs { get; set; }
 }
 
 [ExcludeFromCodeCoverage]
@@ -55,14 +58,6 @@ internal sealed class JobsOptions : BaseOptions
 
     [Option('t', "test-filters", Required = true, HelpText = "Test filter names")]
     public IEnumerable<string> TestFilters { get; set; }
-}
-
-[ExcludeFromCodeCoverage]
-[Verb("rm-job", HelpText = "Remove jobs from workspace")]
-internal sealed class RemoveJobOptions : BaseOptions
-{
-    [Option('g', "group", Required = true, HelpText = "Name of job group")]
-    public string GroupName { get; set; }
 }
 
 [ExcludeFromCodeCoverage]

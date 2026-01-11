@@ -7,9 +7,13 @@ internal sealed class JobManager(JenkinsConfig config, IJenkinsClient client)
     private readonly JenkinsConfig _config = config;
     private readonly IJenkinsClient _client = client;
 
-    public async Task<JobGroups?> TryLoad()
+    public async Task<JobGroups?> TryLoad(Action<JobName[]>? saveJobs = null)
     {
         var jobNames = await _client.GetJobNames(_config.MultiBranchFolders).ConfigureAwait(false);
+        if (jobNames.Length > 0)
+        {
+            saveJobs?.Invoke(jobNames);
+        }
         return TryLoad(_config, jobNames);
     }
 

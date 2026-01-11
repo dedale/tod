@@ -12,8 +12,43 @@ namespace Tod;
 [ExcludeFromCodeCoverage]
 internal static class Program
 {
+    private static void Save(JenkinsConfig config, string configPath, JobName[] jobNames)
+    {
+        Log.Debug("Saving {JobCount} jobs to config", jobNames.Length);
+        var newConfig = JenkinsConfig.New(
+            url: config.Url,
+            multiBranchFolders: config.MultiBranchFolders,
+            jobNames: jobNames,
+            referenceJobs: config.ReferenceJobs,
+            onDemandJobs: config.OnDemandJobs,
+            triggerConfigs: config.TriggerConfigs,
+            rootFilters: config.RootFilters,
+            chainTestGroup: config.ChainTestGroup,
+            testFilters: config.TestFilters,
+            mailConfig: config.MailConfig
+        );
+        newConfig.Save(configPath);
+    }
+
+    private static async Task<int> SyncJobs(SyncOptions options)
+    {
+        var config = JenkinsConfig.Load(options.ConfigPath);
+        using var jenkinsClient = new JenkinsClient(config, options.UserToken);
+        var jobManager = new JobManager(config, jenkinsClient);
+        var jobGroups = await jobManager.TryLoad(jobNames => Save(config, options.ConfigPath, jobNames)).ConfigureAwait(false);
+        var workspaceStore = new WorkspaceStore(options.WorkspaceDir);
+        var workSpace = Workspace.Load(options.WorkspaceDir, workspaceStore);
+        workSpace.UpdateJobs(workspaceStore, jobGroups!);
+        return 0;
+    }
+
     private static async Task<int> Sync(SyncOptions options)
     {
+        if (options.Jobs)
+        {
+            return await SyncJobs(options).ConfigureAwait(false);
+        }
+
         var config = JenkinsConfig.Load(options.ConfigPath);
         Debug.Assert(config is not null);
 
@@ -126,46 +161,7 @@ internal static class Program
         return 0;
     }
 
-    private static Task<int> RemoveJob(RemoveJobOptions options)
-    {
-        var config = JenkinsConfig.Load(options.ConfigPath);
-        var jobGroups = JobManager.TryLoad(config, config.JobNames);
-        Debug.Assert(jobGroups != null);
-        if (!jobGroups.ByTest.ContainsKey(new TestName(options.GroupName)))
-        {
-            Log.Error("No job group found for name '{Group}'", options.GroupName);
-            return Task.FromResult(1);
-        }
-        JobGroup jobGroup = jobGroups.ByTest.Single(kvp => kvp.Key.Value == options.GroupName).Value;
-        var keptJobs = jobGroup.ReferenceJobByBranch.Select(kvp => kvp.Value).ToList();
-        keptJobs.Add(jobGroup.OnDemandJob);
-        var newConfig = JenkinsConfig.New(
-            url: config.Url,
-            multiBranchFolders: config.MultiBranchFolders,
-            jobNames: [.. config.JobNames.Where(job => !keptJobs.Contains(job))],
-            referenceJobs: config.ReferenceJobs,
-            onDemandJobs: config.OnDemandJobs,
-            triggerConfigs: config.TriggerConfigs,
-            rootFilters: config.RootFilters,
-            chainTestGroup: config.ChainTestGroup,
-            testFilters: config.TestFilters,
-            mailConfig: config.MailConfig
-        );
-        newConfig.Save(options.ConfigPath);
-        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
-        foreach (var branchReference in workspace.BranchReferences)
-        {
-            if (jobGroup.ReferenceJobByBranch.TryGetValue(branchReference.BranchName, out var testJob))
-            {
-                branchReference.RemoveTest(testJob);
-            }
-        }
-        workspace.OnDemandBuilds.RemoveTest(jobGroup.OnDemandJob);
-        return Task.FromResult(0);
-    }
-
     // TODO list
-    // TODO report
     // TODO abort/cancel
 
     private static async Task<int> Main(string[] args)
@@ -178,11 +174,10 @@ internal static class Program
         {
             Log.Debug(Environment.CommandLine);
 
-            return await Parser.Default.ParseArguments<SyncOptions, NewOptions, JobsOptions, RemoveJobOptions, ReportOptions>(args).MapResult(
+            return await Parser.Default.ParseArguments<SyncOptions, NewOptions, JobsOptions, ReportOptions>(args).MapResult(
                 (SyncOptions options) => Sync(options),
                 (NewOptions options) => New(options),
                 (JobsOptions options) => Jobs(options),
-                (RemoveJobOptions options) => RemoveJob(options),
                 (ReportOptions options) => Report(options),
                 errors => Task.FromResult(1)).ConfigureAwait(false);
         }
