@@ -1,6 +1,4 @@
-﻿using System.Runtime.CompilerServices;
-
-namespace Tod.Jenkins;
+﻿namespace Tod.Jenkins;
 
 internal interface IBuildChains
 {

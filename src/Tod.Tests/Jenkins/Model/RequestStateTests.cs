@@ -12,6 +12,8 @@ internal sealed class RequestStateTests
     private readonly BuildReference _onDemandRoot = new("OnDemandBuild", RandomData.NextBuildNumber);
 
     private static readonly string s_userEmail = $"user@example.org";
+    private static readonly RequestBuildDiff s_requestBuildDiff1 = new(new("MainTest1"), new("OnDemandTest1"));
+    private static readonly RequestBuildDiff s_requestBuildDiff2 = new(new("MainTest2"), new("OnDemandTest2"));
 
     private Task<RequestState> NewState(List<RequestBuildDiff> testBuildDiffs, IOnDemandStore onDemandStore)
     {
@@ -33,7 +35,7 @@ internal sealed class RequestStateTests
     {
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
+            s_requestBuildDiff1,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -46,8 +48,8 @@ internal sealed class RequestStateTests
     {
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -60,8 +62,8 @@ internal sealed class RequestStateTests
     {
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -76,8 +78,8 @@ internal sealed class RequestStateTests
     {
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -91,8 +93,8 @@ internal sealed class RequestStateTests
     {
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -106,8 +108,8 @@ internal sealed class RequestStateTests
     {
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -133,8 +135,8 @@ internal sealed class RequestStateTests
     {
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -163,8 +165,8 @@ internal sealed class RequestStateTests
     {
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -199,8 +201,8 @@ internal sealed class RequestStateTests
     {
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -221,7 +223,7 @@ internal sealed class RequestStateTests
     {
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
+            s_requestBuildDiff1,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -245,7 +247,7 @@ internal sealed class RequestStateTests
     {
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
+            s_requestBuildDiff1,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -285,8 +287,8 @@ internal sealed class RequestStateTests
                 var buildNumberByJob = scenario.ToDictionary(jobName => jobName, jobName => RandomData.NextBuildNumber);
                 var diffs = new List<RequestBuildDiff>
                 {
-                    new(new("MainTest1"), new("OnDemandTest1")),
-                    new(new("MainTest2"), new("OnDemandTest2")),
+                    s_requestBuildDiff1,
+                    s_requestBuildDiff2,
                 };
                 using var mocks = OnDemandStoreMocks(out var onDemandStore);
                 var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -321,8 +323,8 @@ internal sealed class RequestStateTests
     {
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -335,8 +337,8 @@ internal sealed class RequestStateTests
     {
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -350,8 +352,8 @@ internal sealed class RequestStateTests
     {
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -369,8 +371,8 @@ internal sealed class RequestStateTests
     {
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -385,8 +387,8 @@ internal sealed class RequestStateTests
     {
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -401,8 +403,8 @@ internal sealed class RequestStateTests
         // Arrange
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -422,8 +424,8 @@ internal sealed class RequestStateTests
         // Arrange
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -448,8 +450,8 @@ internal sealed class RequestStateTests
         var onDemandRoot1 = new BuildReference(onDemandRootJob1, RandomData.NextBuildNumber);
         var onDemandRoot2 = new BuildReference(onDemandRootJob2, RandomData.NextBuildNumber);
 
-        var diffs1 = new List<RequestBuildDiff> { new(new("MainTest1"), new("OnDemandTest1")) };
-        var diffs2 = new List<RequestBuildDiff> { new(new("MainTest2"), new("OnDemandTest2")) };
+        var diffs1 = new List<RequestBuildDiff> { s_requestBuildDiff1 };
+        var diffs2 = new List<RequestBuildDiff> { s_requestBuildDiff2 };
 
         var chains = new RequestChain[]
         {
@@ -486,8 +488,8 @@ internal sealed class RequestStateTests
         // Arrange
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -513,8 +515,8 @@ internal sealed class RequestStateTests
         // Arrange
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -540,8 +542,8 @@ internal sealed class RequestStateTests
         // Arrange
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -561,8 +563,8 @@ internal sealed class RequestStateTests
         // Arrange
         var diffs = new List<RequestBuildDiff>
         {
-            new(new("MainTest1"), new("OnDemandTest1")),
-            new(new("MainTest2"), new("OnDemandTest2")),
+            s_requestBuildDiff1,
+            s_requestBuildDiff2,
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
@@ -587,8 +589,8 @@ internal sealed class RequestStateTests
         var onDemandRoot1 = new BuildReference(onDemandRootJob1, RandomData.NextBuildNumber);
         var onDemandRoot2 = new BuildReference(onDemandRootJob2, RandomData.NextBuildNumber);
 
-        var diffs1 = new List<RequestBuildDiff> { new(new("MainTest1"), new("OnDemandTest1")) };
-        var diffs2 = new List<RequestBuildDiff> { new(new("MainTest2"), new("OnDemandTest2")) };
+        var diffs1 = new List<RequestBuildDiff> { s_requestBuildDiff1 };
+        var diffs2 = new List<RequestBuildDiff> { s_requestBuildDiff2 };
 
         var chains = new RequestChain[]
         {
@@ -638,8 +640,8 @@ internal sealed class RequestStateTests
         {
             var diffs = new List<RequestBuildDiff>
             {
-                new(new("MainTest1"), new("OnDemandTest1")),
-                new(new("MainTest2"), new("OnDemandTest2")),
+                s_requestBuildDiff1,
+                s_requestBuildDiff2,
             };
             using var mocks = OnDemandStoreMocks(out var onDemandStore);
             var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);

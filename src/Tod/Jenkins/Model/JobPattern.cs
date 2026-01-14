@@ -32,7 +32,7 @@ internal abstract class ReferenceJobMatch
 
 internal sealed class ReferenceJobPattern(ReferenceJobConfig config) : IJobPattern<ReferenceJobMatch>
 {
-    private readonly Regex _regex = new(config.Pattern, RegexOptions.Compiled, TimeSpan.FromMilliseconds(100));
+    private readonly Regex _regex = new(config.Pattern, RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
     public bool IsMatch(JobName jobName, [NotNullWhen(true)] out ReferenceJobMatch? jobMatch)
     {
@@ -73,7 +73,7 @@ internal abstract class OnDemandJobMatch
 
 internal sealed class OnDemandJobPattern(OnDemandJobConfig config) : IJobPattern<OnDemandJobMatch>
 {
-    private readonly Regex _regex = new(config.Pattern, RegexOptions.Compiled, TimeSpan.FromMilliseconds(100));
+    private readonly Regex _regex = new(config.Pattern, RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
     public bool IsMatch(JobName jobName, [NotNullWhen(true)] out OnDemandJobMatch? jobMatch)
     {

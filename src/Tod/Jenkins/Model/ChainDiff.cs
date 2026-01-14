@@ -11,11 +11,34 @@ internal enum ChainStatus
     Done
 }
 
-internal sealed class RequestChain(BuildReference referenceRoot, RequestRootBuildReference ondemandRoot, RequestBuildDiff[] testBuildDiffs)
+internal sealed class RequestChain(BuildReference referenceRoot, RequestRootBuildReference ondemandRoot, TimeSpan rootDuration, RequestBuildDiff[] testBuildDiffs)
 {
+    public RequestChain(BuildReference referenceRoot, RequestRootBuildReference ondemandRoot, RequestBuildDiff[] testBuildDiffs)
+        : this(referenceRoot, ondemandRoot, TimeSpan.Zero, testBuildDiffs)
+    {
+    }
+
     public BuildReference ReferenceRoot { get; } = referenceRoot;
     public RequestRootBuildReference OnDemandRoot { get; } = ondemandRoot;
+    public TimeSpan RootDuration { get; } = rootDuration;
     public IEnumerable<RequestBuildDiff> TestBuildDiffs { get; } = testBuildDiffs;
+}
+
+internal static class RequestChainExtensions
+{
+    public static TimeSpan TotalDuration(this RequestChain[] chains)
+    {
+        var totalDuration = TimeSpan.Zero;
+        foreach (var chain in chains)
+        {
+            totalDuration += chain.RootDuration;
+            foreach (var testBuildDiff in chain.TestBuildDiffs)
+            {
+                totalDuration += testBuildDiff.TestDuration;
+            }
+        }
+        return totalDuration;
+    }
 }
 
 internal sealed class RequestChainBuilder(Workspace workspace, IFilterManager filterManager)
@@ -52,7 +75,8 @@ internal sealed class RequestChainBuilder(Workspace workspace, IFilterManager fi
             var testBuildDiffs = new List<RequestBuildDiff>(testJobDiffs.Length);
             for (var i = 0; i < testJobDiffs.Length; i++)
             {
-                var buildDiff = new RequestBuildDiff(testJobDiffs[i].ReferenceJob, testJobDiffs[i].OnDemandJob);
+                var testDuration = branchReference.TestBuilds[testJobDiffs[i].ReferenceJob].AverageDuration;
+                var buildDiff = new RequestBuildDiff(testJobDiffs[i].ReferenceJob, testJobDiffs[i].OnDemandJob, testDuration);
                 if (branchReference.TryFindTestBuild(testJobDiffs[i].ReferenceJob, refRootBuild, out var refTestBuild))
                 {
                     Log.Debug("Reusing reference test build {TestBuild}", refTestBuild);
@@ -60,7 +84,8 @@ internal sealed class RequestChainBuilder(Workspace workspace, IFilterManager fi
                 }
                 testBuildDiffs.Add(buildDiff);
             }
-            requestChains.Add(new RequestChain(refRootBuild, RequestRootBuildReference.Queue(onDemandJob, commit), [.. testBuildDiffs]));
+            var rootDuration = branchReference.RootBuilds[refRootBuild.JobName].AverageDuration;
+            requestChains.Add(new RequestChain(refRootBuild, RequestRootBuildReference.Queue(onDemandJob, commit), rootDuration, [.. testBuildDiffs]));
         }
         return [.. requestChains];
     }

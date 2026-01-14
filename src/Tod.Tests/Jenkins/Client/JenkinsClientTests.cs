@@ -533,4 +533,47 @@ internal sealed class JenkinsClientTests
         }
         apiClient.VerifyAll();
     }
+
+    [Test]
+    public async Task GetQueueSize_WithEmptyQueue_ReturnsZero()
+    {
+        var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
+        apiClient
+            .Setup(c => c.GetAsync($"{s_url}/queue/api/json"))
+            .ReturnsAsync(new { items = new object[] { } }.Serialize());
+        apiClient.Setup(c => c.Dispose());
+
+        using (var client = new JenkinsClient(s_config, "user:token", apiClient.Object))
+        {
+            var queueSize = await client.GetQueueSize().ConfigureAwait(false);
+            Assert.That(queueSize, Is.EqualTo(0));
+        }
+        apiClient.VerifyAll();
+    }
+
+    [Test]
+    public async Task GetQueueSize_WithMultipleItems_ReturnsCount()
+    {
+        var queue = new
+        {
+            items = new[]
+            {
+                new { id = 123, task = new { name = "job1" } },
+                new { id = 124, task = new { name = "job2" } },
+                new { id = 125, task = new { name = "job3" } },
+            }
+        };
+
+        var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
+        apiClient.Setup(x => x.GetAsync($"{s_url}/queue/api/json"))
+            .ReturnsAsync(queue.Serialize());
+        apiClient.Setup(c => c.Dispose());
+
+        using (var jenkinsClient = new JenkinsClient(s_config, "user:token", apiClient.Object))
+        {
+            var queueSize = await jenkinsClient.GetQueueSize().ConfigureAwait(false);
+            Assert.That(queueSize, Is.EqualTo(3));
+        }
+        apiClient.VerifyAll();
+    }
 }

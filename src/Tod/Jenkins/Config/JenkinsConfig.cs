@@ -48,7 +48,7 @@ internal sealed class RootFilter(string name, string pattern)
 {
     public static readonly string DefaultChain = string.Empty;
 
-    private readonly Regex _regex = new(pattern, RegexOptions.Compiled, TimeSpan.FromMilliseconds(100));
+    private readonly Regex _regex = new(pattern, RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
     public string Name { get; } = name;
     public string Pattern { get; } = pattern;
@@ -82,7 +82,7 @@ internal sealed class RootFilter(string name, string pattern)
 
 internal sealed class TestFilter(string name, string pattern, string group)
 {
-    private readonly Regex _regex = new(pattern, RegexOptions.Compiled, TimeSpan.FromMilliseconds(100));
+    private readonly Regex _regex = new(pattern, RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
     public string Name { get; } = name;
     public string Pattern { get; } = pattern;
@@ -122,6 +122,8 @@ internal sealed class MailConfig(string from, string smtpHost)
     public string SmtpHost { get; } = smtpHost;
 }
 
+internal sealed record LoadThreshold(int QueueSize, TimeSpan MaxRequestDuration);
+
 internal sealed class JenkinsConfig
 {
     private static readonly MailConfig s_emptyMailConfig = new(string.Empty, string.Empty);
@@ -130,7 +132,7 @@ internal sealed class JenkinsConfig
     private readonly Dictionary<string, TestFilter> _testFilterByName;
 
     public JenkinsConfig(string url)
-        : this(url, [], [], [], [], [], [], string.Empty, [], s_emptyMailConfig, null)
+        : this(url, [], [], [], [], [], [], string.Empty, [], s_emptyMailConfig, null, [])
     {
     }
 
@@ -146,7 +148,8 @@ internal sealed class JenkinsConfig
         string chainTestGroup,
         TestFilter[] testFilters,
         MailConfig mailConfig,
-        int? keptDays)
+        int? keptDays,
+        LoadThreshold[] loadThresholds)
     {
         Url = url;
         MultiBranchFolders = multiBranchFolders;
@@ -161,6 +164,7 @@ internal sealed class JenkinsConfig
         _testFilterByName = testFilters.ToDictionary(f => f.Name);
         MailConfig = mailConfig;
         KeptDays = keptDays;
+        LoadThresholds = loadThresholds;
     }
 
     public static JenkinsConfig New(
@@ -174,7 +178,8 @@ internal sealed class JenkinsConfig
         string? chainTestGroup = null,
         TestFilter[]? testFilters = null,
         MailConfig? mailConfig = null,
-        int? keptDays = null
+        int? keptDays = null,
+        LoadThreshold[]? loadThresholds = null
     )
     {
         return new JenkinsConfig(
@@ -188,7 +193,8 @@ internal sealed class JenkinsConfig
             chainTestGroup ?? string.Empty,
             testFilters ?? [],
             mailConfig ?? s_emptyMailConfig,
-            keptDays ?? null
+            keptDays ?? null,
+            loadThresholds ?? []
         );
     }
 
@@ -203,6 +209,7 @@ internal sealed class JenkinsConfig
     public TestFilter[] TestFilters { get; }
     public MailConfig MailConfig { get; }
     public int? KeptDays { get; }
+    public LoadThreshold[] LoadThresholds { get; }
 
     public bool TryGetRootFilter(string name, [NotNullWhen(true)] out RootFilter? filter)
     {

@@ -77,7 +77,7 @@ internal sealed class RequestManagerTests
 
     private RequestManager GetRequestManager(Workspace workspace)
     {
-        return new RequestManager(workspace, _filterManager.Object, _jenkinsClient.Object, _reportSender.Object);
+        return new RequestManager(workspace, _jenkinsClient.Object, _reportSender.Object);
     }
 
     private static readonly string s_userEmail = $"user@example.org";
@@ -96,6 +96,13 @@ internal sealed class RequestManagerTests
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         Func<OnDemandJobKind, JobName, TriggerParameters, Task> triggerBuild = (_, _, _) => Task.CompletedTask;
         return RequestState.New(request, chains, onDemandBuilds, triggerBuild);
+    }
+
+    private RequestChain[] GetChains(Request request, Workspace workspace)
+    {
+        var rootDiffs = new JobDiff[] { new("chain", _referenceRootJob, _onDemandRootJob) };
+        var chainBuilder = new RequestChainBuilder(workspace, _filterManager.Object);
+        return chainBuilder.Get(request.Commit, request.GitReference, rootDiffs, request.GetFilters());
     }
 
     [Test]
@@ -127,8 +134,8 @@ internal sealed class RequestManagerTests
         Assert.That(workspace.OnDemandRequests.ActiveRequests, Is.Empty);
 
         var requestManager = GetRequestManager(workspace);
-
-        await requestManager.Register(request, [new("chain", _referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false);
+        var chains = GetChains(request, workspace);
+        await requestManager.Register(request, chains).ConfigureAwait(false);
 
         Assert.That(workspace.OnDemandRequests.ActiveRequests.Single().Value.Request.Id, Is.EqualTo(request.Id));
     }
@@ -150,7 +157,7 @@ internal sealed class RequestManagerTests
         var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
         var requestManager = GetRequestManager(workspace);
 
-        Assert.That(() => requestManager.Register(request, [new("chain", _referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false),
+        Assert.That(() => GetChains(request, workspace),
             Throws.InvalidOperationException.With.Message.EqualTo("Cannot use 'unknown' branch for reference"));
     }
 
@@ -171,7 +178,7 @@ internal sealed class RequestManagerTests
         var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
         var requestManager = GetRequestManager(workspace);
 
-        Assert.That(() => requestManager.Register(request, [new("chain", _referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false),
+        Assert.That(() => GetChains(request, workspace),
             Throws.InvalidOperationException.With.Message.StartWith("Unknown parent commit"));
     }
 
@@ -211,8 +218,9 @@ internal sealed class RequestManagerTests
 
         var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
         var requestManager = GetRequestManager(workspace);
+        var chains = GetChains(request, workspace);
 
-        await requestManager.Register(request, [new("chain", _referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false);
+        await requestManager.Register(request, chains).ConfigureAwait(false);
 
         var cachedRequest = workspace.OnDemandRequests.ActiveRequests.Single();
         Assert.That(cachedRequest.Value.ChainDiffs[0].TestBuildDiffs.Single().ReferenceBuild.IsDone, Is.True);
@@ -279,11 +287,10 @@ internal sealed class RequestManagerTests
         _reportSender.Setup(x => x.Send(It.Is<RequestState>(r => r.Request.Id == request.Id && r.IsDone == true), It.IsAny<Workspace>()))
             .Returns(Task.CompletedTask);
 
-        var rootDiffs = new JobDiff[] { new("chain", _referenceRootJob, _onDemandRootJob) };
-
         var requestManager = GetRequestManager(workspace);
+        var chains = GetChains(request, workspace);
 
-        await requestManager.Register(request, rootDiffs).ConfigureAwait(false);
+        await requestManager.Register(request, chains).ConfigureAwait(false);
     }
 
     [Test]
@@ -335,8 +342,9 @@ internal sealed class RequestManagerTests
             .Returns([new JobDiff("chain", _referenceTestJob, _onDemandTestJob)]);
 
         var requestManager = GetRequestManager(workspace);
+        var chains = GetChains(request, workspace);
 
-        await requestManager.Register(request, [new("chain", _referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false);
+        await requestManager.Register(request, chains).ConfigureAwait(false);
     }
 
     [Test]
@@ -400,8 +408,9 @@ internal sealed class RequestManagerTests
             .Returns(Task.CompletedTask);
 
         var requestManager = GetRequestManager(workspace);
+        var chains = GetChains(request, workspace);
 
-        await requestManager.Register(request, [new("chain", _referenceRootJob, _onDemandRootJob)]).ConfigureAwait(false);
+        await requestManager.Register(request, chains).ConfigureAwait(false);
     }
 
     [Test]

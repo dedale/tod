@@ -8,6 +8,7 @@ namespace Tod.Tests.Jenkins;
 [TestFixture]
 internal sealed class BuildCollectionTests
 {
+    private static readonly BuildBranch s_mainBuildBranch = BuildBranch.Create(new BranchName("main"));
     private Mock<IByJobNameStore> _store;
 
     [SetUp]
@@ -24,7 +25,7 @@ internal sealed class BuildCollectionTests
 
     private void StoreSetupLoad(JobName jobName)
     {
-        _store.Setup(s => s.BuildBranch).Returns(BuildBranch.Create(new BranchName("main")));
+        _store.Setup(s => s.BuildBranch).Returns(s_mainBuildBranch);
         _store.Setup(s => s.Load(jobName, It.IsAny<Func<JobName, BuildCollection<RootBuild>.InnerCollection.Serializable>>()))
             .Returns((JobName j, Func<JobName, BuildCollection<RootBuild>.InnerCollection.Serializable> f) => f(j));
     }
@@ -49,7 +50,7 @@ internal sealed class BuildCollectionTests
     {
         using var temp = new TempDirectory();
         var jsonPath = Path.Combine(temp.Path, "Builds.json");
-        var storeFactory = new ByJobNameStoreFactory(BuildBranch.Create(new BranchName("main")), jsonPath);
+        var storeFactory = new ByJobNameStoreFactory(s_mainBuildBranch, jsonPath);
 
         var jobName = new JobName("TestJob");
         var builds = new[] {
@@ -148,7 +149,7 @@ internal sealed class BuildCollectionTests
     {
         using var temp = new TempDirectory();
         var jsonPath = Path.Combine(temp.Path, "Builds.json");
-        var storeFactory = new ByJobNameStoreFactory(BuildBranch.Create(new BranchName("main")), jsonPath);
+        var storeFactory = new ByJobNameStoreFactory(s_mainBuildBranch, jsonPath);
 
         var jobName = new JobName("TestJob");
         var builds = new[] {
@@ -186,5 +187,158 @@ internal sealed class BuildCollectionTests
         var build = new BuildReference("OtherJob", RandomData.NextBuildNumber);
         Assert.That(() => collection[build],
             Throws.ArgumentException.With.Message.EqualTo($"Build job name 'OtherJob' does not match collection job name 'TestJob'. (Parameter 'buildReference')"));
+    }
+
+    [Test]
+    public void AverageDuration_WithEmptyCollection_ReturnsZero()
+    {
+        var jobName = new JobName("TestJob");
+        StoreSetupLoad(jobName);
+        var collection = new BuildCollection<RootBuild>(jobName, _store.Object);
+        Assert.That(collection.AverageDuration, Is.EqualTo(TimeSpan.Zero));
+    }
+
+    [Test]
+    public void AverageDuration_WithSingleBuild_ReturnsBuildDuration()
+    {
+        using var temp = new TempDirectory();
+        var jsonPath = Path.Combine(temp.Path, "Builds.json");
+        var storeFactory = new ByJobNameStoreFactory(s_mainBuildBranch, jsonPath);
+
+        var jobName = new JobName("TestJob");
+        var store = storeFactory.New();
+        store.Add(jobName);
+
+        var startTime = DateTime.UtcNow.AddHours(-2);
+        var endTime = startTime.AddMinutes(30);
+        var expectedDuration = endTime - startTime;
+
+        var build = new RootBuild(
+            jobName,
+            "build-id-1",
+            RandomData.NextBuildNumber,
+            startTime,
+            endTime,
+            true,
+            [RandomData.NextSha1()],
+            []
+        );
+
+        var collection = new BuildCollection<RootBuild>(jobName, store);
+        collection.TryAdd(build);
+
+        Assert.That(collection.AverageDuration, Is.EqualTo(expectedDuration));
+    }
+
+    [Test]
+    public void AverageDuration_WithMultipleBuilds_ReturnsAverageDuration()
+    {
+        using var temp = new TempDirectory();
+        var jsonPath = Path.Combine(temp.Path, "Builds.json");
+        var storeFactory = new ByJobNameStoreFactory(s_mainBuildBranch, jsonPath);
+
+        var jobName = new JobName("TestJob");
+        var store = storeFactory.New();
+        store.Add(jobName);
+
+        var buildNumber = RandomData.NextBuildNumber;
+        var baseTime = DateTime.UtcNow.AddHours(-5);
+        var builds = new[]
+        {
+            RandomData.NextRootBuild(buildNumber: ++buildNumber, startUtc: baseTime, endUtc: baseTime.AddMinutes(20), jobName: jobName.Value),
+            RandomData.NextRootBuild(buildNumber: ++buildNumber, startUtc: baseTime.AddHours(1), endUtc: baseTime.AddHours(1).AddMinutes(40), jobName: jobName.Value),
+            RandomData.NextRootBuild(buildNumber: ++buildNumber, startUtc: baseTime.AddHours(2), endUtc: baseTime.AddHours(2).AddMinutes(30), jobName: jobName.Value),
+        };
+
+        var collection = new BuildCollection<RootBuild>(jobName, store);
+        foreach (var build in builds)
+        {
+            collection.TryAdd(build);
+        }
+
+        // Average: (20 + 40 + 30) / 3 = 30 minutes
+        Assert.That(collection.AverageDuration, Is.EqualTo(TimeSpan.FromMinutes(30)));
+    }
+
+    [Test]
+    public void AverageDuration_IsCached_AfterFirstAccess()
+    {
+        using var temp = new TempDirectory();
+        var jsonPath = Path.Combine(temp.Path, "Builds.json");
+        var storeFactory = new ByJobNameStoreFactory(s_mainBuildBranch, jsonPath);
+
+        var jobName = new JobName("TestJob");
+        var store = storeFactory.New();
+        store.Add(jobName);
+
+        var startTime = DateTime.UtcNow.AddHours(-2);
+        var build = RandomData.NextRootBuild(startUtc: startTime, endUtc: startTime.AddMinutes(25), jobName: jobName.Value);
+
+        var collection = new BuildCollection<RootBuild>(jobName, store);
+        collection.TryAdd(build);
+
+        var firstAccess = collection.AverageDuration;
+        Assert.That(firstAccess, Is.EqualTo(TimeSpan.FromMinutes(25)));
+        var secondAccess = collection.AverageDuration;
+        Assert.That(secondAccess, Is.EqualTo(firstAccess));
+    }
+
+    [Test]
+    public void AverageDuration_WithTestBuilds_ReturnsAverageDuration()
+    {
+        using var temp = new TempDirectory();
+        var jsonPath = Path.Combine(temp.Path, "Builds.json");
+        var storeFactory = new ByJobNameStoreFactory(s_mainBuildBranch, jsonPath);
+
+        var jobName = new JobName("TestJob");
+        var store = storeFactory.New();
+        store.Add(jobName);
+
+        var buildNumber = RandomData.NextBuildNumber;
+        var baseTime = DateTime.UtcNow.AddHours(-3);
+        var builds = new[]
+        {
+            RandomData.NextTestBuild(buildNumber: ++buildNumber, startUtc: baseTime, endUtc: baseTime.AddMinutes(15), testJobName: jobName.Value),
+            RandomData.NextTestBuild(buildNumber: ++buildNumber, startUtc: baseTime.AddHours(1), endUtc: baseTime.AddHours(1).AddMinutes(25), testJobName: jobName.Value),
+        };
+
+        var collection = new BuildCollection<TestBuild>(jobName, store);
+        foreach (var build in builds)
+        {
+            collection.TryAdd(build);
+        }
+
+        // Average: (15 + 25) / 2 = 20 minutes
+        Assert.That(collection.AverageDuration, Is.EqualTo(TimeSpan.FromMinutes(20)));
+    }
+
+    [Test]
+    public void AverageDuration_WithVaryingDurations_CalculatesCorrectly()
+    {
+        using var temp = new TempDirectory();
+        var jsonPath = Path.Combine(temp.Path, "Builds.json");
+        var storeFactory = new ByJobNameStoreFactory(s_mainBuildBranch, jsonPath);
+
+        var jobName = new JobName("TestJob");
+        var store = storeFactory.New();
+        store.Add(jobName);
+
+        var buildNumber = RandomData.NextBuildNumber;
+        var baseTime = DateTime.UtcNow.AddDays(-1);
+        var builds = new[]
+        {
+            RandomData.NextRootBuild(buildNumber: ++buildNumber, startUtc: baseTime, endUtc: baseTime.AddSeconds(90), jobName: jobName.Value),
+            RandomData.NextRootBuild(buildNumber: ++buildNumber, startUtc: baseTime.AddHours(1), endUtc: baseTime.AddHours(1).AddHours(2).AddMinutes(30), jobName: jobName.Value),
+            RandomData.NextRootBuild(buildNumber: ++buildNumber, startUtc: baseTime.AddHours(4), endUtc: baseTime.AddHours(4).AddMinutes(45), jobName: jobName.Value),
+        };
+
+        var collection = new BuildCollection<RootBuild>(jobName, store);
+        foreach (var build in builds)
+        {
+            collection.TryAdd(build);
+        }
+
+        // Average: (1.5 + 150 + 45) / 3 = 65.5 minutes
+        Assert.That(collection.AverageDuration, Is.EqualTo(TimeSpan.FromMinutes(65.5)));
     }
 }

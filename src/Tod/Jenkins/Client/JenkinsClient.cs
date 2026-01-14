@@ -16,6 +16,7 @@ internal interface IJenkinsClient
     Task TriggerBuild(OnDemandJobKind jobKind, JobName jobName, TriggerParameters parameters);
     Task<BuildReference?> TryGetRootBuild(BuildReference buildReference);
     Task<JobName[]> GetJobNames(string[] multiBranchFolders);
+    Task<int> GetQueueSize();
 }
 
 internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApiClient? apiClient = null) : IJenkinsClient, IDisposable
@@ -241,6 +242,13 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApi
         }
         allJobNames.Sort();
         return [.. allJobNames];
+    }
+
+    public async Task<int> GetQueueSize()
+    {
+        var url = $"{config.Url}/queue/api/json";
+        var doc = await _apiClient.GetAsync(url).ConfigureAwait(false);
+        return doc.RootElement.GetProperty("items").EnumerateArray().Count();
     }
 
     public void Dispose()

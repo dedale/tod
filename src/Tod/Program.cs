@@ -1,6 +1,5 @@
 ﻿using CommandLine;
 using Serilog;
-using Serilog.Core;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Tod.Core;
@@ -70,7 +69,7 @@ internal static class Program
         var filterManager = new FilterManager(config, jobGroups);
         var mailSender = new MailSender(config.MailConfig);
         var reportSender = new ReportSender(new JenkinsJobLinker(config), mailSender);
-        var requestManager = new RequestManager(workSpace, filterManager, jenkinsClient, reportSender);
+        var requestManager = new RequestManager(workSpace, jenkinsClient, reportSender);
         var jenkinsSynchronizer = new JenkinsSynchronizer(jenkinsClient, requestManager);
         await jenkinsSynchronizer.Update(workSpace).ConfigureAwait(false);
 
@@ -108,11 +107,25 @@ internal static class Program
             return 1;
         }
 
+        var request = Request.Create(commits.First(), gitReference, [.. options.TestFilters], UserDirectory.CurrentUserEmail);
+
+        Log.Information("Registering new request {RequestId} for commit {Commit} on branch {Branch}",
+            request.Id, request.Commit, request.GitReference.Branch);
+
+        var chainBuilder = new RequestChainBuilder(workspace, filterManager);
+        var chains = chainBuilder.Get(request.Commit, request.GitReference, rootDiffs, request.GetFilters());
+
+        var requestValidator = new RequestValidator(config, jenkinsClient);
+        if (!await requestValidator.Validate(chains).ConfigureAwait(false))
+        {
+            Log.Error("Request validation failed.");
+            return 1;
+        }
+ 
         var mailSender = new MailSender(config.MailConfig);
         var reportSender = new ReportSender(new JenkinsJobLinker(config), mailSender);
-        var requestManager = new RequestManager(workspace, filterManager, jenkinsClient, reportSender);
-        var request = Request.Create(commits.First(), gitReference, [.. options.TestFilters], UserDirectory.CurrentUserEmail);
-        await requestManager.Register(request, rootDiffs).ConfigureAwait(false);
+        var requestManager = new RequestManager(workspace, jenkinsClient, reportSender);
+        await requestManager.Register(request, chains).ConfigureAwait(false);
         return 0;
     }
 
@@ -140,12 +153,13 @@ internal static class Program
         var chains = chainBuilder.Get(commits.First(), gitReference, rootDiffs, [.. options.TestFilters]);
         foreach (var chain in chains)
         {
-            Log.Information("Root Job; {RootJob}", chain.OnDemandRoot.JobName);
+            Log.Information("Root Job: {RootJob} ({Duration})", chain.OnDemandRoot.JobName, chain.RootDuration);
             foreach (var testBuildDiff in chain.TestBuildDiffs)
             {
-                Log.Information("  Test Job: {TestJob}", testBuildDiff.OnDemandBuild.JobName);
+                Log.Information("  Test Job: {TestJob} ({Duration})", testBuildDiff.OnDemandBuild.JobName, testBuildDiff.TestDuration);
             }
         }
+        Log.Information("Total: {Duration}", chains.TotalDuration());
         return Task.FromResult(0);
     }
 

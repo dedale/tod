@@ -32,6 +32,27 @@ internal sealed class BuildCollection<T>(JobName jobName, IByJobNameStore byJobN
 
     public T this[int index] => _innerCollection.Value[index];
 
+    private TimeSpan? _averageDuration = null;
+    public TimeSpan AverageDuration
+    {
+        get
+        {
+            if (!_averageDuration.HasValue)
+            {
+                if (_innerCollection.Value.Count == 0)
+                {
+                    _averageDuration = TimeSpan.Zero;
+                }
+                else
+                {
+                    var totalTicks = _innerCollection.Value.Sum(b => (b.EndTimeUtc - b.StartTimeUtc).Ticks);
+                    _averageDuration = TimeSpan.FromTicks(totalTicks / _innerCollection.Value.Count);
+                }
+            }
+            return _averageDuration.Value;
+        }
+    }
+
     public bool TryGetBuild(BuildReference reference, [NotNullWhen(true)] out T? build) => _innerCollection.Value.TryGetBuild(reference, out build);
 
     public T this[BuildReference buildReference] => _innerCollection.Value[buildReference];

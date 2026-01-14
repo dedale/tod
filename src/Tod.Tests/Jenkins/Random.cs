@@ -97,14 +97,21 @@ internal static class RandomData
         );
     }
 
-    public static TestBuild NextTestBuild(string testJobName = "MyTestJob", int buildNumber = 0, BuildReference? rootBuild = null, FailedTest[]? failedTests = null)
+    public static TestBuild NextTestBuild(
+        string testJobName = "MyTestJob",
+        int buildNumber = 0,
+        BuildReference? rootBuild = null,
+        FailedTest[]? failedTests = null,
+        DateTime startUtc = default,
+        DateTime endUtc = default
+    )
     {
         return new TestBuild(
             new JobName(testJobName),
             Guid.NewGuid().ToString(),
             buildNumber == 0 ? NextBuildNumber : buildNumber,
-            DateTime.UtcNow.AddHours(-1),
-            DateTime.UtcNow,
+            startUtc == DateTime.MinValue ? DateTime.UtcNow.AddHours(-1) : startUtc,
+            endUtc == DateTime.MinValue ? DateTime.UtcNow : endUtc,
             true,
             rootBuild ?? new BuildReference("MyJob", 42),
             failedTests ?? []

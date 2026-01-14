@@ -40,13 +40,15 @@ internal sealed class JobManagerTests
         client.Setup(x => x.GetJobNames(config.MultiBranchFolders)).ReturnsAsync([.. jobNames]);
 
         var manager = new JobManager(config, client.Object);
-
-        var result = await manager.TryLoad().ConfigureAwait(false);
+        JobName[] saved = [];
+        var result = await manager.TryLoad(x => saved = x).ConfigureAwait(false);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(result, Is.Not.Null);
             Debug.Assert(result != null);
+
+            Assert.That(saved, Is.EquivalentTo(jobNames));
 
             // Root group validation
             Assert.That(result.ByRoot, Has.Count.EqualTo(1));

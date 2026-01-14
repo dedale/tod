@@ -10,16 +10,10 @@ internal interface IPostBuildHandler
     Task PostReferenceTestBuild(BuildReference rootBuild, BuildReference testBuild);
 }
 
-internal sealed class RequestManager(Workspace workspace, IFilterManager filterManager, IJenkinsClient jenkinsClient, IReportSender reportSender) : IPostBuildHandler
+internal sealed class RequestManager(Workspace workspace, IJenkinsClient jenkinsClient, IReportSender reportSender) : IPostBuildHandler
 {
-    public async Task Register(Request request, JobDiff[] rootDiffs)
+    public async Task Register(Request request, RequestChain[] chains)
     {
-        Log.Information("Registering new request {RequestId} for commit {Commit} on branch {Branch}",
-            request.Id, request.Commit, request.GitReference.Branch);
-
-        var chainBuilder = new RequestChainBuilder(workspace, filterManager);
-        var chains = chainBuilder.Get(request.Commit, request.GitReference, rootDiffs, request.GetFilters());
-
         var requestState = await RequestState.New(request, chains, workspace.OnDemandBuilds, jenkinsClient.TriggerBuild).ConfigureAwait(false);
         workspace.OnDemandRequests.Add(requestState);
 
