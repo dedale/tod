@@ -1,5 +1,4 @@
-﻿using LibGit2Sharp;
-using Tod.Git;
+﻿using Tod.Git;
 
 namespace Tod.Jenkins;
 

@@ -1,5 +1,6 @@
 ﻿using Moq;
 using NUnit.Framework;
+using System.Diagnostics;
 using Tod.Jenkins;
 using Tod.Net;
 using Tod.Tests.IO;
@@ -180,16 +181,76 @@ internal sealed class ReportSenderTests
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
         var workspace = GetWorkspace(referenceStore, onDemandStore, flakyStore);
 
-        var buildDiffResult = new BuildDiffResult(
-            BuildReferenceResult.Done(new(_referenceTestJob, RandomData.NextBuildNumber), true),
-            BuildReferenceResult.Queued(_onDemandTestJob),
-            BuildDiff.OnDemandTriggered(_onDemandTestJob));
+        _mockJobLinker.Setup(j => j.GetUrl(It.IsAny<JobName>()))
+            .Returns("http://example.org/job-link");
 
-        var report = new RequestReport([new ChainReport(
-            BuildReferenceResult.Queued(_onDemandRootJob),
-            [buildDiffResult])]);
+        _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.IsAny<string>(), It.IsAny<string>()))
+            .Returns(Task.CompletedTask);
+
+        Assert.DoesNotThrowAsync(() => _reportSender.Send(requestState, workspace));
+    }
+
+    [Test]
+    public async Task Send_DoneWithWorkspace_CompletesSuccessfully()
+    {
+        using var mocks = StoreMocks.New()
+            .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+            .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+            .WithNewRootBuilds(_onDemandRootJob)
+            .WithNewTestBuilds(_onDemandTestJob)
+            .WithFlakies(out var flakyStore);
+
+        var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
+        var workspace = GetWorkspace(referenceStore, onDemandStore, flakyStore);
+        workspace.OnDemandRequests.Add(requestState);
+
+        var chainDiff = requestState.ChainDiffs[0];
+        var rootBuildRef = new BuildReference(chainDiff.OnDemandRoot.JobName, RandomData.NextBuildNumber);
+        var rootBuild = RandomData.NextRootBuild(jobName: rootBuildRef.JobName.Value, buildNumber: rootBuildRef.BuildNumber, testJobNames: [_onDemandTestJob.Value]);
+        Assert.That(workspace.OnDemandBuilds.TryAdd(rootBuild), Is.True);
+
+        Assert.That(workspace.OnDemandRequests.TryGetRootQueued(rootBuildRef.JobName, requestState.Request.Commit, out var lockedRequest), Is.True);
+        Debug.Assert(lockedRequest != null);
+        try
+        {
+            Func<JobName, Task> triggerBuild = _ => Task.CompletedTask;
+            await lockedRequest.Update(r => r.TriggerTests(rootBuildRef, triggerBuild)).ConfigureAwait(false);
+        }
+        finally
+        {
+            lockedRequest.Dispose();
+        }
+
+        using (var lockedRequests = workspace.OnDemandRequests.GetPendingReferenceTest(chainDiff.ReferenceRoot, _referenceTestJob))
+        {
+            Assert.That(lockedRequests, Has.Count.EqualTo(1));
+            lockedRequest = lockedRequests[0];
+            var testBuild = new BuildReference(_referenceTestJob, RandomData.NextBuildNumber);
+            {
+                await lockedRequest.Update(r => Task.FromResult(r.DoneReferenceTestBuild(rootBuildRef, testBuild))).ConfigureAwait(false);
+            }
+        }
+
+        var requestBuildDiff = chainDiff.TestBuildDiffs.First();
+        Assert.That(workspace.OnDemandRequests.TryGetTestQueued(rootBuildRef, _onDemandTestJob, out lockedRequest), Is.True);
+        Debug.Assert(lockedRequest != null);
+        try
+        {
+            var testBuild = new BuildReference(_onDemandTestJob, RandomData.NextBuildNumber);
+            workspace.OnDemandBuilds.TryAdd(RandomData.NextTestBuild(
+                testJobName: testBuild.JobName.Value,
+                buildNumber: testBuild.BuildNumber,
+                rootBuild: rootBuildRef));
+            requestState = await lockedRequest.Update(r => Task.FromResult(r.DoneOnDemandTestBuild(rootBuildRef, testBuild))).ConfigureAwait(false);
+        }
+        finally
+        {
+            lockedRequest.Dispose();
+        }
 
         _mockJobLinker.Setup(j => j.GetUrl(It.IsAny<JobName>()))
+            .Returns("http://example.org/job-link");
+        _mockJobLinker.Setup(j => j.GetUrl(It.IsAny<JobName>(), It.IsAny<int>()))
             .Returns("http://example.org/job-link");
 
         _mockMailSender.Setup(m => m.Send(It.IsAny<string>(), "On-Demand Report", It.IsAny<string>(), It.IsAny<string>()))
