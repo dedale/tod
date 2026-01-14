@@ -184,6 +184,17 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
             }
         }
     }
+
+    public int RemoveBuildsOlderThan(DateTime thresholdUtc)
+    {
+        var removed = 0;
+        foreach (var branchReference in BranchReferences)
+        {
+            removed += branchReference.RemoveBuildsOlderThan(thresholdUtc);
+        }
+        removed += OnDemandBuilds.RemoveBuildsOlderThan(thresholdUtc);
+        return removed;
+    }
 }
 
 internal static class WorkspaceExtensions

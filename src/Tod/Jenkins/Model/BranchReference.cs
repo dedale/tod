@@ -4,7 +4,7 @@ using Tod.Git;
 
 namespace Tod.Jenkins;
 
-internal sealed class BranchReference
+internal sealed class BranchReference : IBuildChains
 {
     public BranchReference(IReferenceStore referenceStore)
         : this(referenceStore.Branch, referenceStore.RootStore, referenceStore.TestStore)
@@ -26,29 +26,6 @@ internal sealed class BranchReference
     public BranchName BranchName { get; }
     public BuildCollections<RootBuild> RootBuilds { get; }
     public BuildCollections<TestBuild> TestBuilds { get; }
-
-    public void TryAddRoot(JobName rootJobName)
-    {
-        RootBuilds.GetOrAdd(rootJobName);
-    }
-
-    public void RemoveRoot(JobName rootJobName)
-    {
-        RootBuilds.Remove(rootJobName);
-    }
-
-    public bool TryAdd(RootBuild rootBuild)
-    {
-        if (RootBuilds.GetOrAdd(rootBuild.JobName).TryAdd(rootBuild))
-        {
-            foreach (var job in rootBuild.Scheduled)
-            {
-                TestBuilds.GetOrAdd(job);
-            }
-            return true;
-        }
-        return false;
-    }
 
     public bool TryFindRootBuildByCommit(Sha1 commitId, JobName jobName, [NotNullWhen(true)] out RootBuild? rootBuild)
     {
@@ -72,21 +49,6 @@ internal sealed class BranchReference
         return false;
     }
 
-    public void TryAddTest(JobName testJobName)
-    {
-        TestBuilds.GetOrAdd(testJobName);
-    }
-
-    public void RemoveTest(JobName testJobName)
-    {
-        TestBuilds.Remove(testJobName);
-    }
-
-    public bool TryAdd(TestBuild testBuild)
-    {
-        return TestBuilds.GetOrAdd(testBuild.JobName).TryAdd(testBuild);
-    }
-
     public bool TryFindTestBuild(JobName testJobName, BuildReference rootBuild, [NotNullWhen(true)] out TestBuild? testBuild)
     {
         testBuild = null;
@@ -107,9 +69,18 @@ internal sealed class BranchReference
         return false;
     }
 
-    public TestBuild GetTestBuild(BuildReference buildReference)
+    public int RemoveBuildsOlderThan(DateTime thresholdUtc)
     {
-        return TestBuilds.GetOrAdd(buildReference.JobName)[buildReference];
+        var removed = 0;
+        foreach (var rootBuilds in RootBuilds)
+        {
+            removed += rootBuilds.RemoveBuildsOlderThan(thresholdUtc);
+        }
+        foreach (var testBuilds in TestBuilds)
+        {
+            removed += testBuilds.RemoveBuildsOlderThan(thresholdUtc);
+        }
+        return removed;
     }
 }
 

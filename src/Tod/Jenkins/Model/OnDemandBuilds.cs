@@ -2,7 +2,7 @@
 
 namespace Tod.Jenkins;
 
-internal sealed class OnDemandBuilds(BuildCollections<RootBuild> rootBuilds, BuildCollections<TestBuild> testBuilds)
+internal sealed class OnDemandBuilds(BuildCollections<RootBuild> rootBuilds, BuildCollections<TestBuild> testBuilds) : IBuildChains
 {
     public OnDemandBuilds(IOnDemandStore onDemandStore)
         : this(new BuildCollections<RootBuild>(onDemandStore.RootStore), new BuildCollections<TestBuild>(onDemandStore.TestStore))
@@ -20,44 +20,6 @@ internal sealed class OnDemandBuilds(BuildCollections<RootBuild> rootBuilds, Bui
 
     public BuildCollections<RootBuild> RootBuilds { get; } = rootBuilds;
     public BuildCollections<TestBuild> TestBuilds { get; } = testBuilds;
-
-    public void TryAddRoot(JobName rootJobName)
-    {
-        RootBuilds.GetOrAdd(rootJobName);
-    }
-
-    public void RemoveRoot(JobName rootJobName)
-    {
-        RootBuilds.Remove(rootJobName);
-    }
-
-    public bool TryAdd(RootBuild rootBuild)
-    {
-        if (RootBuilds[rootBuild.JobName].TryAdd(rootBuild))
-        {
-            foreach (var scheduled in rootBuild.Scheduled)
-            {
-                TestBuilds.GetOrAdd(scheduled);
-            }
-            return true;
-        }
-        return false;
-    }
-
-    public void TryAddTest(JobName testJobName)
-    {
-        TestBuilds.GetOrAdd(testJobName);
-    }
-
-    public void RemoveTest(JobName testJobName)
-    {
-        TestBuilds.Remove(testJobName);
-    }
-
-    public bool TryAdd(TestBuild testBuild)
-    {
-        return TestBuilds.GetOrAdd(testBuild.JobName).TryAdd(testBuild);
-    }
 
     public bool TryFindTestBuild(JobName testJobName, BuildReference rootBuild, [NotNullWhen(true)] out TestBuild? testBuild)
     {
@@ -82,10 +44,5 @@ internal sealed class OnDemandBuilds(BuildCollections<RootBuild> rootBuilds, Bui
     public bool TryGetRootBuild(BuildReference buildReference, [NotNullWhen(true)] out RootBuild? rootBuild)
     {
         return RootBuilds[buildReference.JobName].TryGetBuild(buildReference, out rootBuild);
-    }
-
-    public TestBuild GetTestBuild(BuildReference buildReference)
-    {
-        return TestBuilds[buildReference.JobName][buildReference];
     }
 }

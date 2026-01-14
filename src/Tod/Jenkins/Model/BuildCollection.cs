@@ -13,6 +13,8 @@ internal sealed class BuildCollection<T>(JobName jobName, IByJobNameStore byJobN
 
     public bool TryAdd(T build) => _innerCollection.Value.TryAdd(build);
 
+    public int RemoveBuildsOlderThan(DateTime thresholdUtc) => _innerCollection.Value.RemoveBuildsOlderThan(thresholdUtc);
+
     public IEnumerator<T> GetEnumerator()
     {
         return _innerCollection.Value.GetEnumerator();
@@ -108,6 +110,32 @@ internal sealed class BuildCollection<T>(JobName jobName, IByJobNameStore byJobN
                 return true;
             }
             return false;
+        }
+
+        public int RemoveBuildsOlderThan(DateTime thresholdUtc)
+        {
+            var removed = 0;
+            for (var i = 0; i < _builds.Count;)
+            {
+                if (_builds[i].EndTimeUtc < thresholdUtc)
+                {
+                    removed++;
+                    var buildNumber = _builds[i].BuildNumber;
+                    _builds.RemoveAt(i);
+                    _buildNumbers.Remove(buildNumber);
+                    _byNumber.Remove(buildNumber);
+                }
+                else
+                {
+                    // Builds are in ascending order by end time, so we can stop here
+                    break;
+                }
+            }
+            if (removed > 0)
+            {
+                _save();
+            }
+            return removed;
         }
 
         public JobName JobName => _jobName;

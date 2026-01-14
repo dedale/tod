@@ -130,7 +130,7 @@ internal sealed class JenkinsConfig
     private readonly Dictionary<string, TestFilter> _testFilterByName;
 
     public JenkinsConfig(string url)
-        : this(url, [], [], [], [], [], [], string.Empty, [], s_emptyMailConfig)
+        : this(url, [], [], [], [], [], [], string.Empty, [], s_emptyMailConfig, null)
     {
     }
 
@@ -145,7 +145,8 @@ internal sealed class JenkinsConfig
         RootFilter[] rootFilters,
         string chainTestGroup,
         TestFilter[] testFilters,
-        MailConfig mailConfig)
+        MailConfig mailConfig,
+        int? keptDays)
     {
         Url = url;
         MultiBranchFolders = multiBranchFolders;
@@ -159,6 +160,7 @@ internal sealed class JenkinsConfig
         TestFilters = testFilters;
         _testFilterByName = testFilters.ToDictionary(f => f.Name);
         MailConfig = mailConfig;
+        KeptDays = keptDays;
     }
 
     public static JenkinsConfig New(
@@ -171,7 +173,8 @@ internal sealed class JenkinsConfig
         RootFilter[]? rootFilters = null,
         string? chainTestGroup = null,
         TestFilter[]? testFilters = null,
-        MailConfig? mailConfig = null
+        MailConfig? mailConfig = null,
+        int? keptDays = null
     )
     {
         return new JenkinsConfig(
@@ -184,7 +187,8 @@ internal sealed class JenkinsConfig
             rootFilters ?? [],
             chainTestGroup ?? string.Empty,
             testFilters ?? [],
-            mailConfig ?? s_emptyMailConfig
+            mailConfig ?? s_emptyMailConfig,
+            keptDays ?? null
         );
     }
 
@@ -198,6 +202,7 @@ internal sealed class JenkinsConfig
     public string ChainTestGroup { get; }
     public TestFilter[] TestFilters { get; }
     public MailConfig MailConfig { get; }
+    public int? KeptDays { get; }
 
     public bool TryGetRootFilter(string name, [NotNullWhen(true)] out RootFilter? filter)
     {

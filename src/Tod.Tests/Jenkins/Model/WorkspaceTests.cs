@@ -397,4 +397,46 @@ internal sealed class WorkspaceTests
             }
         }
     }
+
+    [Test]
+    public async Task RemoveBuildsOlderThan_Works()
+    {
+        using var temp = new TempDirectory();
+        var jobGroups = await GetJobGroups().ConfigureAwait(false);
+        var workspace = Workspace.New(temp.Path, jobGroups);
+        var branchReference = workspace.BranchReferences.First();
+        var oldBuild = RandomData.NextRootBuild(
+            jobName: "MAIN-build",
+            buildNumber: 1,
+            isSuccessful: true,
+            commits: 1,
+            startUtc: DateTime.UtcNow.AddDays(-10),
+            endUtc: DateTime.UtcNow.AddDays(-9)
+        );
+        var recentBuild = RandomData.NextRootBuild(
+            jobName: "MAIN-build",
+            buildNumber: 2,
+            isSuccessful: true,
+            commits: 1,
+            startUtc: DateTime.UtcNow.AddDays(-2),
+            endUtc: DateTime.UtcNow.AddDays(-1)
+        );
+        branchReference.TryAdd(oldBuild);
+        branchReference.TryAdd(recentBuild);
+        var removed = workspace.RemoveBuildsOlderThan(DateTime.UtcNow.AddDays(-5));
+        Assert.That(removed, Is.EqualTo(1));
+        var buildCollections = branchReference.RootBuilds.ToList();
+        Assert.That(buildCollections, Has.Count.EqualTo(1));
+        var builds = buildCollections[0].ToList();
+        Assert.That(builds, Has.Count.EqualTo(1));
+        Assert.That(builds[0].BuildNumber, Is.EqualTo(2));
+
+        var reloaded = Workspace.Load(temp.Path, new WorkspaceStore(temp.Path));
+        branchReference = reloaded.BranchReferences.First();
+        buildCollections = [.. branchReference.RootBuilds];
+        Assert.That(buildCollections, Has.Count.EqualTo(1));
+        builds = [.. buildCollections[0]];
+        Assert.That(builds, Has.Count.EqualTo(1));
+        Assert.That(builds[0].BuildNumber, Is.EqualTo(2));
+    }
 }

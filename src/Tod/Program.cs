@@ -1,5 +1,6 @@
 ﻿using CommandLine;
 using Serilog;
+using Serilog.Core;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Tod.Core;
@@ -72,6 +73,17 @@ internal static class Program
         var requestManager = new RequestManager(workSpace, filterManager, jenkinsClient, reportSender);
         var jenkinsSynchronizer = new JenkinsSynchronizer(jenkinsClient, requestManager);
         await jenkinsSynchronizer.Update(workSpace).ConfigureAwait(false);
+
+        if (config.KeptDays != null && config.KeptDays > 0)
+        {
+            Log.Debug("Removing builds older than {KeptDays} days", config.KeptDays);
+            var removed = workSpace.RemoveBuildsOlderThan(DateTime.UtcNow.AddDays((double)-config.KeptDays));
+            if (removed > 0)
+            {
+                Log.Information("Removed {Removed} old {Builds}", removed, removed > 1 ? "builds" : "build");
+            }
+        }
+
         return 0;
     }
 

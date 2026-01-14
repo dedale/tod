@@ -75,14 +75,22 @@ internal static class RandomData
         }
     }
 
-    public static RootBuild NextRootBuild(string jobName = "MyJob", int buildNumber = 0, bool isSuccessful = true, int commits = 2, string[]? testJobNames = null)
+    public static RootBuild NextRootBuild(
+        string jobName = "MyJob",
+        int buildNumber = 0,
+        bool isSuccessful = true,
+        int commits = 2,
+        string[]? testJobNames = null,
+        DateTime startUtc = default,
+        DateTime endUtc = default
+    )
     {
         return new RootBuild(
             new JobName(jobName),
             Guid.NewGuid().ToString(),
             buildNumber == 0 ? NextBuildNumber : buildNumber,
-            DateTime.UtcNow.AddHours(-1),
-            DateTime.UtcNow,
+            startUtc == DateTime.MinValue ? DateTime.UtcNow.AddHours(-1) : startUtc,
+            endUtc == DateTime.MinValue ? DateTime.UtcNow : endUtc,
             isSuccessful,
             [.. Enumerable.Range(0, commits).Select(_ => NextSha1())],
             [.. (testJobNames ?? ["MyTestJob1", "MyTestJob2"]).Select(j => new JobName(j))]

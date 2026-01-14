@@ -78,7 +78,8 @@ internal sealed class RequestManager(Workspace workspace, IFilterManager filterM
 
         if (lockedRequests.Count > 0)
         {
-            Log.Information("Reference test build {TestBuild} completed - updating {RequestCount} {Requests}", testBuild, lockedRequests.Count, lockedRequests.Count > 1 ? "requests" : "request");
+            Log.Information("Reference test build {JobName} #{BuildNumber} completed - updating {RequestCount} {Requests}",
+                testBuild.JobName, testBuild.BuildNumber, lockedRequests.Count, lockedRequests.Count > 1 ? "requests" : "request");
         }
 
         foreach (var lockedRequest in lockedRequests)
