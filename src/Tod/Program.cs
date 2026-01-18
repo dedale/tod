@@ -187,6 +187,59 @@ internal static class Program
         return 0;
     }
 
+    private static Task<int> Filters(FiltersOptions options)
+    {
+        var config = JenkinsConfig.Load(options.ConfigPath);
+        var jobGroups = JobManager.TryLoad(config, config.JobNames);
+        if (jobGroups == null)
+        {
+            Log.Error("Failed to load job groups. Please run 'sync --jobs' first.");
+            return Task.FromResult(1);
+        }
+
+        var analyzer = new FilterAnalyzer(config, jobGroups);
+        var result = analyzer.Run();
+
+        foreach (var chain in result.Chains.OrderBy(x => x))
+        {
+            Log.Information("Chain: {Chain}", chain);
+            var filters = result.GetChainFilters(chain);
+            Log.Information("  Root: {RootFilter}: {RootJob}", filters.RootFilter, filters.RootJob);
+            foreach (var testName in filters.TestsByFilter.Keys.OrderBy(x => x))
+            {
+                Log.Information("    {TestFilter}", testName);
+                foreach (var job in filters.TestsByFilter[testName].Jobs.OrderBy(x => x))
+                {
+                    Log.Information("      {TestJob}", job);
+                }
+            }
+        }
+        foreach (var group in result.TestGroups)
+        {
+            Log.Information("Test Group: {Group}", group);
+            var testsByFilter = result.GetTestsByFilterForGroup(group);
+            foreach (var filter in testsByFilter.Keys.OrderBy(f => f))
+            {
+                var tests = testsByFilter[filter];
+                Log.Information("  {Filter}", filter);
+                foreach (var job in tests.Jobs.OrderBy(j => j))
+                {
+                    Log.Information("    {Job}", job);
+                }
+            }
+        }
+        if (result.Errors.Length > 0)
+        {
+            Log.Error($"Error{(result.Errors.Length > 1 ? "s" : "")}:");
+            foreach (var error in result.Errors)
+            {
+                Log.Error("  {Error}", error);
+            }
+        }
+
+        return Task.FromResult(0);
+    }
+
     // TODO list
     // TODO abort/cancel
 
@@ -200,11 +253,12 @@ internal static class Program
         {
             Log.Debug(Environment.CommandLine);
 
-            return await Parser.Default.ParseArguments<SyncOptions, NewOptions, JobsOptions, ReportOptions>(args).MapResult(
+            return await Parser.Default.ParseArguments<SyncOptions, NewOptions, JobsOptions, ReportOptions, FiltersOptions>(args).MapResult(
                 (SyncOptions options) => Sync(options),
                 (NewOptions options) => New(options),
                 (JobsOptions options) => Jobs(options),
                 (ReportOptions options) => Report(options),
+                (FiltersOptions options) => Filters(options),
                 errors => Task.FromResult(1)).ConfigureAwait(false);
         }
         catch (Exception ex)

@@ -68,4 +68,10 @@ internal sealed class ReportOptions : BaseOptions
     public string RequestId { get; set; }
 }
 
+[ExcludeFromCodeCoverage]
+[Verb("filters", HelpText = "List jobs per filters")]
+internal sealed class FiltersOptions : BaseOptions
+{
+}
+
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
