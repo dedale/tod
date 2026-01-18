@@ -477,7 +477,13 @@ pre {
             }.Where(x => x != null))}";
 
         return new XElement("body",
-            new XElement("h1", "Test On Demand Report"),
+            new XElement("h1",
+                new XElement("span", new XAttribute("style", "color:red"), "T"),
+                "est ",
+                new XElement("span", new XAttribute("style", "color:red"), "O"),
+                "n ",
+                new XElement("span", new XAttribute("style", "color:red"), "D"),
+                "emand Report"),
             new XElement("table",
                 new XAttribute("class", "summary"),
                 new XElement("tr",

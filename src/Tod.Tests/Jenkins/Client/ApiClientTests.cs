@@ -67,6 +67,53 @@ internal sealed class ApiClientTests
     }
 
     [Test]
+    public async Task GetAsync_401_RetryOnce()
+    {
+        var calls = 0;
+        var handler = new TestHttpMessageHandler(_ =>
+        {
+            calls++;
+            if (calls == 1)
+            {
+                return new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.Unauthorized,
+                    Content = new StringContent("401")
+                };
+            }
+            return new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent(@"{""key"": ""value""}")
+            };
+        });
+
+        using var client = new ApiClient(handler, "user:token");
+        var result = await client.GetAsync("http://test.com/api").ConfigureAwait(false);
+        Assert.That(result.RootElement.GetProperty("key").GetString(), Is.EqualTo("value"));
+    }
+
+    [Test]
+    public async Task GetAsync_401_RetryOnlyOnce()
+    {
+        var handler = new TestHttpMessageHandler(_ =>
+        {
+            return new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.Unauthorized,
+                Content = new StringContent("401")
+            };
+        });
+
+        using var client = new ApiClient(handler, "user:token");
+        var ex = Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync("http://test.com/api").ConfigureAwait(false));
+        var httpEx = ex.InnerException as HttpRequestException;
+        Assert.That(httpEx, Is.Not.Null);
+        Debug.Assert(httpEx != null);
+        Assert.That(httpEx.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+    }
+
+    [Test]
     public async Task GetStringAsync_SuccessfulResponse_ReturnsString()
     {
         const string response = "Hello World";

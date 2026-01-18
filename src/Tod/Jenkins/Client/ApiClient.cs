@@ -32,7 +32,7 @@ internal sealed class ApiClient : IApiClient
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", base64);
     }
 
-    public async Task<JsonDocument> GetAsync(string url)
+    private async Task<JsonDocument> GetAsync(string url, bool retry401)
     {
         try
         {
@@ -45,8 +45,17 @@ internal sealed class ApiClient : IApiClient
         }
         catch (Exception ex)
         {
+            if (retry401 && ex is HttpRequestException httpEx && httpEx.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                return await GetAsync(url, false).ConfigureAwait(false);
+            }
             throw new InvalidOperationException(url, ex);
         }
+    }
+
+    public Task<JsonDocument> GetAsync(string url)
+    {
+        return GetAsync(url, true);
     }
 
     public Task<string> GetStringAsync(string url)

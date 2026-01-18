@@ -11,7 +11,7 @@ internal sealed class BuildCollection<T>(JobName jobName, IByJobNameStore byJobN
 
     public bool Contains(int buildNumber) => _innerCollection.Value.Contains(buildNumber);
 
-    public bool TryAdd(T build) => _innerCollection.Value.TryAdd(build);
+    public bool TryAdd(T build, bool sorted = true) => _innerCollection.Value.TryAdd(build, sorted);
 
     public int RemoveBuildsOlderThan(DateTime thresholdUtc) => _innerCollection.Value.RemoveBuildsOlderThan(thresholdUtc);
 
@@ -113,7 +113,7 @@ internal sealed class BuildCollection<T>(JobName jobName, IByJobNameStore byJobN
             return _buildNumbers.Contains(buildNumber);
         }
 
-        public bool TryAdd(T build)
+        public bool TryAdd(T build, bool sorted = true)
         {
             if (build.JobName != _jobName)
             {
@@ -121,7 +121,7 @@ internal sealed class BuildCollection<T>(JobName jobName, IByJobNameStore byJobN
             }
             if (_buildNumbers.Add(build.BuildNumber))
             {
-                if (_builds.Count > 0 && _builds[^1].BuildNumber > build.BuildNumber)
+                if (sorted && _builds.Count > 0 && _builds[^1].BuildNumber > build.BuildNumber)
                 {
                     throw new InvalidOperationException("Builds must be added in ascending order by build number.");
                 }

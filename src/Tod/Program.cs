@@ -12,30 +12,12 @@ namespace Tod;
 [ExcludeFromCodeCoverage]
 internal static class Program
 {
-    private static void Save(JenkinsConfig config, string configPath, JobName[] jobNames)
-    {
-        Log.Debug("Saving {JobCount} jobs to config", jobNames.Length);
-        var newConfig = JenkinsConfig.New(
-            url: config.Url,
-            multiBranchFolders: config.MultiBranchFolders,
-            jobNames: jobNames,
-            referenceJobs: config.ReferenceJobs,
-            onDemandJobs: config.OnDemandJobs,
-            triggerConfigs: config.TriggerConfigs,
-            rootFilters: config.RootFilters,
-            chainTestGroup: config.ChainTestGroup,
-            testFilters: config.TestFilters,
-            mailConfig: config.MailConfig
-        );
-        newConfig.Save(configPath);
-    }
-
     private static async Task<int> SyncJobs(SyncOptions options)
     {
         var config = JenkinsConfig.Load(options.ConfigPath);
         using var jenkinsClient = new JenkinsClient(config, options.UserToken);
         var jobManager = new JobManager(config, jenkinsClient);
-        var jobGroups = await jobManager.TryLoad(jobNames => Save(config, options.ConfigPath, jobNames)).ConfigureAwait(false);
+        var jobGroups = await jobManager.TryLoad(jobNames => config.SaveJobs(options.ConfigPath, jobNames)).ConfigureAwait(false);
         var workspaceStore = new WorkspaceStore(options.WorkspaceDir);
         var workSpace = Workspace.Load(options.WorkspaceDir, workspaceStore);
         workSpace.UpdateJobs(workspaceStore, jobGroups!);

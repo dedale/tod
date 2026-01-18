@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using Serilog;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -250,5 +251,25 @@ internal sealed class JenkinsConfig
             throw new InvalidOperationException($"Cannot deserialize config from '{path}'");
         }
         return config;
+    }
+
+    public void SaveJobs(string configPath, JobName[] jobNames)
+    {
+        Log.Debug("Saving {JobCount} jobs to config", jobNames.Length);
+        var newConfig = new JenkinsConfig(
+            url: Url,
+            multiBranchFolders: MultiBranchFolders,
+            jobNames: jobNames,
+            referenceJobs: ReferenceJobs,
+            onDemandJobs: OnDemandJobs,
+            triggerConfigs: TriggerConfigs,
+            rootFilters: RootFilters,
+            chainTestGroup: ChainTestGroup,
+            testFilters: TestFilters,
+            mailConfig: MailConfig,
+            keptDays: KeptDays,
+            loadThresholds: LoadThresholds
+        );
+        newConfig.Save(configPath);
     }
 }

@@ -45,6 +45,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
         var newTestBuilds = false;
         foreach (var testBuilds in branchReference.TestBuilds)
         {
+            Log.Debug("Fetching test builds for {JobName}", testBuilds.JobName);
             var builds = await jenkinsClient.GetLastBuilds(testBuilds.JobName).ConfigureAwait(false);
             foreach (var build in builds.Reverse())
             {
@@ -93,9 +94,11 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
         {
             Log.Debug("Fetching root builds for {JobName}", rootBuilds.JobName);
             var builds = await jenkinsClient.GetLastBuilds(rootBuilds.JobName).ConfigureAwait(false);
+            var minBuildNumber = builds.Length > 0 && rootBuilds.Count > 0 ? rootBuilds.Min(r => r.BuildNumber) : int.MinValue;
             foreach (var build in builds.Reverse())
             {
-                if (rootBuilds.Contains(build.Number))
+                // After a purge, do not try to add old builds
+                if (rootBuilds.Contains(build.Number) || build.Number < minBuildNumber)
                 {
                     continue;
                 }
@@ -125,12 +128,16 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     scheduled
                 );
 
-                Log.Information("Adding root build {JobName} #{BuildNumber} ({IsSuccessful})", rootBuild.JobName, rootBuild.BuildNumber, rootBuild.IsSuccessful ? "Success" : "Failure");
-                rootBuilds.TryAdd(rootBuild);
-
-                if (commits.Length == 1)
+                // After a purge, do not try to add old builds
+                if (rootBuilds.Count == 0 || rootBuild.BuildNumber > minBuildNumber)
                 {
-                    await postBuildHandler.PostOnDemandRootBuild(rootBuild.Reference, commits[0], rootBuild.IsSuccessful).ConfigureAwait(false);
+                    Log.Information("Adding root build {JobName} #{BuildNumber} ({IsSuccessful})", rootBuild.JobName, rootBuild.BuildNumber, rootBuild.IsSuccessful ? "Success" : "Failure");
+                    rootBuilds.TryAdd(rootBuild, false);
+
+                    if (commits.Length == 1)
+                    {
+                        await postBuildHandler.PostOnDemandRootBuild(rootBuild.Reference, commits[0], rootBuild.IsSuccessful).ConfigureAwait(false);
+                    }
                 }
             }
         }
@@ -144,10 +151,13 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
 
         foreach (var testBuilds in onDemandBuilds.TestBuilds)
         {
+            Log.Debug("Fetching test builds for {JobName}", testBuilds.JobName);
             var builds = await jenkinsClient.GetLastBuilds(testBuilds.JobName).ConfigureAwait(false);
+            var minBuildNumber = testBuilds.Count > 0 ? testBuilds.Min(r => r.BuildNumber) : int.MinValue;
             foreach (var build in builds.Reverse())
             {
-                if (testBuilds.Contains(build.Number))
+                // After a purge, do not try to add old builds
+                if (testBuilds.Contains(build.Number) || build.Number < minBuildNumber)
                 {
                     continue;
                 }
@@ -177,14 +187,18 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     failedTests
                 );
 
-                var info = testBuild.IsSuccessful ? "Success" : $"{failCount} failed test{(failCount == 1 ? "" : "s")}";
-                Log.Information("Adding test build {JobName} #{BuildNumber} ({Info})",
-                    testBuild.JobName,
-                    testBuild.BuildNumber,
-                    info);
-                testBuilds.TryAdd(testBuild);
+                // After a purge, do not try to add old builds
+                if (testBuilds.Count == 0 || testBuild.BuildNumber > minBuildNumber)
+                {
+                    var info = testBuild.IsSuccessful ? "Success" : $"{failCount} failed test{(failCount == 1 ? "" : "s")}";
+                    Log.Information("Adding test build {JobName} #{BuildNumber} ({Info})",
+                        testBuild.JobName,
+                        testBuild.BuildNumber,
+                        info);
+                    testBuilds.TryAdd(testBuild, false);
 
-                await postBuildHandler.PostOnDemandTestBuild(rootBuild, testBuild.Reference).ConfigureAwait(false);
+                    await postBuildHandler.PostOnDemandTestBuild(rootBuild, testBuild.Reference).ConfigureAwait(false);
+                }
             }
         }
     }

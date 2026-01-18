@@ -11,16 +11,14 @@ Tests On-Demand for Jenkins &amp; GitHub Actions
 - Timeout support for FileLock
 
 ## Jenkins
-- Generic triggering of jobs
 - Support complex job dependency graphs
 - Support job renaming
-- Multiple changesets support (identify the right one containing the files to test)
+- Multiple changesets support (identify the right one containing the files to test) (needed?)
 - Hardcoded build count in JenkinsClient
 - Serialization UT: ensure that json converters are needed
 - Support lost commits? (not in any root builds)
 - Better support for test builds timeouts (missing UT) (use next build?)
-- Ignore test builds without tests
-- Identify flaky tests across builds, use them in test diff reporting
+- Ignore test builds without tests?
 - Handle JobGroup generation failure
 - Handle trailing slash in Jenkins URL
 
@@ -32,13 +30,11 @@ Tests On-Demand for Jenkins &amp; GitHub Actions
 - Transactional triggering of requests, safe resuming without double triggering
 - Add user, email
 - ChainStatus is wrong (TestTriggered when tests are done but ref still pending)
-- Report generation with failed tests diff
 - GANTT diagram in report
-- Abandon requests upon user request (then stop triggering their builds)
+- Abandon requests upon user request (then stop triggering their builds) (cf AbortAll)
 - Archive done requests
 - Improve performance (if needed) when looking for requests to update
 - Force new root build for a request (retrigger all its builds)
-- Include stack, output in failed test? (and reports?)
 - Storage abstraction for on-demand requests
 
 ## git
