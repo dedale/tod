@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.14.36518.9
+# Visual Studio Version 18
+VisualStudioVersion = 18.2.11408.102 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tod", "src\Tod\Tod.csproj", "{602B0746-2938-4F0B-977E-4B84CB954AFD}"
 EndProject
@@ -24,6 +24,13 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tod.Tests", "src\Tod.Tests\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tod.Tests.Benchmarks", "src\Tod.Tests.Benchmarks\Tod.Tests.Benchmarks.csproj", "{BFB4E1B8-3D73-DF99-285B-28252708100F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tod.Windows", "src\Tod.Windows\Tod.Windows.csproj", "{EFA533EF-46E6-45A8-80E4-3ED2F8E489BD}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{C1C75FC7-E829-42A3-83ED-22CB17A799D6}"
+	ProjectSection(SolutionItems) = preProject
+		.github\copilot-instructions.md = .github\copilot-instructions.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -42,12 +49,17 @@ Global
 		{BFB4E1B8-3D73-DF99-285B-28252708100F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BFB4E1B8-3D73-DF99-285B-28252708100F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BFB4E1B8-3D73-DF99-285B-28252708100F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EFA533EF-46E6-45A8-80E4-3ED2F8E489BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EFA533EF-46E6-45A8-80E4-3ED2F8E489BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EFA533EF-46E6-45A8-80E4-3ED2F8E489BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EFA533EF-46E6-45A8-80E4-3ED2F8E489BD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{02EA681E-C7D8-13C7-8484-4AC65E1B71E8} = {8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}
+		{C1C75FC7-E829-42A3-83ED-22CB17A799D6} = {8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {0D39F9E7-58E2-476C-AD02-7FF521646497}

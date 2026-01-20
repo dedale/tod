@@ -89,7 +89,7 @@ internal static class Program
             return 1;
         }
 
-        var request = Request.Create(commits.First(), gitReference, [.. options.TestFilters], UserDirectory.CurrentUserEmail);
+        var request = Request.Create(commits.First(), gitReference, [.. options.TestFilters], UserServices.CurrentUserEmail);
 
         Log.Information("Registering new request {RequestId} for commit {Commit} on branch {Branch}",
             request.Id, request.Commit, request.GitReference.Branch);

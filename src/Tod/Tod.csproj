@@ -2,9 +2,20 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>tod</ToolCommandName>
+
+    <PackageId>Tod</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>dedale</Authors>
+    <Description>Tod is a command line tool to run test on-demand on Jenkins.</Description>
+    <PackageTags>tod;jenkins;test;automation</PackageTags>
+    <RepositoryUrl>https://github.com/dedale/tod</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,13 +23,31 @@
     <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
     <PackageReference Include="Serilog" Version="4.3.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
-    <PackageReference Include="System.DirectoryServices" Version="10.0.1" />
-    <PackageReference Include="System.DirectoryServices.AccountManagement" Version="10.0.1" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="$(AssemblyName).Tests" />
     <InternalsVisibleTo Include="$(AssemblyName).Tests.Benchmarks" />
   </ItemGroup>
+
+  <Target Name="BuildWindowsAssembly" BeforeTargets="_IntermediatePack">
+    <Error Text="Tod.Windows.csproj not found" Condition="!Exists('..\Tod.Windows\Tod.Windows.csproj')" />
+    <MSBuild Projects="..\Tod.Windows\Tod.Windows.csproj"
+             Targets="Restore;Build"
+             Properties="Configuration=$(Configuration)" />
+
+    <ItemGroup>
+      <Content Include="$(ArtifactsPath)\bin\Tod.Windows\$(Configuration)\Tod.Windows.dll">
+        <Pack>true</Pack>
+        <PackagePath>tools/$(TargetFramework)/any/</PackagePath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
+
+  </Target>
+
+  <Target Name="CleanArtifacts" AfterTargets="Clean">
+    <RemoveDir Directories="$(ArtifactsPath)" />
+  </Target>
 
 </Project>

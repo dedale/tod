@@ -1,14 +1,12 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.DirectoryServices.AccountManagement;
 
-namespace Tod.Core;
+namespace Tod.Windows;
 
 [ExcludeFromCodeCoverage]
 internal static class UserDirectory
 {
-    public static readonly string CurrentUserEmail = GetCurrentUserEmail();
-
-    private static string GetCurrentUserEmail()
+    public static string GetCurrentUserEmail()
     {
         using var context = new PrincipalContext(ContextType.Domain, Environment.UserDomainName);
         var principal = UserPrincipal.FindByIdentity(context, IdentityType.SamAccountName, Environment.UserName);

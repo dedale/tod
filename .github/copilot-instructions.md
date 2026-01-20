@@ -15,6 +15,7 @@ Tod is a Jenkins automation tool for managing CI/CD builds and tests.
 - Use `record` types for immutable data structures
 - Always mark classes as `sealed` unless inheritance is required
 - Prefer expression-bodied properties and methods when concise
+- Use file-scoped namespaces (no braces)
 
 ## Code Organization
 - Namespace should match folder structure
