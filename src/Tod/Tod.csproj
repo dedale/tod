@@ -16,6 +16,7 @@
     <PackageTags>tod;jenkins;test;automation</PackageTags>
     <RepositoryUrl>https://github.com/dedale/tod</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
