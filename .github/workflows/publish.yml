@@ -47,15 +47,9 @@ jobs:
         $content = Get-Content $csprojPath -Raw
         $content = $content -replace '<Version>.*?</Version>', "<Version>$version</Version>"
         Set-Content $csprojPath $content
-        
-    - name: Restore dependencies
-      run: dotnet restore
-      
-    - name: Build Tod.Windows
-      run: dotnet build Tod.sln --configuration Release --no-restore
       
     - name: Pack
-      run: dotnet pack src/Tod/Tod.csproj --configuration Release --no-build --output ../../artifacts
+      run: dotnet pack src/Tod/Tod.csproj --configuration Release --output ../../artifacts
       
     - name: NuGet login
       uses: NuGet/login@v1
