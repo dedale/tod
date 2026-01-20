@@ -204,17 +204,11 @@ tod sync --config jenkins_config.json --workspace ./workspace --user-token TOKEN
 tod sync --config jenkins_config.json --workspace ./workspace --user-token TOKEN --jobs
 ```
 
-#### Force reload jobs from Jenkins (bypass cache)
-```
-tod sync --config jenkins_config.json --workspace ./workspace --user-token TOKEN --no-cache
-```
-
 **Options:**
 - `-c, --config` (required): Path to Jenkins config file
 - `-w, --workspace` (required): Path to workspace directory
 - `-u, --user-token` (required): Jenkins API token
 - `-j, --jobs`: Sync job definitions instead of builds
-- `--no-cache`: Ignore cached job list
 
 ### `new`
 

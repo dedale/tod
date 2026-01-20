@@ -13,9 +13,6 @@ internal abstract class BaseOptions
 
     [Option('w', "workspace", Required = true, HelpText = "Path to workspace dir")]
     public string WorkspaceDir { get; set; }
-
-    [Option("no-cache", Required = false, HelpText = "Reload job list from Jenkins API")]
-    public bool NoCache { get; set; }
 }
 
 [ExcludeFromCodeCoverage]

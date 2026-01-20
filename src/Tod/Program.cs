@@ -36,7 +36,7 @@ internal static class Program
 
         using var jenkinsClient = new JenkinsClient(config, options.UserToken);
         JobGroups? jobGroups;
-        if (options.NoCache || config.JobNames.Length == 0)
+        if (config.JobNames.Length == 0)
         {
             var jobManager = new JobManager(config, jenkinsClient);
             jobGroups = await jobManager.TryLoad().ConfigureAwait(false);
