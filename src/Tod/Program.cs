@@ -145,6 +145,59 @@ internal static class Program
         return Task.FromResult(0);
     }
 
+    private static Task<int> List(ListOptions options)
+    {
+        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
+
+        var requests = options.All
+            ? workspace.OnDemandRequests.AllRequests
+            : workspace.OnDemandRequests.ActiveRequests;
+
+        var userRequests = requests
+            .Where(r => r.Value.Request.UserName == Environment.UserName)
+            .OrderByDescending(r => r.Value.Request.CreatedUtc)
+            .ToList();
+
+        if (userRequests.Count == 0)
+        {
+            Log.Information("No {RequestType} requests found for user {User}",
+                options.All ? "requests" : "active requests",
+                Environment.UserName);
+            return Task.FromResult(0);
+        }
+
+        Log.Information("Found {Count} {RequestType} for user {User}:",
+            userRequests.Count,
+            options.All ? "request" + (userRequests.Count > 1 ? "s" : "") : "active request" + (userRequests.Count > 1 ? "s" : ""),
+            Environment.UserName);
+
+        foreach (var cached in userRequests.OrderBy(r => r.Value.Request.CreatedUtc))
+        {
+            var request = cached.Value;
+            Log.Information("");
+            Log.Information("Request ID: {RequestId}", request.Request.Id);
+            Log.Information("  Created: {CreatedUtc}", request.Request.CreatedUtc);
+            Log.Information("  Branch: {Branch}", request.Request.GitReference.Branch);
+            Log.Information("  Commit: {Commit}", request.Request.Commit);
+            Log.Information("  Filters: {Filters}", request.Request.Filters);
+            Log.Information("  Status: {Status}", request.IsDone ? "Done" : "Active");
+
+            foreach (var chain in request.ChainDiffs)
+            {
+                var chainStatus = chain.Status switch
+                {
+                    ChainStatus.RootTriggered => "Root Triggered",
+                    ChainStatus.TestsTriggered => "Tests Triggered",
+                    ChainStatus.Done => "Done",
+                    _ => chain.Status.ToString()
+                };
+                Log.Information("    Chain {JobName}: {ChainStatus}", chain.OnDemandRoot.JobName, chainStatus);
+            }
+        }
+
+        return Task.FromResult(0);
+    }
+
     private static async Task<int> Report(ReportOptions options)
     {
         if (!Guid.TryParse(options.RequestId, out var requestId))
@@ -166,6 +219,38 @@ internal static class Program
         }
         var report = RequestReportBuilder.Instance.Build(cachedRequest.Value, workspace);
         await reportSender.Send(cachedRequest.Value, report).ConfigureAwait(false);
+        return 0;
+    }
+
+    private static async Task<int> Abort(AbortOptions options)
+    {
+        if (!Guid.TryParse(options.RequestId, out var requestId))
+        {
+            Log.Error("Invalid request ID format: '{RequestId}'", options.RequestId);
+            return 1;
+        }
+
+        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
+        var cachedRequest = workspace.OnDemandRequests.AllRequests.FirstOrDefault(r => r.Value.Request.Id == requestId);
+        if (cachedRequest == null)
+        {
+            Log.Error("Request with ID '{RequestId}' not found in workspace", requestId);
+            return 1;
+        }
+
+        if (cachedRequest.Value.Request.UserName != Environment.UserName)
+        {
+            Log.Error("Cannot abort request '{RequestId}'. Request belongs to user '{Owner}' but you are '{CurrentUser}'",
+                requestId,
+                cachedRequest.Value.Request.UserName,
+                Environment.UserName);
+            return 1;
+        }
+
+        using var lockedRequest = cachedRequest.Lock(nameof(Abort));
+        await lockedRequest.Update(r => Task.FromResult(r.AbortAll())).ConfigureAwait(false);
+
+        Log.Information("Request {RequestId} has been aborted", requestId);
         return 0;
     }
 
@@ -219,90 +304,6 @@ internal static class Program
             }
         }
 
-        return Task.FromResult(0);
-    }
-
-    private static Task<int> List(ListOptions options)
-    {
-        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
-        var currentUserEmail = UserServices.CurrentUserEmail;
-
-        var requests = options.All
-            ? workspace.OnDemandRequests.AllRequests
-            : workspace.OnDemandRequests.ActiveRequests;
-
-        var userRequests = requests.Where(r => r.Value.Request.UserEmail == currentUserEmail).ToList();
-
-        if (userRequests.Count == 0)
-        {
-            Log.Information("No {RequestType} requests found for user {UserEmail}",
-                options.All ? "requests" : "active requests",
-                currentUserEmail);
-            return Task.FromResult(0);
-        }
-
-        Log.Information("Found {Count} {RequestType} for user {UserEmail}:",
-            userRequests.Count,
-            options.All ? "request" + (userRequests.Count > 1 ? "s" : "") : "active request" + (userRequests.Count > 1 ? "s" : ""),
-            currentUserEmail);
-
-        foreach (var cached in userRequests.OrderBy(r => r.Value.Request.CreatedUtc))
-        {
-            var request = cached.Value;
-            Log.Information("");
-            Log.Information("Request ID: {RequestId}", request.Request.Id);
-            Log.Information("  Created: {CreatedUtc}", request.Request.CreatedUtc);
-            Log.Information("  Branch: {Branch}", request.Request.GitReference.Branch);
-            Log.Information("  Commit: {Commit}", request.Request.Commit);
-            Log.Information("  Filters: {Filters}", request.Request.Filters);
-            Log.Information("  Status: {Status}", request.IsDone ? "Done" : "Active");
-
-            foreach (var chain in request.ChainDiffs)
-            {
-                var chainStatus = chain.Status switch
-                {
-                    ChainStatus.RootTriggered => "Root Triggered",
-                    ChainStatus.TestsTriggered => "Tests Triggered",
-                    ChainStatus.Done => "Done",
-                    _ => chain.Status.ToString()
-                };
-                Log.Information("    Chain {JobName}: {ChainStatus}", chain.OnDemandRoot.JobName, chainStatus);
-            }
-        }
-
-        return Task.FromResult(0);
-    }
-
-    private static Task<int> Abort(AbortOptions options)
-    {
-        if (!Guid.TryParse(options.RequestId, out var requestId))
-        {
-            Log.Error("Invalid request ID format: '{RequestId}'", options.RequestId);
-            return Task.FromResult(1);
-        }
-
-        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
-        var cachedRequest = workspace.OnDemandRequests.AllRequests.FirstOrDefault(r => r.Value.Request.Id == requestId);
-        if (cachedRequest == null)
-        {
-            Log.Error("Request with ID '{RequestId}' not found in workspace", requestId);
-            return Task.FromResult(1);
-        }
-
-        var currentUserEmail = UserServices.CurrentUserEmail;
-        if (cachedRequest.Value.Request.UserEmail != currentUserEmail)
-        {
-            Log.Error("Cannot abort request '{RequestId}'. Request belongs to user '{Owner}' but you are '{CurrentUser}'",
-                requestId,
-                cachedRequest.Value.Request.UserEmail,
-                currentUserEmail);
-            return Task.FromResult(1);
-        }
-
-        using var lockedRequest = cachedRequest.Lock(nameof(Abort));
-        lockedRequest.Update(r => Task.FromResult(r.AbortAll())).Wait();
-
-        Log.Information("Request {RequestId} has been aborted", requestId);
         return Task.FromResult(0);
     }
 

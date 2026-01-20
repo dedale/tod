@@ -36,6 +36,7 @@ Tod is a Jenkins automation tool for managing CI/CD builds and tests.
 - Use `async Task` for methods that don't return values
 - Use `async Task<T>` for methods that return values
 - Avoid `async void` except for event handlers
+- Never use `.Result` or `.Wait()`, always use `await`
 
 ## Error Handling and Validation
 - Use `Debug.Assert` for development-time checks (not for user validation)

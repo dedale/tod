@@ -2,9 +2,9 @@ name: Build and Test
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, dev ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, dev ]
 
 permissions:
   contents: read
@@ -54,27 +54,13 @@ jobs:
         fail_ci_if_error: true
         token: ${{ secrets.CODECOV_TOKEN }}
       
-    - name: Code Coverage Summary Report
-      uses: irongut/CodeCoverageSummary@v1.3.0
-      if: github.event_name == 'pull_request'
-      with:
-        filename: ./coverage/report/Cobertura.xml
-        badge: true
-        fail_below_min: true
-        format: markdown
-        hide_branch_rate: false
-        hide_complexity: false
-        indicators: true
-        output: both
-        thresholds: '98 99'
-        
     - name: Add Coverage PR Comment
       uses: marocchino/sticky-pull-request-comment@v2
       if: github.event_name == 'pull_request'
       with:
         recreate: true
-        path: code-coverage-results.md
-      
+        path: ./coverage/report/SummaryGithub.md
+        
     - name: Publish test results
       uses: dorny/test-reporter@v1
       if: always()
@@ -91,6 +77,18 @@ jobs:
         name: coverage-report
         path: ./coverage/report/
         
+    - name: Extract coverage percentage
+      id: extract_coverage
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      shell: pwsh
+      run: |
+        [xml]$coverage = Get-Content ./coverage/report/Cobertura.xml
+        $lineRate = [math]::Round([decimal]$coverage.coverage.'line-rate' * 100, 2)
+        echo "percentage=$lineRate" >> $env:GITHUB_OUTPUT
+        
+        $color = if ($lineRate -ge 99) { "brightgreen" } elseif ($lineRate -ge 98) { "green" } elseif ($lineRate -ge 95) { "yellow" } elseif ($lineRate -ge 90) { "orange" } else { "red" }
+        echo "color=$color" >> $env:GITHUB_OUTPUT
+        
     - name: Create coverage badge
       uses: schneegans/dynamic-badges-action@v1.7.0
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -100,4 +98,4 @@ jobs:
         filename: tod-coverage.json
         label: Coverage
         message: ${{ steps.extract_coverage.outputs.percentage }}%
-        color: green
+        color: ${{ steps.extract_coverage.outputs.color }}
