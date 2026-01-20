@@ -1,11 +1,413 @@
-# Tod
+﻿# Tod
 
 [![Build and Test](https://github.com/dedale/tod/actions/workflows/build-test.yml/badge.svg)](https://github.com/dedale/tod/actions/workflows/build-test.yml)
 [![Code Coverage](https://codecov.io/gh/dedale/tod/branch/main/graph/badge.svg)](https://codecov.io/gh/dedale/tod)
+[![NuGet](https://img.shields.io/nuget/v/Tod.svg)](https://www.nuget.org/packages/Tod/)
 
-Tod is a command line tool to run test on-demand on Jenkins.
+Tod is a command-line tool for running tests on-demand on Jenkins. It helps you trigger and manage Jenkins builds based on your Git commits and custom test filters, making CI/CD workflows more efficient.
+
+## Features
+
+- 🚀 **On-Demand Test Execution** - Trigger Jenkins builds for specific commits
+- 🔍 **Smart Branch Detection** - Automatically identifies the correct reference branch
+- 📊 **Build Tracking** - Monitors and synchronizes build status
+- 📧 **Email Reports** - Sends build results via email
+- 🎯 **Filter-Based Job Selection** - Use regex patterns to select which jobs to run
+- 💾 **Local Workspace** - Caches build history for faster operations
+
+## Installation
+
+### As a .NET Tool (Recommended)
+```
+dotnet tool install --global Tod
+```
+
+### From Source
+```
+git clone https://github.com/dedale/tod.git cd tod dotnet build dotnet pack src/Tod/Tod.csproj --configuration Release dotnet tool install --global --add-source ./src/Tod/bin/packages Tod
+```
+
+## Quick Start
+
+### 1. Create a Configuration File
+
+Create a `jenkins_config.json` file with your Jenkins settings:
+
+```json
+{
+  "url": "https://jenkins.example.com",
+  "multiBranchFolders": ["MyProject"],
+  "referenceJobs": [
+    {
+      "pattern": "^MAIN-(?<root>build)$",
+      "branch": "main",
+      "isRoot": true
+    },
+    {
+      "pattern": "^MAIN-(?<test>.)$",
+      "branch": "main",
+      "isRoot": false
+    }
+  ],
+  "onDemandJobs": [
+    {
+      "pattern": "CUSTOM-(?<root>build)$",
+      "isRoot": true
+    },
+    {
+      "pattern": "CUSTOM-(?<test>.)$",
+      "isRoot": false
+    }
+  ],
+  "rootFilters": [
+    {
+      "name": "build",
+      "pattern": "^build$"
+    }
+  ],
+  "chainTestGroup": "chains",
+  "testFilters": [
+    {
+      "name": "unit",
+      "pattern": "^unit-tests$",
+      "group": "tests"
+    },
+    {
+      "name": "integration",
+      "pattern": "^integration-tests$",
+      "group": "tests"
+    }
+  ],
+  "mailConfig":
+  {
+    "smtpServer": "smtp.example.com",
+    "fromAddress": "jenkins@example.com"
+  },
+  "keptDays": 30
+}
+```
+
+### 2. Initialize Workspace
+```
+tod sync --config jenkins_config.json --workspace ./workspace --user-token YOUR_JENKINS_TOKEN --jobs
+```
+
+### 3. Create a Test Request
+```
+tod new --config jenkins_config.json --workspace ./workspace --branch main --root-filters build --test-filters unit integration --user-token YOUR_JENKINS_TOKEN
+```
+
+## Configuration File Reference
+
+The Jenkins configuration file (`jenkins_config.json`) defines how Tod interacts with your Jenkins instance.
+
+### Core Settings
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `url` | string | Jenkins server URL |
+| `multiBranchFolders` | string[] | Folders containing multi-branch pipeline jobs |
+| `keptDays` | int? | Number of days to keep build history (optional) |
+
+### Job Patterns
+
+#### Reference Jobs
+
+Define patterns for reference branch jobs (e.g., main, develop):
+
+```json
+{
+  "pattern": "^MAIN-(?<root>build)$",
+  "branch": "main",
+  "isRoot": true
+}
+```
+
+- `pattern`: Regex pattern to match job names
+- `branch`: Git branch this job builds
+- `isRoot`: `true` for root/build jobs, `false` for test jobs
+- Named groups: `(?<root>...)` for root jobs, `(?<test>...)` for test jobs
+
+#### On-Demand Jobs
+
+Define patterns for custom/on-demand jobs:
+
+```json
+{
+  "pattern": "CUSTOM-(?<root>build)$",
+  "isRoot": true
+}
+```
+
+### Filters
+
+#### Root Filters
+
+Define which root jobs to run:
+
+```json
+{
+  "name": "build",
+  "pattern": "^build$"
+}
+```
+
+Supports chain patterns with named groups:
+
+```json
+{
+  "name": "frontend-build",
+  "pattern": "^(?<chain>frontend)-build$"
+}
+```
+
+#### Test Filters
+
+Define which test jobs to run:
+
+```json
+{
+  "name": "unit",
+  "pattern": "^unit-tests$",
+  "group": "tests"
+}
+```
+
+- `name`: Filter identifier
+- `pattern`: Regex pattern to match test job names
+- `group`: Logical grouping (use `chainTestGroup` value for chain-linked tests)
+
+The `chainTestGroup` property links test filters to root filters via chain patterns.
+
+### Mail Configuration
+
+```json
+{
+  "smtpServer": "smtp.example.com",
+  "fromAddress": "jenkins@example.com"
+}
+```
+
+## Commands
+
+### `sync`
+
+Synchronize build history from Jenkins.
+
+#### Sync builds
+```
+tod sync --config jenkins_config.json --workspace ./workspace --user-token TOKEN
+```
+
+#### Sync job list (run this first or when jobs change)
+```
+tod sync --config jenkins_config.json --workspace ./workspace --user-token TOKEN --jobs
+```
+
+#### Force reload jobs from Jenkins (bypass cache)
+```
+tod sync --config jenkins_config.json --workspace ./workspace --user-token TOKEN --no-cache
+```
+
+**Options:**
+- `-c, --config` (required): Path to Jenkins config file
+- `-w, --workspace` (required): Path to workspace directory
+- `-u, --user-token` (required): Jenkins API token
+- `-j, --jobs`: Sync job definitions instead of builds
+- `--no-cache`: Ignore cached job list
+
+### `new`
+
+Create a new on-demand test request.
+
+```
+tod new --config jenkins_config.json --workspace ./workspace --branch main --root-filters build --test-filters unit integration --user-token TOKEN
+```
+
+**Options:**
+- `-c, --config` (required): Path to Jenkins config file
+- `-w, --workspace` (required): Path to workspace directory
+- `-b, --branch`: Reference branch (auto-detected if not specified)
+- `-r, --root-filters` (required): Root filter names to run
+- `-t, --test-filters` (required): Test filter names to run
+- `-u, --user-token` (required): Jenkins API token
+
+**How it works:**
+1. Detects your current Git commit
+2. Finds the matching reference build on the specified branch
+3. Triggers on-demand builds with your changes
+4. Tracks build progress and collects results
+
+### `jobs`
+
+Preview which jobs would be triggered without actually running them.
+
+```
+tod jobs --config jenkins_config.json --workspace ./workspace --branch main --root-filters build --test-filters unit integration
+```
+
+**Options:**
+- `-c, --config` (required): Path to Jenkins config file
+- `-w, --workspace` (required): Path to workspace directory
+- `-b, --branch`: Reference branch
+- `-r, --root-filters` (required): Root filter names
+- `-t, --test-filters` (required): Test filter names
+
+**Output:**
+- Lists root and test jobs that would be triggered
+- Shows estimated duration based on historical data
+
+### `report`
+
+Send an email report for a request (completed or not).
+
+```
+tod report --config jenkins_config.json --workspace ./workspace --request-id 12345678-1234-1234-1234-123456789abc
+```
+
+**Options:**
+- `-c, --config` (required): Path to Jenkins config file
+- `-w, --workspace` (required): Path to workspace directory
+- `-r, --request-id` (required): Request UUID to report on
+
+### `filters`
+
+List all jobs grouped by filters.
+
+```
+tod filters --config jenkins_config.json --workspace ./workspace
+```
+
+**Options:**
+- `-c, --config` (required): Path to Jenkins config file
+- `-w, --workspace` (required): Path to workspace directory
+
+**Output:**
+- Shows all chains and their associated jobs
+- Lists test groups and their jobs
+- Reports any configuration errors (unmatched filters, missing jobs)
+
+## Workspace Structure
+
+Tod creates a local workspace to cache build information:
+
+```
+workspace/
+├── Branches/
+│   ├── main/
+│   │   ├── Roots/
+│   │   │   └── build.json
+│   │   └── Tests/
+│   │       ├── unit-tests.json
+│   │       └── integration-tests.json
+│   └── develop/
+├── OnDemand/
+│   ├── Roots/
+│   └── Tests/
+├── Requests/
+│   └── {request-id}.json
+└── Flaky/
+└── flaky-tests.json
+```
+
+## Examples
+
+### Example 1: Run Tests for Current Commit
+
+#### First time: sync jobs
+```
+tod sync -c jenkins.json -w ./workspace -u $JENKINS_TOKEN --jobs
+```
+
+#### Sync latest builds
+```
+tod sync -c jenkins.json -w ./workspace -u $JENKINS_TOKEN
+```
+
+#### Create test request
+```
+tod new -c jenkins.json -w ./workspace -r build -t unit integration -u $JENKINS_TOKEN
+```
+
+### Example 2: Target Specific Branch
+
+```
+tod new -c jenkins.json -w ./workspace -b develop -r build -t unit -u $JENKINS_TOKEN
+```
+
+### Example 3: Check What Would Run
+
+```
+tod jobs -c jenkins.json -w ./workspace -r build -t unit integration
+```
+
+### Example 4: Validate Filter Configuration
+
+```
+tod filters -c jenkins.json -w ./workspace
+```
+
+## Authentication
+
+Tod requires a Jenkins API token for authentication:
+
+1. Log in to Jenkins
+2. Go to **User** → **Configure** → **API Token**
+3. Click **Add new Token**
+4. Copy the generated token
+5. Use it with the `-u` or `--user-token` option
+
+**Security tip:** Store your token in an environment variable:
+
+```
+# bash
+export JENKINS_TOKEN="your-token-here" tod sync -c jenkins.json -w ./workspace -u $JENKINS_TOKEN
+
+# PowerShell
+$env:JENKINS_TOKEN = "your-token-here"
+tod sync -c jenkins.json -w ./workspace -u $env:JENKINS_TOKEN
+
+# cmd
+set JENKINS_TOKEN=your-token-here
+tod sync -c jenkins.json -w .\workspace -u %JENKINS_TOKEN%
+```
+
+## Development
+
+### Prerequisites
+
+- .NET 10 SDK or later
+- Git
+- Visual Studio 2025 or later (recommended)
+
+### Build
+
+```
+dotnet restore dotnet build
+```
+
+### Run Tests
+
+```
+dotnet test
+```
+
+### Run with Coverage
+
+```
+dotnet test --collect:"XPlat Code Coverage"
+```
+
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md) for guidelines.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 # TODO
+
 ## CLI
 - Optional config & workspace paths
 - list verb for a user
@@ -55,8 +457,3 @@ Tod is a command line tool to run test on-demand on Jenkins.
 
 ## Tod Tests
 - Remove NextBuildNumber limit and improve UTs that fail with the same build number
-- Coverage step
-
-## GitHub Actions
-- Start with a skeleton repo
-- Lots of impacts
