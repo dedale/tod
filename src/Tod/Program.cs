@@ -103,7 +103,7 @@ internal static class Program
             Log.Error("Request validation failed.");
             return 1;
         }
- 
+
         var mailSender = new MailSender(config.MailConfig);
         var reportSender = new ReportSender(new JenkinsJobLinker(config), mailSender);
         var requestManager = new RequestManager(workspace, jenkinsClient, reportSender);
@@ -222,7 +222,56 @@ internal static class Program
         return Task.FromResult(0);
     }
 
-    // TODO list verb
+    private static Task<int> List(ListOptions options)
+    {
+        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
+        var currentUserEmail = UserServices.CurrentUserEmail;
+
+        var requests = options.All
+            ? workspace.OnDemandRequests.AllRequests
+            : workspace.OnDemandRequests.ActiveRequests;
+
+        var userRequests = requests.Where(r => r.Value.Request.UserEmail == currentUserEmail).ToList();
+
+        if (userRequests.Count == 0)
+        {
+            Log.Information("No {RequestType} requests found for user {UserEmail}",
+                options.All ? "requests" : "active requests",
+                currentUserEmail);
+            return Task.FromResult(0);
+        }
+
+        Log.Information("Found {Count} {RequestType} for user {UserEmail}:",
+            userRequests.Count,
+            options.All ? "request" + (userRequests.Count > 1 ? "s" : "") : "active request" + (userRequests.Count > 1 ? "s" : ""),
+            currentUserEmail);
+
+        foreach (var cached in userRequests.OrderBy(r => r.Value.Request.CreatedUtc))
+        {
+            var request = cached.Value;
+            Log.Information("");
+            Log.Information("Request ID: {RequestId}", request.Request.Id);
+            Log.Information("  Created: {CreatedUtc}", request.Request.CreatedUtc);
+            Log.Information("  Branch: {Branch}", request.Request.GitReference.Branch);
+            Log.Information("  Commit: {Commit}", request.Request.Commit);
+            Log.Information("  Filters: {Filters}", request.Request.Filters);
+            Log.Information("  Status: {Status}", request.IsDone ? "Done" : "Active");
+
+            foreach (var chain in request.ChainDiffs)
+            {
+                var chainStatus = chain.Status switch
+                {
+                    ChainStatus.RootTriggered => "Root Triggered",
+                    ChainStatus.TestsTriggered => "Tests Triggered",
+                    ChainStatus.Done => "Done",
+                    _ => chain.Status.ToString()
+                };
+                Log.Information("    Chain {JobName}: {ChainStatus}", chain.OnDemandRoot.JobName, chainStatus);
+            }
+        }
+
+        return Task.FromResult(0);
+    }
 
     private static Task<int> Abort(AbortOptions options)
     {
@@ -267,10 +316,11 @@ internal static class Program
         {
             Log.Debug(Environment.CommandLine);
 
-            return await Parser.Default.ParseArguments<SyncOptions, NewOptions, JobsOptions, ReportOptions, AbortOptions, FiltersOptions>(args).MapResult(
+            return await Parser.Default.ParseArguments<SyncOptions, NewOptions, JobsOptions, ListOptions, ReportOptions, AbortOptions, FiltersOptions>(args).MapResult(
                 (SyncOptions options) => Sync(options),
                 (NewOptions options) => New(options),
                 (JobsOptions options) => Jobs(options),
+                (ListOptions options) => List(options),
                 (ReportOptions options) => Report(options),
                 (AbortOptions options) => Abort(options),
                 (FiltersOptions options) => Filters(options),

@@ -292,6 +292,52 @@ tod abort --config jenkins_config.json --workspace ./workspace --request-id 1234
 **Note:** Aborting a request marks it as complete but does not stop Jenkins builds that are already running. It prevents Tod from tracking those builds further.
 
 ### `list`
+
+List your test requests and their status.
+
+```
+tod list --config jenkins_config.json --workspace ./workspace
+```
+
+**Options:**
+- `-c, --config` (required): Path to Jenkins config file
+- `-w, --workspace` (required): Path to workspace directory
+- `-a, --all`: List all requests (including completed ones). By default, only active requests are shown.
+
+**Output:**
+For each request belonging to the current user, displays:
+- Request ID (UUID)
+- Creation timestamp
+- Branch and commit
+- Test filters used
+- Overall status (Active/Done)
+- Chain status for each job chain:
+  - Root Triggered: Root build has been triggered
+  - Tests Triggered: Root build completed, test builds triggered
+  - Done: All builds in the chain are complete
+
+**Example output:**
+```
+Found 2 active requests for user user@example.com:
+
+Request ID: 12345678-1234-1234-1234-123456789abc
+  Created: 2024-01-15 10:30:00
+  Branch: main
+  Commit: abc123def456
+  Filters: unit;integration
+  Status: Active
+    Chain CUSTOM-build: Tests Triggered
+    Chain CUSTOM-deploy: Root Triggered
+
+Request ID: 87654321-4321-4321-4321-210987654321
+  Created: 2024-01-15 09:15:00
+  Branch: develop
+  Commit: def456abc123
+  Filters: unit
+  Status: Done
+    Chain CUSTOM-build: Done
+```
+
 ### `filters`
 
 List all jobs grouped by filters.
@@ -380,6 +426,16 @@ tod report -c jenkins.json -w ./workspace -i 12345678-1234-1234-1234-123456789ab
 tod abort -c jenkins.json -w ./workspace -i 12345678-1234-1234-1234-123456789abc
 ```
 
+### Example 7: List Your Active Requests
+
+```
+# List only active requests
+tod list -c jenkins.json -w ./workspace
+
+# List all requests (including completed)
+tod list -c jenkins.json -w ./workspace --all
+```
+
 ## Authentication
 
 Tod requires a Jenkins API token for authentication:
@@ -440,10 +496,6 @@ Contributions are welcome! Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md)
 This project is licensed under the MIT License - see the LICENSE file for details.
 
 # TODO
-
-## CLI
-- list verb for a user
-- status verb for a request
 
 ## Core
 - Timeout support for FileLock

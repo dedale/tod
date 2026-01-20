@@ -16,6 +16,7 @@ Tod is a Jenkins automation tool for managing CI/CD builds and tests.
 - Always mark classes as `sealed` unless inheritance is required
 - Prefer expression-bodied properties and methods when concise
 - Use file-scoped namespaces (no braces)
+- Make sure files do not have trailing whitespace at the end of lines
 
 ## Code Organization
 - Namespace should match folder structure
@@ -47,6 +48,7 @@ Tod is a Jenkins automation tool for managing CI/CD builds and tests.
 - Use structured logging with named placeholders: `Log.Information("Message {Placeholder}", value)`
 - Log levels: Debug for detailed flow, Information for key events, Warning for issues, Error for failures
 - Never concatenate strings in log messages, use placeholders
+- Manage plurals with conditional logic, not in log message templates
 
 ## JSON Serialization
 - Use `System.Text.Json` with `[JsonConstructor]` for deserialization

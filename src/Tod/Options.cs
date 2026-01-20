@@ -66,6 +66,14 @@ internal sealed class ReportOptions : BaseOptions
 }
 
 [ExcludeFromCodeCoverage]
+[Verb("list", HelpText = "List requests for current user")]
+internal sealed class ListOptions : BaseOptions
+{
+    [Option('a', "all", Required = false, HelpText = "List all requests (including completed ones)")]
+    public bool All { get; set; }
+}
+
+[ExcludeFromCodeCoverage]
 [Verb("abort", HelpText = "Abort a request")]
 internal sealed class AbortOptions : BaseOptions
 {
