@@ -1,5 +1,9 @@
-# tod
-Tests On-Demand for Jenkins &amp; GitHub Actions
+# Tod
+
+[![Build and Test](https://github.com/dedale/tod/actions/workflows/build-test.yml/badge.svg)](https://github.com/dedale/tod/actions/workflows/build-test.yml)
+[![Code Coverage](https://codecov.io/gh/dedale/tod/branch/main/graph/badge.svg)](https://codecov.io/gh/dedale/tod)
+
+Tod is a command line tool to run test on-demand on Jenkins.
 
 # TODO
 ## CLI

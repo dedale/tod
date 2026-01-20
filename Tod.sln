@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.2.11408.102 d18.0
+VisualStudioVersion = 18.2.11408.102
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tod", "src\Tod\Tod.csproj", "{602B0746-2938-4F0B-977E-4B84CB954AFD}"
 EndProject
@@ -29,6 +29,15 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{C1C75FC7-E829-42A3-83ED-22CB17A799D6}"
 	ProjectSection(SolutionItems) = preProject
 		.github\copilot-instructions.md = .github\copilot-instructions.md
+		.github\PULL_REQUEST_TEMPLATE.md = .github\PULL_REQUEST_TEMPLATE.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{B20DD827-9006-4FE5-BF6B-5F03E4AF3412}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\build-test.yml = .github\workflows\build-test.yml
+		.github\workflows\codeql.yml = .github\workflows\codeql.yml
+		.github\workflows\coverage-report.yml = .github\workflows\coverage-report.yml
+		.github\workflows\publish.yml = .github\workflows\publish.yml
 	EndProjectSection
 EndProject
 Global
@@ -60,6 +69,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{02EA681E-C7D8-13C7-8484-4AC65E1B71E8} = {8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}
 		{C1C75FC7-E829-42A3-83ED-22CB17A799D6} = {8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}
+		{B20DD827-9006-4FE5-BF6B-5F03E4AF3412} = {C1C75FC7-E829-42A3-83ED-22CB17A799D6}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {0D39F9E7-58E2-476C-AD02-7FF521646497}

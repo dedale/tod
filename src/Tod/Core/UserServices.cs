@@ -1,10 +1,12 @@
 ﻿using Serilog;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace Tod.Core;
 
+[ExcludeFromCodeCoverage]
 internal static class UserServices
 {
     public static readonly string CurrentUserEmail = GetCurrentUserEmail();
