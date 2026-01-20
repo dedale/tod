@@ -53,7 +53,7 @@ jobs:
         Set-Content $csprojPath $content
       
     - name: Pack
-      run: dotnet pack src/Tod/Tod.csproj --configuration Release --output ../../artifacts
+      run: dotnet pack src/Tod/Tod.csproj --configuration Release --output ./artifacts
       
     - name: NuGet login
       uses: NuGet/login@v1

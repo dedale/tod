@@ -90,3 +90,14 @@ jobs:
       with:
         name: coverage-report
         path: ./coverage/report/
+        
+    - name: Create coverage badge
+      uses: schneegans/dynamic-badges-action@v1.7.0
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      with:
+        auth: ${{ secrets.GIST_SECRET }}
+        gistID: 5c680c43035c20b339344266b4b44755
+        filename: tod-coverage.json
+        label: Coverage
+        message: ${{ steps.extract_coverage.outputs.percentage }}%
+        color: green
