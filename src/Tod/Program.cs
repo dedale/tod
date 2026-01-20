@@ -222,8 +222,40 @@ internal static class Program
         return Task.FromResult(0);
     }
 
-    // TODO list
-    // TODO abort/cancel
+    // TODO list verb
+
+    private static Task<int> Abort(AbortOptions options)
+    {
+        if (!Guid.TryParse(options.RequestId, out var requestId))
+        {
+            Log.Error("Invalid request ID format: '{RequestId}'", options.RequestId);
+            return Task.FromResult(1);
+        }
+
+        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
+        var cachedRequest = workspace.OnDemandRequests.AllRequests.FirstOrDefault(r => r.Value.Request.Id == requestId);
+        if (cachedRequest == null)
+        {
+            Log.Error("Request with ID '{RequestId}' not found in workspace", requestId);
+            return Task.FromResult(1);
+        }
+
+        var currentUserEmail = UserServices.CurrentUserEmail;
+        if (cachedRequest.Value.Request.UserEmail != currentUserEmail)
+        {
+            Log.Error("Cannot abort request '{RequestId}'. Request belongs to user '{Owner}' but you are '{CurrentUser}'",
+                requestId,
+                cachedRequest.Value.Request.UserEmail,
+                currentUserEmail);
+            return Task.FromResult(1);
+        }
+
+        using var lockedRequest = cachedRequest.Lock(nameof(Abort));
+        lockedRequest.Update(r => Task.FromResult(r.AbortAll())).Wait();
+
+        Log.Information("Request {RequestId} has been aborted", requestId);
+        return Task.FromResult(0);
+    }
 
     private static async Task<int> Main(string[] args)
     {
@@ -235,11 +267,12 @@ internal static class Program
         {
             Log.Debug(Environment.CommandLine);
 
-            return await Parser.Default.ParseArguments<SyncOptions, NewOptions, JobsOptions, ReportOptions, FiltersOptions>(args).MapResult(
+            return await Parser.Default.ParseArguments<SyncOptions, NewOptions, JobsOptions, ReportOptions, AbortOptions, FiltersOptions>(args).MapResult(
                 (SyncOptions options) => Sync(options),
                 (NewOptions options) => New(options),
                 (JobsOptions options) => Jobs(options),
                 (ReportOptions options) => Report(options),
+                (AbortOptions options) => Abort(options),
                 (FiltersOptions options) => Filters(options),
                 errors => Task.FromResult(1)).ConfigureAwait(false);
         }

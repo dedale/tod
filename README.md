@@ -262,8 +262,36 @@ tod report --config jenkins_config.json --workspace ./workspace --request-id 123
 **Options:**
 - `-c, --config` (required): Path to Jenkins config file
 - `-w, --workspace` (required): Path to workspace directory
-- `-r, --request-id` (required): Request UUID to report on
+- `-i, --request-id` (required): Request UUID to report on
 
+### `abort`
+
+Abort a running or queued request.
+
+```
+tod abort --config jenkins_config.json --workspace ./workspace --request-id 12345678-1234-1234-1234-123456789abc
+```
+
+**Options:**
+- `-c, --config` (required): Path to Jenkins config file
+- `-w, --workspace` (required): Path to workspace directory
+- `-i, --request-id` (required): Request UUID to abort
+
+**Authorization:**
+- Users can only abort their own requests
+- The command compares the request owner's email with your current user email
+- Returns an error if you try to abort someone else's request
+
+**How it works:**
+1. Validates the request ID format
+2. Looks up the request in the workspace
+3. Verifies you are the owner of the request
+4. Marks all chains in the request as aborted
+5. Saves the updated request state
+
+**Note:** Aborting a request marks it as complete but does not stop Jenkins builds that are already running. It prevents Tod from tracking those builds further.
+
+### `list`
 ### `filters`
 
 List all jobs grouped by filters.
@@ -301,7 +329,7 @@ workspace/
 ├── Requests/
 │   └── {request-id}.json
 └── Flaky/
-└── flaky-tests.json
+    └── flaky-tests.json
 ```
 
 ## Examples
@@ -339,6 +367,17 @@ tod jobs -c jenkins.json -w ./workspace -r build -t unit integration
 
 ```
 tod filters -c jenkins.json -w ./workspace
+```
+
+### Example 5: Send Report for a Request
+```
+tod report -c jenkins.json -w ./workspace -i 12345678-1234-1234-1234-123456789abc
+```
+
+### Example 6: Abort a Request
+
+```
+tod abort -c jenkins.json -w ./workspace -i 12345678-1234-1234-1234-123456789abc
 ```
 
 ## Authentication
@@ -403,7 +442,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 # TODO
 
 ## CLI
-- Optional config & workspace paths
 - list verb for a user
 - status verb for a request
 
@@ -428,7 +466,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Requests
 - Transactional triggering of requests, safe resuming without double triggering
-- Add user, email
 - ChainStatus is wrong (TestTriggered when tests are done but ref still pending)
 - GANTT diagram in report
 - Abandon requests upon user request (then stop triggering their builds) (cf AbortAll)

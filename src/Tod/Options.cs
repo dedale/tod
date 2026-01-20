@@ -61,7 +61,15 @@ internal sealed class JobsOptions : BaseOptions
 [Verb("report", HelpText = "Send report for a request")]
 internal sealed class ReportOptions : BaseOptions
 {
-    [Option('r', "request-id", Required = true, HelpText = "Request ID to report on")]
+    [Option('i', "request-id", Required = true, HelpText = "Request ID to report on")]
+    public string RequestId { get; set; }
+}
+
+[ExcludeFromCodeCoverage]
+[Verb("abort", HelpText = "Abort a request")]
+internal sealed class AbortOptions : BaseOptions
+{
+    [Option('i', "request-id", Required = true, HelpText = "Request ID to abort")]
     public string RequestId { get; set; }
 }
 
