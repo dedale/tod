@@ -1,4 +1,5 @@
-﻿using Tod.Git;
+﻿using Serilog;
+using Tod.Git;
 
 namespace Tod.Jenkins;
 
@@ -104,6 +105,7 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
                 {
                     if (!branchReference.RootBuilds.Contains(rootJob))
                     {
+                        Log.Information("Adding root job {RootJob} to branch {Branch}", rootJob, branch);
                         branchReference.TryAddRoot(rootJob);
                     }
                 }
@@ -111,6 +113,7 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
                 {
                     if (!rootJobNamesByBranch[branch].Contains(rootJob))
                     {
+                        Log.Information("Removing root job {RootJob} from branch {Branch}", rootJob, branch);
                         branchReference.RemoveRoot(rootJob);
                     }
                 }
@@ -121,6 +124,7 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
                 branchReference = new BranchReference(referenceStore);
                 foreach (var rootJob in rootJobNamesByBranch[branch])
                 {
+                    Log.Information("Adding root job {RootJob} to new branch {Branch}", rootJob, branch);
                     branchReference.TryAddRoot(rootJob);
                 }
                 branchReferences.Add(branchReference);
@@ -140,6 +144,7 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
                 {
                     if (!branchReference.TestBuilds.Contains(testJob))
                     {
+                        Log.Information("Adding test job {TestJob} to branch {Branch}", testJob, branch);
                         branchReference.TryAddTest(testJob);
                     }
                 }
@@ -147,6 +152,7 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
                 {
                     if (!testJobNamesByBranch[branch].Contains(testJob))
                     {
+                        Log.Information("Removing test job {TestJob} from branch {Branch}", testJob, branch);
                         branchReference.RemoveTest(testJob);
                     }
                 }
@@ -158,6 +164,7 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
         {
             if (!OnDemandBuilds.RootBuilds.Contains(rootJob))
             {
+                Log.Information("Adding on-demand root job {RootJob}", rootJob);
                 OnDemandBuilds.TryAddRoot(rootJob);
             }
         }
@@ -165,6 +172,7 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
         {
             if (!onDemandRootJobs.Contains(rootJob))
             {
+                Log.Information("Removing on-demand root job {RootJob}", rootJob);
                 OnDemandBuilds.RemoveRoot(rootJob);
             }
         }
@@ -173,6 +181,7 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
         {
             if (!OnDemandBuilds.TestBuilds.Contains(testJob))
             {
+                Log.Information("Adding on-demand test job {TestJob}", testJob);
                 OnDemandBuilds.TryAddTest(testJob);
             }
         }
@@ -180,6 +189,7 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
         {
             if (!onDemandTestJobs.Contains(testJob))
             {
+                Log.Information("Removing on-demand test job {TestJob}", testJob);
                 OnDemandBuilds.RemoveTest(testJob);
             }
         }
