@@ -24,7 +24,11 @@ dotnet tool install --global Tod
 
 ### From Source
 ```
-git clone https://github.com/dedale/tod.git cd tod dotnet build dotnet pack src/Tod/Tod.csproj --configuration Release dotnet tool install --global --add-source ./src/Tod/bin/packages Tod
+git clone https://github.com/dedale/tod.git
+cd tod
+dotnet build
+dotnet pack src/Tod/Tod.csproj --configuration Release
+dotnet tool install --global --add-source ./src/Tod/bin/packages Tod
 ```
 
 ## Quick Start
@@ -187,6 +191,46 @@ The `chainTestGroup` property links test filters to root filters via chain patte
   "fromAddress": "jenkins@example.com"
 }
 ```
+
+### Load Thresholds
+
+Load thresholds protect Jenkins from being overloaded by preventing requests when the server is under high load. Configure thresholds based on queue size and estimated request duration:
+
+```json
+{
+  "loadThresholds": [
+    {
+      "queueSize": 50,
+      "maxRequestDuration": "01:00:00"
+    },
+    {
+      "queueSize": 100,
+      "maxRequestDuration": "00:30:00"
+    }
+  ]
+}
+```
+
+**Properties:**
+- `queueSize`: Maximum number of builds in Jenkins queue
+- `maxRequestDuration`: Maximum total duration for the request (format: "HH:MM:SS")
+
+**How it works:**
+- Before registering a new request, Tod checks the current Jenkins queue size
+- Tod estimates the total duration of all builds in the request
+- If **both** the queue size **and** duration exceed **any** configured threshold, the request is rejected
+- Multiple thresholds allow different limits based on load (e.g., stricter limits when queue is larger)
+
+**Example scenarios:**
+
+| Queue Size | Request Duration | Threshold 1 (50, 1h) | Threshold 2 (100, 30min) | Result |
+|------------|------------------|----------------------|--------------------------|--------|
+| 30 | 45 min | ❌ Queue OK | ❌ Queue OK | ✅ Accepted |
+| 60 | 45 min | ✅ Both exceeded | ❌ Queue OK | ❌ Rejected |
+| 60 | 20 min | ❌ Duration OK | ❌ Duration OK | ✅ Accepted |
+| 110 | 35 min | ✅ Both exceeded | ✅ Both exceeded | ❌ Rejected |
+
+**Note:** If no thresholds are configured, all requests are accepted regardless of Jenkins load.
 
 ## Commands
 
