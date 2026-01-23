@@ -58,7 +58,7 @@ internal sealed class RequestChainBuilder(Workspace workspace, IFilterManager fi
             if (branchReference.TryFindRootBuildByCommit(gitReference.Commit, rootDiff.ReferenceJob, out var rootBuild))
             {
                 roots.Add((rootDiff.Chain, rootBuild.Reference, rootDiff.OnDemandJob));
-                Log.Debug("Found reference root build {RootBuild} for parent commit {Commit}", rootBuild, gitReference.Commit);
+                Log.Debug("Found reference root build {@RootBuild} for parent commit {Commit}", rootBuild.Reference, gitReference.Commit);
             }
             else
             {
@@ -79,7 +79,7 @@ internal sealed class RequestChainBuilder(Workspace workspace, IFilterManager fi
                 var buildDiff = new RequestBuildDiff(testJobDiffs[i].ReferenceJob, testJobDiffs[i].OnDemandJob, testDuration);
                 if (branchReference.TryFindTestBuild(testJobDiffs[i].ReferenceJob, refRootBuild, out var refTestBuild))
                 {
-                    Log.Debug("Reusing reference test build {TestBuild}", refTestBuild);
+                    Log.Debug("Reusing reference test build {@TestBuild}", refTestBuild.Reference);
                     buildDiff = buildDiff.DoneReference(refTestBuild.BuildNumber);
                 }
                 testBuildDiffs.Add(buildDiff);

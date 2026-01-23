@@ -76,7 +76,7 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
             }
             else
             {
-                Log.Information("Reusing on-demand root build {OnDemandRootBuild}", onDemandRootBuild.Reference);
+                Log.Information("Reusing on-demand root build {@OnDemandRootBuild}", onDemandRootBuild.Reference);
                 int rootBuildNumber = onDemandRootBuild.BuildNumber;
                 var parameters = new TriggerParameters(request.Commit, rootBuildNumber);
                 onDemandRoot = requestChain.OnDemandRoot.DoneQueued(rootBuildNumber);
@@ -88,7 +88,7 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
                     var testBuild = testBuilds.FirstOrDefault(b => b.RootBuilds.Contains(onDemandRootBuild.Reference));
                     if (testBuild != null)
                     {
-                        Log.Information("Reusing on-demand test build {TestBuild}", testBuild.Reference);
+                        Log.Information("Reusing on-demand test build {@TestBuild}", testBuild.Reference);
                         buildDiffs[i] = buildDiffs[i].RecycleOnDemand(testBuild.BuildNumber);
                     }
                     else

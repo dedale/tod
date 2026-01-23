@@ -328,6 +328,7 @@ internal static class Program
     {
         Log.Logger = new LoggerConfiguration()
             .Destructure.With<JobNameDestructuringPolicy>()
+            .Destructure.With<BuildReferenceDestructuringPolicy>()
             .Enrich.With<TimeSpanEnricher>()
             .MinimumLevel.Information()
             .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}", theme: AnsiConsoleTheme.Literate)
