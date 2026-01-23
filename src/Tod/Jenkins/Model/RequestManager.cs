@@ -34,20 +34,20 @@ internal sealed class RequestManager(Workspace workspace, IJenkinsClient jenkins
         {
             try
             {
-                Log.Information("On-demand root build {OnDemandBuild} completed for request {RequestId}",
+                Log.Information("On-demand root build {@OnDemandBuild} completed for request {RequestId}",
                     onDemandRoot, lockedRequest.Value.Request.Id);
 
                 RequestState update;
                 if (success)
                 {
-                    Log.Information("{OnDemandBuild} succeeded; Triggering test builds", onDemandRoot);
+                    Log.Information("{@OnDemandBuild} succeeded; Triggering test builds", onDemandRoot);
                     var triggerParameters = new TriggerParameters(commit, onDemandRoot.BuildNumber);
                     Func<JobName, Task> triggerBuild = jobName => jenkinsClient.TriggerBuild(OnDemandJobKind.Test, jobName, triggerParameters);
                     update = await lockedRequest.Update(async request => await request.TriggerTests(onDemandRoot, triggerBuild).ConfigureAwait(false));
                 }
                 else
                 {
-                    Log.Information("{OnDemandBuild} failed; Aborting request", onDemandRoot);
+                    Log.Information("{@OnDemandBuild} failed; Aborting request", onDemandRoot);
                     update = await lockedRequest.Update(r => Task.FromResult(r.AbortChain(onDemandRoot.JobName))).ConfigureAwait(false);
 
                     if (update.IsDone)
@@ -72,15 +72,15 @@ internal sealed class RequestManager(Workspace workspace, IJenkinsClient jenkins
 
         if (lockedRequests.Count > 0)
         {
-            Log.Information("Reference test build {JobName} #{BuildNumber} completed - updating {RequestCount} {Requests}",
-                testBuild.JobName, testBuild.BuildNumber, lockedRequests.Count, lockedRequests.Count > 1 ? "requests" : "request");
+            Log.Information("Reference test build {@TestBuild} completed - updating {RequestCount} {Requests}",
+                testBuild, lockedRequests.Count, lockedRequests.Count > 1 ? "requests" : "request");
         }
 
         foreach (var lockedRequest in lockedRequests)
         {
             var update = await lockedRequest.Update(r => Task.FromResult(r.DoneReferenceTestBuild(rootBuild, testBuild))).ConfigureAwait(false);
 
-            Log.Debug("Updated request {RequestId} with reference test build {TestBuild}", update.Request.Id, testBuild);
+            Log.Debug("Updated request {RequestId} with reference test build {@TestBuild}", update.Request.Id, testBuild);
 
             if (update.IsDone)
             {
@@ -95,7 +95,7 @@ internal sealed class RequestManager(Workspace workspace, IJenkinsClient jenkins
         {
             try
             {
-                Log.Information("On-demand test build {TestBuild} completed for request {RequestId}", testBuild, lockedRequest.Value.Request.Id);
+                Log.Information("On-demand test build {@TestBuild} completed for request {RequestId}", testBuild, lockedRequest.Value.Request.Id);
 
                 var update = await lockedRequest.Update(r => Task.FromResult(r.DoneOnDemandTestBuild(rootBuild, testBuild))).ConfigureAwait(false);
 

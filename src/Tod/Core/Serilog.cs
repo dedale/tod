@@ -82,3 +82,18 @@ internal sealed class JobNameDestructuringPolicy : IDestructuringPolicy
         return false;
     }
 }
+
+[ExcludeFromCodeCoverage]
+internal sealed class BuildReferenceDestructuringPolicy : IDestructuringPolicy
+{
+    public bool TryDestructure(object value, ILogEventPropertyValueFactory propertyValueFactory, [NotNullWhen(true)] out LogEventPropertyValue? result)
+    {
+        if (value is BuildReference buildRef)
+        {
+            result = new ScalarValue($"{JobNameFormatter.Format(buildRef.JobName)}\x1b[38,5,0015m #\x1b[38,5,0200m{buildRef.BuildNumber}");
+            return true;
+        }
+        result = null;
+        return false;
+    }
+}
