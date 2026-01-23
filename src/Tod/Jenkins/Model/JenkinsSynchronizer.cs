@@ -30,7 +30,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     scheduled
                 );
 
-                Log.Information("Adding root build {@RootBuild} ({IsSuccessful})", rootBuild, rootBuild.IsSuccessful ? "Success" : "Failure");
+                Log.Information("Adding root build {@RootBuild} ({@IsSuccessful})", rootBuild, rootBuild.IsSuccessful ? BuildResultInfo.Success("Success") : BuildResultInfo.Failure("Failure"));
                 rootBuilds.TryAdd(rootBuild);
             }
         }
@@ -74,8 +74,15 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     failedTests
                 );
 
-                Log.Information("Adding test build {@TestBuild} ({IsSuccessful})",
-                    testBuild, testBuild.IsSuccessful ? "Success" : $"{testData.FailCount} failed tests");
+                if (testBuild.IsSuccessful)
+                {
+                    Log.Information("Adding test build {@TestBuild} ({@IsSuccessful})", testBuild, BuildResultInfo.Success("Success"));
+                }
+                else
+                {
+                    Log.Information("Adding test build {@TestBuild} ({Count} {@IsSuccessful})",
+                        testBuild, testData.FailCount, BuildResultInfo.Failure($"failed test{(testData.FailCount > 1 ? "s" : "")}"));
+                }
                 testBuilds.TryAdd(testBuild);
                 newTestBuilds = true;
 
@@ -131,7 +138,8 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                 // After a purge, do not try to add old builds
                 if (rootBuilds.Count == 0 || rootBuild.BuildNumber > minBuildNumber)
                 {
-                    Log.Information("Adding root build {@RootBuild} ({IsSuccessful})", rootBuild, rootBuild.IsSuccessful ? "Success" : "Failure");
+                    Log.Information("Adding root build {@RootBuild} ({@IsSuccessful})",
+                        rootBuild, rootBuild.IsSuccessful ? BuildResultInfo.Success("Success") : BuildResultInfo.Failure("Failure"));
                     rootBuilds.TryAdd(rootBuild, false);
 
                     if (commits.Length == 1)
@@ -190,8 +198,15 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                 // After a purge, do not try to add old builds
                 if (testBuilds.Count == 0 || testBuild.BuildNumber > minBuildNumber)
                 {
-                    var info = testBuild.IsSuccessful ? "Success" : $"{failCount} failed test{(failCount == 1 ? "" : "s")}";
-                    Log.Information("Adding test build {@TestBuild} ({Info})", testBuild, info);
+                    if (testBuild.IsSuccessful)
+                    {
+                        Log.Information("Adding test build {@TestBuild} ({@IsSuccessful})", testBuild, BuildResultInfo.Success("Success"));
+                    }
+                    else
+                    {
+                        Log.Information("Adding test build {@TestBuild} ({Count} {@IsSuccessful})",
+                            testBuild, failCount, BuildResultInfo.Failure($"failed test{(failCount > 1 ? "s" : "")}"));
+                    }
                     testBuilds.TryAdd(testBuild, false);
 
                     await postBuildHandler.PostOnDemandTestBuild(rootBuild, testBuild.Reference).ConfigureAwait(false);

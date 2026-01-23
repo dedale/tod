@@ -158,6 +158,34 @@ internal sealed record BuildReference(JobName JobName, int BuildNumber) : ICompa
     }
 }
 
+internal sealed class BuildResultInfo
+{
+    public string Value { get; }
+    public bool IsSuccess { get; }
+
+    private BuildResultInfo(string value, bool isSuccess)
+    {
+        Value = value;
+        IsSuccess = isSuccess;
+    }
+
+    public static BuildResultInfo Success(string value)
+    {
+        return new BuildResultInfo(value, true);
+    }
+
+    public static BuildResultInfo Failure(string value)
+    {
+        return new BuildResultInfo(value, false);
+    }
+
+    [ExcludeFromCodeCoverage]
+    public override string ToString()
+    {
+        return Value;
+    }
+}
+
 internal abstract class BaseBuild(JobName jobName, string id, int buildNumber, DateTime startTimeUtc, DateTime endTimeUtc, bool isSuccessful)
 {
     private readonly BuildReference _reference = new(jobName, buildNumber);
