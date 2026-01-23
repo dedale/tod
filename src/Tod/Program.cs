@@ -271,7 +271,7 @@ internal static class Program
         {
             Log.Information("Chain: {Chain}", chain);
             var filters = result.GetChainFilters(chain);
-            Log.Information("  Root: {RootFilter}: {RootJob}", filters.RootFilter, filters.RootJob);
+            Log.Information("  Root: {RootFilter}: {RootJob}", filters.RootFilter.Name, filters.RootJob);
             foreach (var testName in filters.TestsByFilter.Keys.OrderBy(x => x))
             {
                 Log.Information("    {TestFilter}", testName);

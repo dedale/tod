@@ -93,3 +93,5 @@ Tod is a Jenkins automation tool for managing CI/CD builds and tests.
 - XML comments for public APIs only
 - Inline comments only for complex logic that isn't self-explanatory
 - Prefer self-documenting code with clear names over comments
+- Always add a space after `//` in comments
+- Always add spaces at the start and end of block comments `/* comment */`
