@@ -39,17 +39,17 @@ internal sealed class JobGroupsBuilder
             _ondemandJob = job;
         }
 
-        public bool TryBuild([NotNullWhen(true)] out JobGroup? jobGroup, Action<string> addError)
+        public bool TryBuild([NotNullWhen(true)] out JobGroup? jobGroup, Action<string, object?[]?> addError)
         {
             jobGroup = null;
             // Both _refJobByBranch and _ondemandJob cannot be empty and null by design
             if (_refJobByBranch.Count == 0)
             {
-                addError($"No reference job for '{_ondemandJob}' job");
+                addError("No reference job for '{@Job}' job", [_ondemandJob]);
             }
             else if (_ondemandJob == null)
             {
-                addError($"No ondemand job for {string.Join(", ", _refJobByBranch.Values.Select(j => $"'{j}'"))} job{(_refJobByBranch.Count > 1 ? "s" : "")}");
+                addError($"No ondemand job for {string.Join(", ", _refJobByBranch.Values.Select(j => "'{@Job}'"))} job{(_refJobByBranch.Count > 1 ? "s" : "")}", [.. _refJobByBranch.Values]);
             }
             else
             {
@@ -80,7 +80,7 @@ internal sealed class JobGroupsBuilder
         _testBuilderByName.GetOrAdd(test, new JobGroupBuilder()).AddOnDemand(job);
     }
 
-    public bool TryBuild([NotNullWhen(true)] out JobGroups? jobGroups, Action<string> addError)
+    public bool TryBuild([NotNullWhen(true)] out JobGroups? jobGroups, Action<string, object?[]?> addError)
     {
         var rootGroupByName = new Dictionary<RootName, JobGroup>();
         foreach (var (root, builder) in _rootBuilderByName)
@@ -105,11 +105,11 @@ internal sealed class JobGroupsBuilder
         }
         if (rootGroupByName.Count == 0)
         {
-            addError("No root group");
+            addError("No root group", []);
         }
         if (testGroupByName.Count == 0)
         {
-            addError("No test group");
+            addError("No test group", []);
         }
         jobGroups = null;
         return false;

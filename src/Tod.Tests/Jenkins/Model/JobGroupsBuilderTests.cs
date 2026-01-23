@@ -1,5 +1,6 @@
 ﻿using NUnit.Framework;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Tod.Jenkins;
 
 namespace Tod.Tests.Jenkins;
@@ -7,6 +8,12 @@ namespace Tod.Tests.Jenkins;
 [TestFixture]
 internal sealed class JobGroupsBuilderTests
 {
+    private static string Format(string message, object?[]? args)
+    {
+        var i = 0;
+        return string.Format(Regex.Replace(message, @"@Job", _ => (i++).ToString()), args ?? []);
+    }
+
     private static void Test(Action<JobGroupsBuilder>? addMore = null, Action<List<string>>? assertErrors = null)
     {
         using (Assert.EnterMultipleScope())
@@ -18,7 +25,7 @@ internal sealed class JobGroupsBuilderTests
             builder.AddOnDemandTest(new("CUSTOM-tests"), new("tests"));
             (addMore ?? (x => { }))(builder);
             var errors = new List<string>();
-            Assert.That(builder.TryBuild(out var jobGroups, errors.Add), Is.True);
+            Assert.That(builder.TryBuild(out var jobGroups, (m, xs) => errors.Add(Format(m, xs))), Is.True);
             (assertErrors ?? (msgs => Assert.That(msgs, Is.Empty)))(errors);
             Assert.That(jobGroups, Is.Not.Null);
             Debug.Assert(jobGroups is not null);
@@ -62,7 +69,7 @@ internal sealed class JobGroupsBuilderTests
     {
         var builder = new JobGroupsBuilder();
         var errors = new List<string>();
-        Assert.That(() => builder.TryBuild(out var jobGroups, errors.Add), Is.False);
+        Assert.That(() => builder.TryBuild(out var jobGroups, (m, xs) => errors.Add(Format(m, xs))), Is.False);
         Assert.That(errors, Is.EquivalentTo(["No root group", "No test group"]));
     }
 
@@ -72,7 +79,7 @@ internal sealed class JobGroupsBuilderTests
         var builder = new JobGroupsBuilder();
         builder.AddReferenceRoot(new("MAIN-build"), new("main"), new("build"));
         var errors = new List<string>();
-        Assert.That(() => builder.TryBuild(out var jobGroups, errors.Add), Is.False);
+        Assert.That(() => builder.TryBuild(out var jobGroups, (m, xs) => errors.Add(Format(m, xs))), Is.False);
         Assert.That(errors, Does.Contain("No ondemand job for 'MAIN-build' job"));
     }
 
@@ -83,7 +90,7 @@ internal sealed class JobGroupsBuilderTests
         builder.AddReferenceRoot(new("MAIN-build"), new("main"), new("build"));
         builder.AddReferenceRoot(new("PROD-build"), new("prod"), new("build"));
         var errors = new List<string>();
-        Assert.That(() => builder.TryBuild(out var jobGroups, errors.Add), Is.False);
+        Assert.That(() => builder.TryBuild(out var jobGroups, (m, xs) => errors.Add(Format(m, xs))), Is.False);
         Assert.That(errors, Does.Contain("No ondemand job for 'MAIN-build', 'PROD-build' jobs"));
     }
 
@@ -93,7 +100,7 @@ internal sealed class JobGroupsBuilderTests
         var builder = new JobGroupsBuilder();
         builder.AddOnDemandRoot(new("CUSTOM-build"), new("build"));
         var errors = new List<string>();
-        Assert.That(() => builder.TryBuild(out var jobGroups, errors.Add), Is.False);
+        Assert.That(() => builder.TryBuild(out var jobGroups, (m, xs) => errors.Add(Format(m, xs))), Is.False);
         Assert.That(errors, Does.Contain("No reference job for 'CUSTOM-build' job"));
     }
 
@@ -104,7 +111,7 @@ internal sealed class JobGroupsBuilderTests
         builder.AddReferenceRoot(new("MAIN-build"), new("main"), new("build"));
         builder.AddOnDemandRoot(new("CUSTOM-build"), new("build"));
         var errors = new List<string>();
-        Assert.That(() => builder.TryBuild(out var jobGroups, errors.Add), Is.False);
+        Assert.That(() => builder.TryBuild(out var jobGroups, (m, xs) => errors.Add(Format(m, xs))), Is.False);
         Assert.That(errors, Does.Contain("No test group"));
     }
 
