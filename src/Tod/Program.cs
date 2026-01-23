@@ -271,10 +271,10 @@ internal static class Program
         {
             Log.Information("Chain: {Chain}", chain);
             var filters = result.GetChainFilters(chain);
-            Log.Information("  Root: {RootFilter}: {RootJob}", filters.RootFilter.Name, filters.RootJob);
+            Log.Information("  Root: '{RootFilter}': {RootJob}", filters.RootFilter.Name, filters.RootJob);
             foreach (var testName in filters.TestsByFilter.Keys.OrderBy(x => x))
             {
-                Log.Information("    {TestFilter}", testName);
+                Log.Information("    '{TestFilter}'", testName);
                 foreach (var job in filters.TestsByFilter[testName].Jobs.OrderBy(x => x))
                 {
                     Log.Information("      {TestJob}", job);
@@ -288,7 +288,7 @@ internal static class Program
             foreach (var filter in testsByFilter.Keys.OrderBy(f => f))
             {
                 var tests = testsByFilter[filter];
-                Log.Information("  {Filter}", filter);
+                Log.Information("  '{Filter}'", filter);
                 foreach (var job in tests.Jobs.OrderBy(j => j))
                 {
                     Log.Information("    {Job}", job);
@@ -310,8 +310,9 @@ internal static class Program
     private static async Task<int> Main(string[] args)
     {
         Log.Logger = new LoggerConfiguration()
+            .Enrich.With<TimeSpanEnricher>()
             .MinimumLevel.Information()
-            .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+            .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}", theme: AnsiConsoleTheme.Literate)
             .CreateLogger();
         try
         {
