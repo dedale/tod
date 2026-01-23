@@ -266,7 +266,22 @@ internal static class Program
             return Task.FromResult(1);
         }
 
-        var analyzer = new FilterAnalyzer(config, jobGroups);
+        // Implicit constraint: all jobs exist for (at least) one reference branch
+        var testGroups = jobGroups.ByTest.Select(g => g.Value).ToList();
+        var refBranch = testGroups
+            .SelectMany(g => g.ReferenceJobByBranch)
+            .GroupBy(g => g.Key)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Value).ToArray())
+            .MaxBy(kvp => kvp.Value.Length)
+            .Key;
+
+        // No need for job mappings when analyzing filters
+        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
+        var referenceBranch = workspace.BranchReferences.Single(b => b.BranchName == refBranch);
+        var durationByRefJob = referenceBranch.TestBuilds.ToDictionary(x => x.JobName, x => x.AverageDuration);
+        var durationByOnDemandJob = testGroups.ToDictionary(g => g.OnDemandJob, g => durationByRefJob[g.ReferenceJobByBranch[refBranch]]);
+
+        var analyzer = new FilterAnalyzer(config, jobGroups, durationByOnDemandJob);
         var result = analyzer.Run();
 
         foreach (var chain in result.Chains.OrderBy(x => x))
@@ -276,7 +291,7 @@ internal static class Program
             Log.Information("  Root: '{RootFilter}': {RootJob}", filters.RootFilter.Name, filters.RootJob);
             foreach (var testName in filters.TestsByFilter.Keys.OrderBy(x => x))
             {
-                Log.Information("    '{TestFilter}'", testName);
+                Log.Information("    '{TestFilter}' ({Duration})", testName, filters.TestsByFilter[testName].TotalDuration);
                 foreach (var job in filters.TestsByFilter[testName].Jobs.OrderBy(x => x))
                 {
                     Log.Information("      {TestJob}", job);
@@ -290,7 +305,7 @@ internal static class Program
             foreach (var filter in testsByFilter.Keys.OrderBy(f => f))
             {
                 var tests = testsByFilter[filter];
-                Log.Information("  '{Filter}'", filter);
+                Log.Information("  '{Filter}' ({Duration})", filter, tests.TotalDuration);
                 foreach (var job in tests.Jobs.OrderBy(j => j))
                 {
                     Log.Information("    {Job}", job);

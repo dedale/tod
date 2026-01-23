@@ -86,7 +86,7 @@ internal sealed class FilterAnalyzerTests
         var byTest = new Dictionary<TestName, JobGroup> { [new TestName("test-feature")] = testGroup };
         var jobGroups = new JobGroups(byRoot, byTest);
 
-        var analyzer = new FilterAnalyzer(config, jobGroups);
+        var analyzer = new FilterAnalyzer(config, jobGroups, new() { [new JobName("CUSTOM-test-feature")] = TimeSpan.Zero });
         var result = analyzer.Run();
 
         Assert.That(result.Chains, Has.Length.EqualTo(1));
@@ -95,8 +95,9 @@ internal sealed class FilterAnalyzerTests
         var chainFilter = result.GetChainFilters(result.Chains[0]);
         Assert.That(chainFilter.TestsByFilter, Has.Count.EqualTo(1));
         Assert.That(chainFilter.TestsByFilter.ContainsKey("test"), Is.True);
-        Assert.That(chainFilter.TestsByFilter["test"].Jobs, Has.Count.EqualTo(1));
-        Assert.That(chainFilter.TestsByFilter["test"].Jobs[0].Value, Is.EqualTo("CUSTOM-test-feature"));
+        var jobs = chainFilter.TestsByFilter["test"].Jobs.ToList();
+        Assert.That(jobs, Has.Count.EqualTo(1));
+        Assert.That(jobs[0].Value, Is.EqualTo("CUSTOM-test-feature"));
     }
 
     [Test]
@@ -154,7 +155,7 @@ internal sealed class FilterAnalyzerTests
         var byTest = new Dictionary<TestName, JobGroup> { [new TestName("integration")] = testGroup };
         var jobGroups = new JobGroups([], byTest);
 
-        var analyzer = new FilterAnalyzer(config, jobGroups);
+        var analyzer = new FilterAnalyzer(config, jobGroups, new() { [new JobName("CUSTOM-integration")] = TimeSpan.Zero });
         var result = analyzer.Run();
 
         Assert.That(result.TestGroups, Has.Length.EqualTo(1));
@@ -167,8 +168,9 @@ internal sealed class FilterAnalyzerTests
 
         var filterJobs = testsByFilter["integration"];
         Assert.That(filterJobs.Filter, Is.EqualTo(testFilter));
-        Assert.That(filterJobs.Jobs, Has.Count.EqualTo(1));
-        Assert.That(filterJobs.Jobs[0].Value, Is.EqualTo("CUSTOM-integration"));
+        var jobs = filterJobs.Jobs.ToList();
+        Assert.That(jobs, Has.Count.EqualTo(1));
+        Assert.That(jobs[0].Value, Is.EqualTo("CUSTOM-integration"));
     }
 
     [Test]
@@ -192,7 +194,12 @@ internal sealed class FilterAnalyzerTests
         };
         var jobGroups = new JobGroups([], byTest);
 
-        var analyzer = new FilterAnalyzer(config, jobGroups);
+        var durationByJob = new Dictionary<JobName, TimeSpan>
+        {
+            [new JobName("CUSTOM-test-unit")] = TimeSpan.FromMinutes(5),
+            [new JobName("CUSTOM-test-integration")] = TimeSpan.FromMinutes(15)
+        };
+        var analyzer = new FilterAnalyzer(config, jobGroups, durationByJob);
         var result = analyzer.Run();
 
         Assert.That(result.TestGroups, Has.Length.EqualTo(1));
@@ -200,8 +207,9 @@ internal sealed class FilterAnalyzerTests
 
         var testsByFilter = result.GetTestsByFilterForGroup("tests");
         var filterJobs = testsByFilter["test"];
-        Assert.That(filterJobs.Jobs, Has.Count.EqualTo(2));
-        Assert.That(filterJobs.Jobs.Select(j => j.Value), Is.EquivalentTo(new[] { "CUSTOM-test-unit", "CUSTOM-test-integration" }));
+        var jobs = filterJobs.Jobs.ToList();
+        Assert.That(jobs, Has.Count.EqualTo(2));
+        Assert.That(jobs.Select(j => j.Value), Is.EquivalentTo(new[] { "CUSTOM-test-unit", "CUSTOM-test-integration" }));
     }
 
     [Test]
@@ -217,7 +225,7 @@ internal sealed class FilterAnalyzerTests
         var byTest = new Dictionary<TestName, JobGroup> { [new TestName("unit")] = testGroup };
         var jobGroups = new JobGroups([], byTest);
 
-        var analyzer = new FilterAnalyzer(config, jobGroups);
+        var analyzer = new FilterAnalyzer(config, jobGroups, new() { [new JobName("CUSTOM-unit")] = TimeSpan.FromMinutes(10) });
         var result = analyzer.Run();
 
         Assert.That(result.TestGroups, Is.Empty);
@@ -247,7 +255,12 @@ internal sealed class FilterAnalyzerTests
         };
         var jobGroups = new JobGroups([], byTest);
 
-        var analyzer = new FilterAnalyzer(config, jobGroups);
+        var durationByJob = new Dictionary<JobName, TimeSpan>
+        {
+            [new JobName("CUSTOM-unit")] = TimeSpan.FromMinutes(5),
+            [new JobName("CUSTOM-integration")] = TimeSpan.FromMinutes(15)
+        };
+        var analyzer = new FilterAnalyzer(config, jobGroups, durationByJob);
         var result = analyzer.Run();
 
         Assert.That(result.TestGroups, Has.Length.EqualTo(1));
@@ -281,7 +294,12 @@ internal sealed class FilterAnalyzerTests
         };
         var jobGroups = new JobGroups([], byTest);
 
-        var analyzer = new FilterAnalyzer(config, jobGroups);
+        var durationByJob = new Dictionary<JobName, TimeSpan>
+        {
+            [new JobName("CUSTOM-unit")] = TimeSpan.FromMinutes(5),
+            [new JobName("CUSTOM-integration")] = TimeSpan.FromMinutes(15)
+        };
+        var analyzer = new FilterAnalyzer(config, jobGroups, durationByJob);
         var result = analyzer.Run();
 
         Assert.That(result.TestGroups, Has.Length.EqualTo(2));
@@ -331,7 +349,12 @@ internal sealed class FilterAnalyzerTests
         };
         var jobGroups = new JobGroups(byRoot, byTest);
 
-        var analyzer = new FilterAnalyzer(config, jobGroups);
+        var durationByJob = new Dictionary<JobName, TimeSpan>
+        {
+            [new JobName("CUSTOM-test-feature")] = TimeSpan.FromMinutes(10),
+            [new JobName("CUSTOM-unit")] = TimeSpan.FromMinutes(5)
+        };
+        var analyzer = new FilterAnalyzer(config, jobGroups, durationByJob);
         var result = analyzer.Run();
 
         Assert.That(result.Chains, Has.Length.EqualTo(1));
@@ -343,8 +366,9 @@ internal sealed class FilterAnalyzerTests
         var chainFilter = result.GetChainFilters(result.Chains[0]);
         Assert.That(chainFilter.TestsByFilter, Has.Count.EqualTo(1));
         Assert.That(chainFilter.TestsByFilter.ContainsKey("test"), Is.True);
-        Assert.That(chainFilter.TestsByFilter["test"].Jobs, Has.Count.EqualTo(1));
-        Assert.That(chainFilter.TestsByFilter["test"].Jobs[0].Value, Is.EqualTo("CUSTOM-test-feature"));
+        var jobs = chainFilter.TestsByFilter["test"].Jobs.ToList();
+        Assert.That(jobs, Has.Count.EqualTo(1));
+        Assert.That(jobs[0].Value, Is.EqualTo("CUSTOM-test-feature"));
 
         var testsByFilter = result.GetTestsByFilterForGroup("tests");
         Assert.That(testsByFilter, Has.Count.EqualTo(1));
