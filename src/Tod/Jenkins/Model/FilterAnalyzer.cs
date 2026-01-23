@@ -1,9 +1,15 @@
 ﻿namespace Tod.Jenkins;
 
-internal sealed class FilterJobs(TestFilter filter, List<JobName> jobs)
+internal sealed class FilterJobs(TestFilter filter, Dictionary<JobName, TimeSpan> durationByJob)
 {
     public TestFilter Filter { get; } = filter;
-    public List<JobName> Jobs { get; } = jobs;
+    public IEnumerable<JobName> Jobs => durationByJob.Keys;
+    public TimeSpan TotalDuration => durationByJob.Values.Aggregate(TimeSpan.Zero, (a, b) => a + b);
+
+    public void Add(JobName job, TimeSpan duration)
+    {
+        durationByJob.Add(job, duration);
+    }
 }
 
 internal sealed class ChainFilters(string name, RootFilter rootFilter, JobName rootJob, Dictionary<string, FilterJobs> testsByFilter)
@@ -36,8 +42,13 @@ internal sealed class JobFilters
     public string[] Errors => [.. _errors];
 }
 
-internal sealed class FilterAnalyzer(JenkinsConfig config, JobGroups jobGroups)
+internal sealed class FilterAnalyzer(JenkinsConfig config, JobGroups jobGroups, Dictionary<JobName, TimeSpan> durationByOnDemandJob)
 {
+    public FilterAnalyzer(JenkinsConfig config, JobGroups jobGroups)
+        : this(config, jobGroups, [])
+    {
+    }
+
     public JobFilters Run()
     {
         var chainFiltersByChain = new Dictionary<string, ChainFilters>();
@@ -77,7 +88,7 @@ internal sealed class FilterAnalyzer(JenkinsConfig config, JobGroups jobGroups)
                         if (chainFiltersByChain.TryGetValue(chain, out var chainFilters))
                         {
                             var filterJobs = chainFilters.TestsByFilter.GetOrAdd(testFilter.Name, _ => new(testFilter, []));
-                            filterJobs.Jobs.Add(group.OnDemandJob);
+                            filterJobs.Add(group.OnDemandJob, durationByOnDemandJob[group.OnDemandJob]);
                         }
                         else
                         {
@@ -104,7 +115,7 @@ internal sealed class FilterAnalyzer(JenkinsConfig config, JobGroups jobGroups)
                             filterJobs = new FilterJobs(testFilter, []);
                             testsByFilter.Add(testFilter.Name, filterJobs);
                         }
-                        filterJobs.Jobs.Add(group.OnDemandJob);
+                        filterJobs.Add(group.OnDemandJob, durationByOnDemandJob[group.OnDemandJob]);
                     }
                 }
                 if (!matched)
