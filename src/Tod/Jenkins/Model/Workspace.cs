@@ -64,6 +64,8 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
         }
 
         // TODO Store for requests
+
+        // No need to manage job mappings when creating a new workspace
         var onDemandRequests = new OnDemandRequests(Path.Combine(dir, "Requests"));
 
         var flakyStore = workspaceStore.FlakyStore;
@@ -74,7 +76,7 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
         return workspace;
     }
 
-    public static Workspace Load(string dir, IWorkspaceStore workspaceStore)
+    public static Workspace Load(string dir, IWorkspaceStore workspaceStore, JobMapping[]? jobMappings = null)
     {
         var branchReferences = new List<BranchReference>();
         foreach (var branch in workspaceStore.Branches)
@@ -84,7 +86,8 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
             branchReferences.Add(branchReference);
         }
         var onDemandBuilds = new OnDemandBuilds(workspaceStore.OnDemandStore);
-        var onDemandRequests = new OnDemandRequests(Path.Combine(dir, "Requests"));
+        var buildReferenceComparer = new BuildReferenceComparer(jobMappings ?? []);
+        var onDemandRequests = new OnDemandRequests(Path.Combine(dir, "Requests"), buildReferenceComparer);
         var flakyTests = workspaceStore.FlakyStore.Load();
         return new Workspace(branchReferences, onDemandBuilds, onDemandRequests, flakyTests);
     }
