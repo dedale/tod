@@ -410,7 +410,7 @@ internal sealed class RequestStateTests
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
 
         // Act
-        var result = requestState.TryGetChainReference(_referenceRoot, out var chainDiff);
+        var result = requestState.TryGetChainReference(_referenceRoot, BuildReferenceComparer.Default, out var chainDiff);
 
         // Assert
         Assert.That(result, Is.True);
@@ -432,7 +432,7 @@ internal sealed class RequestStateTests
         var otherReferenceRoot = new BuildReference("OtherBuild", RandomData.NextBuildNumber);
 
         // Act
-        var result = requestState.TryGetChainReference(otherReferenceRoot, out var chainDiff);
+        var result = requestState.TryGetChainReference(otherReferenceRoot, BuildReferenceComparer.Default, out var chainDiff);
 
         // Assert
         Assert.That(result, Is.False);
@@ -469,8 +469,8 @@ internal sealed class RequestStateTests
         var requestState = await RequestState.New(_request, chains, onDemandBuilds, triggerBuild).ConfigureAwait(false);
 
         // Act
-        var result1 = requestState.TryGetChainReference(referenceRoot1, out var foundChain1);
-        var result2 = requestState.TryGetChainReference(referenceRoot2, out var foundChain2);
+        var result1 = requestState.TryGetChainReference(referenceRoot1, BuildReferenceComparer.Default, out var foundChain1);
+        var result2 = requestState.TryGetChainReference(referenceRoot2, BuildReferenceComparer.Default, out var foundChain2);
 
         // Assert
         Assert.That(result1, Is.True);

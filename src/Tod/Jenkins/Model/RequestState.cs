@@ -35,9 +35,9 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
         }
     }
 
-    public bool TryGetChainReference(BuildReference referenceRoot, [NotNullWhen(true)] out ChainDiff? chainDiff)
+    public bool TryGetChainReference(BuildReference referenceRoot, IEqualityComparer<BuildReference> buildReferenceComparer, [NotNullWhen(true)] out ChainDiff? chainDiff)
     {
-        chainDiff = ChainDiffs.FirstOrDefault(c => c.ReferenceRoot.Equals(referenceRoot));
+        chainDiff = ChainDiffs.FirstOrDefault(c => buildReferenceComparer.Equals(c.ReferenceRoot, referenceRoot));
         return chainDiff != null;
     }
 

@@ -42,6 +42,50 @@ internal sealed record JobName(string Value) : IComparable<JobName>
     public KeyValuePair<string, object?> Tag => KeyValuePair.Create<string, object?>(nameof(JobName), this);
 }
 
+internal sealed class JobNameComparer(JobMapping[] jobMappings) : IEqualityComparer<JobName>
+{
+    private string FixJobName(string name)
+    {
+        return jobMappings
+            .Aggregate(name, (current, mapping) => current.Replace(mapping.OldName, mapping.NewName, StringComparison.Ordinal));
+    }
+
+    public bool Equals(JobName? x, JobName? y)
+    {
+        return ReferenceEquals(x, y) || (x is not null && y is not null && FixJobName(x.Value) == FixJobName(y.Value));
+    }
+
+    public int GetHashCode([DisallowNull] JobName obj)
+    {
+        return FixJobName(obj.Value).GetHashCode(StringComparison.Ordinal);
+    }
+}
+
+internal sealed class BuildReferenceComparer(IEqualityComparer<JobName> jobNameComparer) : IEqualityComparer<BuildReference>
+{
+    public static BuildReferenceComparer Default = new();
+
+    public BuildReferenceComparer()
+        : this(new JobNameComparer([]))
+    {
+    }
+
+    public BuildReferenceComparer(JobMapping[] jobMappings)
+        : this(new JobNameComparer(jobMappings))
+    {
+    }
+
+    public bool Equals(BuildReference? x, BuildReference? y)
+    {
+        return ReferenceEquals(x, y) || (x is not null && y is not null && jobNameComparer.Equals(x.JobName, y.JobName) && x.BuildNumber == y.BuildNumber);
+    }
+
+    public int GetHashCode([DisallowNull] BuildReference obj)
+    {
+        return HashCode.Combine(jobNameComparer.GetHashCode(obj.JobName), obj.BuildNumber);
+    }
+}
+
 [DebuggerStepThrough]
 [JsonConverter(typeof(SingleStringValueConverterFactory))]
 internal sealed record BranchName(string Value) : IComparable<BranchName>

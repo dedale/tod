@@ -19,7 +19,7 @@ internal static class Program
         var jobManager = new JobManager(config, jenkinsClient);
         var jobGroups = await jobManager.TryLoad(jobNames => config.SaveJobs(options.ConfigPath, jobNames)).ConfigureAwait(false);
         var workspaceStore = new WorkspaceStore(options.WorkspaceDir);
-        var workSpace = Workspace.Load(options.WorkspaceDir, workspaceStore);
+        var workSpace = Workspace.Load(options.WorkspaceDir, workspaceStore, config.JobMappings);
         workSpace.UpdateJobs(workspaceStore, jobGroups!);
         return 0;
     }
@@ -47,7 +47,7 @@ internal static class Program
         }
         Debug.Assert(jobGroups is not null);
 
-        var workSpace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
+        var workSpace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir), config.JobMappings);
         var filterManager = new FilterManager(config, jobGroups);
         var mailSender = new MailSender(config.MailConfig);
         var reportSender = new ReportSender(new JenkinsJobLinker(config), mailSender);
@@ -72,11 +72,11 @@ internal static class Program
     {
         using var gitRepo = new GitRepo(Environment.CurrentDirectory);
         var commits = gitRepo.GetLastCommits(50);
-        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
+        var config = JenkinsConfig.Load(options.ConfigPath);
+        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir), config.JobMappings);
         var wantedBranch = options.BranchName is not null ? new BranchName(options.BranchName) : null;
         var rootFilters = options.RootFilters.ToArray();
 
-        var config = JenkinsConfig.Load(options.ConfigPath);
         var jenkinsClient = new JenkinsClient(config, options.UserToken);
         var jobManager = new JobManager(config, jenkinsClient);
         var jobGroups = await jobManager.TryLoad().ConfigureAwait(false);
@@ -115,11 +115,11 @@ internal static class Program
     {
         using var gitRepo = new GitRepo(Environment.CurrentDirectory);
         var commits = gitRepo.GetLastCommits(50);
-        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
+        var config = JenkinsConfig.Load(options.ConfigPath);
+        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir), config.JobMappings);
         var wantedBranch = options.BranchName is not null ? new BranchName(options.BranchName) : null;
         var rootFilters = options.RootFilters.ToArray();
 
-        var config = JenkinsConfig.Load(options.ConfigPath);
         Log.Debug("Using cached jobs in Jenkins config");
         var jobGroups = JobManager.TryLoad(config, config.JobNames);
         Debug.Assert(jobGroups is not null);
@@ -147,6 +147,7 @@ internal static class Program
 
     private static Task<int> List(ListOptions options)
     {
+        // No need for job mappings when listing requests
         var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
 
         var requests = options.All
@@ -210,7 +211,7 @@ internal static class Program
             new JenkinsJobLinker(config),
             new MailSender(config.MailConfig)
         );
-        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
+        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir), config.JobMappings);
         var cachedRequest = workspace.OnDemandRequests.AllRequests.FirstOrDefault(r => r.Value.Request.Id == requestId);
         if (cachedRequest == null)
         {
@@ -230,6 +231,7 @@ internal static class Program
             return 1;
         }
 
+        // No need for job mappings when aborting requests
         var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
         var cachedRequest = workspace.OnDemandRequests.AllRequests.FirstOrDefault(r => r.Value.Request.Id == requestId);
         if (cachedRequest == null)

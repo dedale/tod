@@ -125,6 +125,8 @@ internal sealed class MailConfig(string from, string smtpHost)
 
 internal sealed record LoadThreshold(int QueueSize, TimeSpan MaxRequestDuration);
 
+internal sealed record JobMapping(string OldName, string NewName);
+
 internal sealed class JenkinsConfig
 {
     private static readonly MailConfig s_emptyMailConfig = new(string.Empty, string.Empty);
@@ -133,7 +135,7 @@ internal sealed class JenkinsConfig
     private readonly Dictionary<string, TestFilter> _testFilterByName;
 
     public JenkinsConfig(string url)
-        : this(url, [], [], [], [], [], [], string.Empty, [], s_emptyMailConfig, null, [])
+        : this(url, [], [], [], [], [], [], string.Empty, [], s_emptyMailConfig, null, [], [])
     {
     }
 
@@ -150,7 +152,8 @@ internal sealed class JenkinsConfig
         TestFilter[] testFilters,
         MailConfig mailConfig,
         int? keptDays,
-        LoadThreshold[] loadThresholds)
+        LoadThreshold[] loadThresholds,
+        JobMapping[] jobMappings)
     {
         Url = url;
         MultiBranchFolders = multiBranchFolders;
@@ -166,6 +169,7 @@ internal sealed class JenkinsConfig
         MailConfig = mailConfig;
         KeptDays = keptDays;
         LoadThresholds = loadThresholds;
+        JobMappings = jobMappings;
     }
 
     public static JenkinsConfig New(
@@ -180,7 +184,8 @@ internal sealed class JenkinsConfig
         TestFilter[]? testFilters = null,
         MailConfig? mailConfig = null,
         int? keptDays = null,
-        LoadThreshold[]? loadThresholds = null
+        LoadThreshold[]? loadThresholds = null,
+        JobMapping[]? jobMappings = null
     )
     {
         return new JenkinsConfig(
@@ -195,7 +200,8 @@ internal sealed class JenkinsConfig
             testFilters ?? [],
             mailConfig ?? s_emptyMailConfig,
             keptDays ?? null,
-            loadThresholds ?? []
+            loadThresholds ?? [],
+            jobMappings ?? []
         );
     }
 
@@ -211,6 +217,7 @@ internal sealed class JenkinsConfig
     public MailConfig MailConfig { get; }
     public int? KeptDays { get; }
     public LoadThreshold[] LoadThresholds { get; }
+    public JobMapping[] JobMappings { get; }
 
     public bool TryGetRootFilter(string name, [NotNullWhen(true)] out RootFilter? filter)
     {
@@ -268,7 +275,8 @@ internal sealed class JenkinsConfig
             testFilters: TestFilters,
             mailConfig: MailConfig,
             keptDays: KeptDays,
-            loadThresholds: LoadThresholds
+            loadThresholds: LoadThresholds,
+            jobMappings: JobMappings
         );
         newConfig.Save(configPath);
     }
