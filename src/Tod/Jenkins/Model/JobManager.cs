@@ -39,13 +39,13 @@ internal sealed class JobManager(JenkinsConfig config, IJenkinsClient client)
                 );
             }
         }
-        var errors = new List<string>();
-        if (jobGroupsBuilder.TryBuild(out var jobGroups, errors.Add))
+        var errors = new List<(string Message, object?[]? Args)>();
+        if (jobGroupsBuilder.TryBuild(out var jobGroups, (m, xs) => errors.Add((m, xs))))
         {
             if (errors.Count > 0)
             {
                 Log.Warning($"JobGroups loaded with {errors.Count} warning{(errors.Count > 1 ? "s" : "")}:");
-                errors.ForEach(Log.Warning);
+                errors.ForEach(x => Log.Warning(x.Message, x.Args));
             }
             return jobGroups;
         }
