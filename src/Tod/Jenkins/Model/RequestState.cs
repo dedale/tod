@@ -23,7 +23,7 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
         foreach (var chain in ChainDiffs.Where(chain => chain.OnDemandRoot.JobName == onDemandRootJob))
         {
             var pending = chain.TestBuildDiffs.Where(diff => !diff.IsDone).Count();
-            Log.Information("   {@JobName} Chain Status: {Status} ({Pending})", chain.OnDemandRoot.JobName, chain.Status, $"{pending} build{(pending > 1 ? "s" : "")} pending");
+            Log.Information($"   {{@JobName}} Chain Status: {{Status}} ({{Count}} build{(pending > 1 ? "s" : "")} pending)", chain.OnDemandRoot.JobName, chain.Status, pending);
         }
     }
 

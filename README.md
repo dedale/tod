@@ -225,10 +225,10 @@ Load thresholds protect Jenkins from being overloaded by preventing requests whe
 
 | Queue Size | Request Duration | Threshold 1 (50, 1h) | Threshold 2 (100, 30min) | Result |
 |------------|------------------|----------------------|--------------------------|--------|
-| 30 | 45 min | ❌ Queue OK | ❌ Queue OK | ✅ Accepted |
-| 60 | 45 min | ✅ Both exceeded | ❌ Queue OK | ❌ Rejected |
-| 60 | 20 min | ❌ Duration OK | ❌ Duration OK | ✅ Accepted |
-| 110 | 35 min | ✅ Both exceeded | ✅ Both exceeded | ❌ Rejected |
+| 30 | 45 min | 👍 Queue OK | 👍 Queue OK | ✅ Accepted |
+| 60 | 45 min | 🔥 Both exceeded | 👍 Queue OK | ❌ Rejected |
+| 60 | 20 min | 👍 Duration OK | 👍 Duration OK | ✅ Accepted |
+| 110 | 35 min | 🔥 Both exceeded | 🔥 Both exceeded | ❌ Rejected |
 
 **Note:** If no thresholds are configured, all requests are accepted regardless of Jenkins load.
 
