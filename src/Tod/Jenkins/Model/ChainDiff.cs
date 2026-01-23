@@ -62,7 +62,7 @@ internal sealed class RequestChainBuilder(Workspace workspace, IFilterManager fi
             }
             else
             {
-                Log.Error("Unknown parent commit {Commit} in branch {Branch} for job {JobName}",
+                Log.Error("Unknown parent commit {Commit} in branch {Branch} for job {@JobName}",
                     gitReference.Commit, gitReference.Branch, rootDiff.ReferenceJob);
                 throw new InvalidOperationException($"Unknown parent commit '{gitReference.Commit}' for job '{rootDiff.ReferenceJob}'");
             }

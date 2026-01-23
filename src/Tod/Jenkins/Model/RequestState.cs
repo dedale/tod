@@ -23,7 +23,7 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
         foreach (var chain in ChainDiffs.Where(chain => chain.OnDemandRoot.JobName == onDemandRootJob))
         {
             var pending = chain.TestBuildDiffs.Where(diff => !diff.IsDone).Count();
-            Log.Information("   {JobName} Chain Status: {Status} ({Pending})", chain.OnDemandRoot.JobName, chain.Status, $"{pending} build{(pending > 1 ? "s" : "")} pending");
+            Log.Information("   {@JobName} Chain Status: {Status} ({Pending})", chain.OnDemandRoot.JobName, chain.Status, $"{pending} build{(pending > 1 ? "s" : "")} pending");
         }
     }
 
@@ -31,7 +31,7 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
     {
         foreach (var chain in ChainDiffs)
         {
-            Log.Information("   {JobName} Chain Status: {Status}", chain.OnDemandRoot.JobName, chain.Status);
+            Log.Information("   {@JobName} Chain Status: {Status}", chain.OnDemandRoot.JobName, chain.Status);
         }
     }
 
@@ -72,7 +72,7 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
                 await triggerBuild(OnDemandJobKind.Root, rootJobName, parameters).ConfigureAwait(false);
                 onDemandRoot = requestChain.OnDemandRoot;
                 status = ChainStatus.RootTriggered;
-                Log.Information("Triggered on-demand root build {OnDemandRootJob}", rootJobName);
+                Log.Information("Triggered on-demand root build {@OnDemandRootJob}", rootJobName);
             }
             else
             {

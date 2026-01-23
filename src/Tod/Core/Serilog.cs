@@ -1,6 +1,7 @@
 ﻿using Serilog.Core;
 using Serilog.Events;
 using System.Diagnostics.CodeAnalysis;
+using Tod.Jenkins;
 
 namespace Tod.Core;
 
@@ -48,5 +49,36 @@ internal sealed class TimeSpanEnricher : ILogEventEnricher
             var pretty = ColoredPretty(timeSpan);
             logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty(property.Key, pretty));
         }
+    }
+}
+
+[ExcludeFromCodeCoverage]
+internal static class JobNameFormatter
+{
+    public static string Format(JobName job)
+    {
+        var name = job.Value;
+        var index = name.LastIndexOf('/');
+        if (index >= 0)
+        {
+            index++;
+            name = $"\x1b[90m{name[..index]}\x1b[38,5,0045m{name[index..]}";
+        }
+        return name;
+    }
+}
+
+[ExcludeFromCodeCoverage]
+internal sealed class JobNameDestructuringPolicy : IDestructuringPolicy
+{
+    public bool TryDestructure(object value, ILogEventPropertyValueFactory propertyValueFactory, [NotNullWhen(true)] out LogEventPropertyValue? result)
+    {
+        if (value is JobName job)
+        {
+            result = new ScalarValue(JobNameFormatter.Format(job));
+            return true;
+        }
+        result = null;
+        return false;
     }
 }

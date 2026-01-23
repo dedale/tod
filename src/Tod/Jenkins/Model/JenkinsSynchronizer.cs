@@ -9,7 +9,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
     {
         foreach (var rootBuilds in allRootBuilds)
         {
-            Log.Debug("Fetching root builds for {JobName}", rootBuilds.JobName);
+            Log.Debug("Fetching root builds for {@JobName}", rootBuilds.JobName);
             var builds = await jenkinsClient.GetLastBuilds(rootBuilds.JobName).ConfigureAwait(false);
             foreach (var build in builds.Reverse())
             {
@@ -30,7 +30,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     scheduled
                 );
 
-                Log.Information("Adding root build {JobName} #{BuildNumber} ({IsSuccessful})", rootBuild.JobName, rootBuild.BuildNumber, rootBuild.IsSuccessful ? "Success" : "Failure");
+                Log.Information("Adding root build {@JobName} #{BuildNumber} ({IsSuccessful})", rootBuild.JobName, rootBuild.BuildNumber, rootBuild.IsSuccessful ? "Success" : "Failure");
                 rootBuilds.TryAdd(rootBuild);
             }
         }
@@ -45,7 +45,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
         var newTestBuilds = false;
         foreach (var testBuilds in branchReference.TestBuilds)
         {
-            Log.Debug("Fetching test builds for {JobName}", testBuilds.JobName);
+            Log.Debug("Fetching test builds for {@JobName}", testBuilds.JobName);
             var builds = await jenkinsClient.GetLastBuilds(testBuilds.JobName).ConfigureAwait(false);
             foreach (var build in builds.Reverse())
             {
@@ -74,7 +74,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     failedTests
                 );
 
-                Log.Information("Adding test build {JobName} #{BuildNumber} ({IsSuccessful})",
+                Log.Information("Adding test build {@JobName} #{BuildNumber} ({IsSuccessful})",
                     testBuild.JobName, testBuild.BuildNumber, testBuild.IsSuccessful ? "Success" : $"{testData.FailCount} failed tests");
                 testBuilds.TryAdd(testBuild);
                 newTestBuilds = true;
@@ -92,7 +92,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
     {
         foreach (var rootBuilds in allRootBuilds)
         {
-            Log.Debug("Fetching root builds for {JobName}", rootBuilds.JobName);
+            Log.Debug("Fetching root builds for {@JobName}", rootBuilds.JobName);
             var builds = await jenkinsClient.GetLastBuilds(rootBuilds.JobName).ConfigureAwait(false);
             var minBuildNumber = builds.Length > 0 && rootBuilds.Count > 0 ? rootBuilds.Min(r => r.BuildNumber) : int.MinValue;
             foreach (var build in builds.Reverse())
@@ -131,7 +131,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                 // After a purge, do not try to add old builds
                 if (rootBuilds.Count == 0 || rootBuild.BuildNumber > minBuildNumber)
                 {
-                    Log.Information("Adding root build {JobName} #{BuildNumber} ({IsSuccessful})", rootBuild.JobName, rootBuild.BuildNumber, rootBuild.IsSuccessful ? "Success" : "Failure");
+                    Log.Information("Adding root build {@JobName} #{BuildNumber} ({IsSuccessful})", rootBuild.JobName, rootBuild.BuildNumber, rootBuild.IsSuccessful ? "Success" : "Failure");
                     rootBuilds.TryAdd(rootBuild, false);
 
                     if (commits.Length == 1)
@@ -151,7 +151,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
 
         foreach (var testBuilds in onDemandBuilds.TestBuilds)
         {
-            Log.Debug("Fetching test builds for {JobName}", testBuilds.JobName);
+            Log.Debug("Fetching test builds for {@JobName}", testBuilds.JobName);
             var builds = await jenkinsClient.GetLastBuilds(testBuilds.JobName).ConfigureAwait(false);
             var minBuildNumber = testBuilds.Count > 0 ? testBuilds.Min(r => r.BuildNumber) : int.MinValue;
             foreach (var build in builds.Reverse())
@@ -191,7 +191,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                 if (testBuilds.Count == 0 || testBuild.BuildNumber > minBuildNumber)
                 {
                     var info = testBuild.IsSuccessful ? "Success" : $"{failCount} failed test{(failCount == 1 ? "" : "s")}";
-                    Log.Information("Adding test build {JobName} #{BuildNumber} ({Info})",
+                    Log.Information("Adding test build {@JobName} #{BuildNumber} ({Info})",
                         testBuild.JobName,
                         testBuild.BuildNumber,
                         info);

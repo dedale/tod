@@ -136,7 +136,7 @@ internal sealed class FlakyTests : IFlakyTests
                     .Where(kvp => kvp.Value.IsFlaky)
                     .Select(kvp => kvp.Key)
                     .ToHashSet();
-                Log.Debug("Found {FlakyCount} flaky tests in {JobName} in {ElapsedMilliseconds} ms", flakies.Count, collection.JobName, stopwatch.ElapsedMilliseconds);
+                Log.Debug("Found {FlakyCount} flaky tests in {@JobName} in {ElapsedMilliseconds} ms", flakies.Count, collection.JobName, stopwatch.ElapsedMilliseconds);
                 _flakiesByJob.Add(collection.JobName, flakies);
             }
         }

@@ -135,10 +135,10 @@ internal static class Program
         var chains = chainBuilder.Get(commits.First(), gitReference, rootDiffs, [.. options.TestFilters]);
         foreach (var chain in chains)
         {
-            Log.Information("Root Job: {RootJob} ({Duration})", chain.OnDemandRoot.JobName, chain.RootDuration);
+            Log.Information("Root Job: {@RootJob} ({Duration})", chain.OnDemandRoot.JobName, chain.RootDuration);
             foreach (var testBuildDiff in chain.TestBuildDiffs)
             {
-                Log.Information("  Test Job: {TestJob} ({Duration})", testBuildDiff.OnDemandBuild.JobName, testBuildDiff.TestDuration);
+                Log.Information("  Test Job: {@TestJob} ({Duration})", testBuildDiff.OnDemandBuild.JobName, testBuildDiff.TestDuration);
             }
         }
         Log.Information("Total: {Duration}", chains.TotalDuration());
@@ -192,7 +192,7 @@ internal static class Program
                     ChainStatus.Done => "Done",
                     _ => chain.Status.ToString()
                 };
-                Log.Information("    Chain {JobName}: {ChainStatus}", chain.OnDemandRoot.JobName, chainStatus);
+                Log.Information("    Chain {@JobName}: {ChainStatus}", chain.OnDemandRoot.JobName, chainStatus);
             }
         }
 
@@ -288,13 +288,13 @@ internal static class Program
         {
             Log.Information("Chain: {Chain}", chain);
             var filters = result.GetChainFilters(chain);
-            Log.Information("  Root: '{RootFilter}': {RootJob}", filters.RootFilter.Name, filters.RootJob);
+            Log.Information("  Root: '{RootFilter}': {@RootJob}", filters.RootFilter.Name, filters.RootJob);
             foreach (var testName in filters.TestsByFilter.Keys.OrderBy(x => x))
             {
                 Log.Information("    '{TestFilter}' ({Duration})", testName, filters.TestsByFilter[testName].TotalDuration);
                 foreach (var job in filters.TestsByFilter[testName].Jobs.OrderBy(x => x))
                 {
-                    Log.Information("      {TestJob}", job);
+                    Log.Information("      {@TestJob}", job);
                 }
             }
         }
@@ -308,7 +308,7 @@ internal static class Program
                 Log.Information("  '{Filter}' ({Duration})", filter, tests.TotalDuration);
                 foreach (var job in tests.Jobs.OrderBy(j => j))
                 {
-                    Log.Information("    {Job}", job);
+                    Log.Information("    {@Job}", job);
                 }
             }
         }
@@ -327,6 +327,7 @@ internal static class Program
     private static async Task<int> Main(string[] args)
     {
         Log.Logger = new LoggerConfiguration()
+            .Destructure.With<JobNameDestructuringPolicy>()
             .Enrich.With<TimeSpanEnricher>()
             .MinimumLevel.Information()
             .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}", theme: AnsiConsoleTheme.Literate)
