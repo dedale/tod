@@ -5,22 +5,6 @@ using Tod.Git;
 
 namespace Tod.Jenkins;
 
-/*Jenkins job graph:
- * - api/json: jobs: list of jobs{name}
- * - pipeline (can be in another repo): copyArtifacts = dependency
- * - easy workaround: name of root job and patterns for test jobs in config file
- */
-/* Recycle root builds for requests only if same commit and successful
- */
-/* Use case: run a new request with some filters
- * - Check if there is a successful root build for the same commit in the reference branch
- * - If yes, reuse it; if not, trigger a new root build and wait for it to complete
- * - For each test job pattern, check if there is a successful test build for the same root build
- * - If yes, reuse it; if not, trigger a new test build and wait for it to complete
- */
-/* Keep running client or rely on a scheduled agent
- */
-
 internal static class DictionaryExtensions
 {
     public static TValue GetOrAdd<TKey, TValue>(this IDictionary<TKey, TValue> dict, TKey key, Func<TKey, TValue> valueFactory)

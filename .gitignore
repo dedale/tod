@@ -89,4 +89,7 @@ secrets.json
 appsettings.Local.json
 local.settings.json
 
+## git
+*.orig
+
 # End of file
