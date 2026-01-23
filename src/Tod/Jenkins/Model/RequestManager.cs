@@ -72,7 +72,7 @@ internal sealed class RequestManager(Workspace workspace, IJenkinsClient jenkins
 
         if (lockedRequests.Count > 0)
         {
-            Log.Information("Reference test build {@TestBuild} completed - updating {RequestCount} {Requests}",
+            Log.Information("Reference test build {@TestBuild} completed - updating {RequestCount} {$Requests}",
                 testBuild, lockedRequests.Count, lockedRequests.Count > 1 ? "requests" : "request");
         }
 

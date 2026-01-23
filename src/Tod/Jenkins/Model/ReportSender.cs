@@ -491,7 +491,7 @@ pre {
                     new XElement("td", request.Request.Id)),
                 new XElement("tr",
                     new XElement("th", "🗓 Created (UTC)"),
-                    new XElement("td", request.Request.CreatedUtc.ToString())),
+                    new XElement("td", request.Request.CreatedUtc.ToString("yyyy-MM-dd HH:mm:ss"))),
                 new XElement("tr",
                     new XElement("th", "🔀 Tested Commit"),
                     new XElement("td", request.Request.Commit.Value)),

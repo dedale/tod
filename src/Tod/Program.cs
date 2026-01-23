@@ -32,6 +32,7 @@ internal static class Program
             return await SyncJobs(options).ConfigureAwait(false);
         }
 
+        var stopwatch = Stopwatch.StartNew();
         var config = JenkinsConfig.Load(options.ConfigPath);
         Debug.Assert(config is not null);
 
@@ -62,9 +63,10 @@ internal static class Program
             var removed = workSpace.RemoveBuildsOlderThan(DateTime.UtcNow.AddDays((double)-config.KeptDays));
             if (removed > 0)
             {
-                Log.Information("Removed {Removed} old {Builds}", removed, removed > 1 ? "builds" : "build");
+                Log.Information($"Removed {{Removed}} old {(removed > 1 ? "builds" : "build")}", removed);
             }
         }
+        Log.Information("Sync completed in {Duration}", stopwatch.Elapsed);
 
         return 0;
     }
@@ -168,9 +170,8 @@ internal static class Program
             return Task.FromResult(0);
         }
 
-        Log.Information("Found {Count} {RequestType} for user {User}:",
+        Log.Information($"Found {{Count}} {(options.All ? "request" + (userRequests.Count > 1 ? "s" : "") : "active request" + (userRequests.Count > 1 ? "s" : ""))} for user {{User}}:",
             userRequests.Count,
-            options.All ? "request" + (userRequests.Count > 1 ? "s" : "") : "active request" + (userRequests.Count > 1 ? "s" : ""),
             Environment.UserName);
 
         foreach (var cached in userRequests.OrderBy(r => r.Value.Request.CreatedUtc))
@@ -178,7 +179,7 @@ internal static class Program
             var request = cached.Value;
             Log.Information("");
             Log.Information("Request ID: {RequestId}", request.Request.Id);
-            Log.Information("  Created: {CreatedUtc}", request.Request.CreatedUtc);
+            Log.Information("  Created: {CreatedUtc:yyyy-MM-dd HH:mm:ss}", request.Request.CreatedUtc);
             Log.Information("  Branch: {Branch}", request.Request.GitReference.Branch);
             Log.Information("  Commit: {Commit}", request.Request.Commit);
             Log.Information("  Filters: {Filters}", request.Request.Filters);
