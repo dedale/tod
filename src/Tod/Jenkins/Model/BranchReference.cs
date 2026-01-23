@@ -103,7 +103,7 @@ internal static class BranchReferenceExtensions
                     {
                         if (jobNames.Length > 1)
                         {
-                            Log.Information("Found candidate reference commit {Commit} for job {JobName}", commits[i], jobName);
+                            Log.Information("Found candidate reference commit {Commit} for job {@JobName}", commits[i], jobName);
                         }
                         candidates.Add(commits.Skip(i));
                         break;
