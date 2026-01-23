@@ -97,3 +97,18 @@ internal sealed class BuildReferenceDestructuringPolicy : IDestructuringPolicy
         return false;
     }
 }
+
+[ExcludeFromCodeCoverage]
+internal sealed class BuildResultInfoDestructuringPolicy : IDestructuringPolicy
+{
+    public bool TryDestructure(object value, ILogEventPropertyValueFactory propertyValueFactory, [NotNullWhen(true)] out LogEventPropertyValue? result)
+    {
+        if (value is BuildResultInfo info)
+        {
+            result = new ScalarValue($"{(info.IsSuccess ? "\x1b[38,5,34m" : "\x1b[38,5,160m")}{info.Value}");
+            return true;
+        }
+        result = null;
+        return false;
+    }
+}

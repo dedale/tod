@@ -1,5 +1,6 @@
 ﻿using CommandLine;
 using Serilog;
+using Serilog.Sinks.SystemConsole.Themes;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Tod.Core;
@@ -329,6 +330,7 @@ internal static class Program
         Log.Logger = new LoggerConfiguration()
             .Destructure.With<JobNameDestructuringPolicy>()
             .Destructure.With<BuildReferenceDestructuringPolicy>()
+            .Destructure.With<BuildResultInfoDestructuringPolicy>()
             .Enrich.With<TimeSpanEnricher>()
             .MinimumLevel.Information()
             .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}", theme: AnsiConsoleTheme.Literate)
