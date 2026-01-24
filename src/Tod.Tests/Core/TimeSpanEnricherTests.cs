@@ -31,7 +31,7 @@ internal sealed class TimeSpanEnricherTests
         Assert.That(pretty, Is.EqualTo(expected));
     }
 
-    [TestCase(0, 0, 29, 456, "*[38,5,0079m29.5 s*[0m")]
+    [TestCase(0, 0, 29, 456, "*[38;5;0079m29.5 s*[0m")]
     public void ColoredPretty_ShouldReturnExpectedString(int hours, int minutes, int seconds, int milliseconds, string expected)
     {
         var ts = new TimeSpan(0, hours, minutes, seconds, milliseconds);

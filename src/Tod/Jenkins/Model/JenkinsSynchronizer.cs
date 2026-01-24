@@ -30,7 +30,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     scheduled
                 );
 
-                Log.Information("Adding root build {@RootBuild} ({@IsSuccessful})", rootBuild, rootBuild.IsSuccessful ? BuildResultInfo.Success("Success") : BuildResultInfo.Failure("Failure"));
+                Log.Information("Adding root build {@RootBuild} ({@IsSuccessful})", rootBuild.Reference, rootBuild.IsSuccessful ? BuildResultInfo.Success("Success") : BuildResultInfo.Failure("Failure"));
                 rootBuilds.TryAdd(rootBuild);
             }
         }
@@ -76,12 +76,12 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
 
                 if (testBuild.IsSuccessful)
                 {
-                    Log.Information("Adding test build {@TestBuild} ({@IsSuccessful})", testBuild, BuildResultInfo.Success("Success"));
+                    Log.Information("Adding test build {@TestBuild} ({@IsSuccessful})", testBuild.Reference, BuildResultInfo.Success("Success"));
                 }
                 else
                 {
                     Log.Information("Adding test build {@TestBuild} ({Count} {@IsSuccessful})",
-                        testBuild, testData.FailCount, BuildResultInfo.Failure($"failed test{(testData.FailCount > 1 ? "s" : "")}"));
+                        testBuild.Reference, testData.FailCount, BuildResultInfo.Failure($"failed test{(testData.FailCount > 1 ? "s" : "")}"));
                 }
                 testBuilds.TryAdd(testBuild);
                 newTestBuilds = true;
@@ -121,7 +121,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                 else
                 {
                     commits = [];
-                    Log.Warning("On-demand root build {RootBuild} is missing REFSPEC parameter (cannot trigger test builds)", new BuildReference(rootBuilds.JobName, build.Number));
+                    Log.Warning("On-demand root build {@RootBuild} is missing REFSPEC parameter (cannot trigger test builds)", new BuildReference(rootBuilds.JobName, build.Number));
                 }
 
                 var rootBuild = new RootBuild(
@@ -139,7 +139,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                 if (rootBuilds.Count == 0 || rootBuild.BuildNumber > minBuildNumber)
                 {
                     Log.Information("Adding root build {@RootBuild} ({@IsSuccessful})",
-                        rootBuild, rootBuild.IsSuccessful ? BuildResultInfo.Success("Success") : BuildResultInfo.Failure("Failure"));
+                        rootBuild.Reference, rootBuild.IsSuccessful ? BuildResultInfo.Success("Success") : BuildResultInfo.Failure("Failure"));
                     rootBuilds.TryAdd(rootBuild, false);
 
                     if (commits.Length == 1)
@@ -200,12 +200,12 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                 {
                     if (testBuild.IsSuccessful)
                     {
-                        Log.Information("Adding test build {@TestBuild} ({@IsSuccessful})", testBuild, BuildResultInfo.Success("Success"));
+                        Log.Information("Adding test build {@TestBuild} ({@IsSuccessful})", testBuild.Reference, BuildResultInfo.Success("Success"));
                     }
                     else
                     {
                         Log.Information("Adding test build {@TestBuild} ({Count} {@IsSuccessful})",
-                            testBuild, failCount, BuildResultInfo.Failure($"failed test{(failCount > 1 ? "s" : "")}"));
+                            testBuild.Reference, failCount, BuildResultInfo.Failure($"failed test{(failCount > 1 ? "s" : "")}"));
                     }
                     testBuilds.TryAdd(testBuild, false);
 

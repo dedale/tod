@@ -34,7 +34,7 @@ internal sealed class TimeSpanEnricher : ILogEventEnricher
         return $"{t.TotalHours:0} h {t.Minutes:0.#} min";
     }
 
-    internal static string ColoredPretty(TimeSpan t) => $"\x1b[38,5,0079m{Pretty(t)}\x1b[0m";
+    internal static string ColoredPretty(TimeSpan t) => $"\x1b[38;5;0079m{Pretty(t)}\x1b[0m";
 
     [ExcludeFromCodeCoverage]
     public void Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
@@ -47,7 +47,7 @@ internal sealed class TimeSpanEnricher : ILogEventEnricher
         {
             var timeSpan = (TimeSpan)((ScalarValue)property.Value).Value!;
             var pretty = ColoredPretty(timeSpan);
-            logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty(property.Key, pretty));
+            logEvent.AddOrUpdateProperty(propertyFactory.CreateProperty(property.Key, pretty));
         }
     }
 }
@@ -62,7 +62,7 @@ internal static class JobNameFormatter
         if (index >= 0)
         {
             index++;
-            name = $"\x1b[90m{name[..index]}\x1b[38,5,0045m{name[index..]}";
+            name = $"\x1b[90m{name[..index]}\x1b[38;5;0045m{name[index..]}";
         }
         return name;
     }
@@ -90,7 +90,7 @@ internal sealed class BuildReferenceDestructuringPolicy : IDestructuringPolicy
     {
         if (value is BuildReference buildRef)
         {
-            result = new ScalarValue($"{JobNameFormatter.Format(buildRef.JobName)}\x1b[38,5,0015m #\x1b[38,5,0200m{buildRef.BuildNumber}");
+            result = new ScalarValue($"{JobNameFormatter.Format(buildRef.JobName)}\x1b[38;5;0015m #\x1b[38;5;0200m{buildRef.BuildNumber}");
             return true;
         }
         result = null;
@@ -105,7 +105,7 @@ internal sealed class BuildResultInfoDestructuringPolicy : IDestructuringPolicy
     {
         if (value is BuildResultInfo info)
         {
-            result = new ScalarValue($"{(info.IsSuccess ? "\x1b[38,5,34m" : "\x1b[38,5,160m")}{info.Value}");
+            result = new ScalarValue($"{(info.IsSuccess ? "\x1b[38;5;34m" : "\x1b[38;5;160m")}{info.Value}");
             return true;
         }
         result = null;
