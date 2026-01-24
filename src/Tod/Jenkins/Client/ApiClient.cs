@@ -28,7 +28,7 @@ internal sealed class ApiClient : IApiClient
     internal ApiClient(HttpMessageHandler handler, string userToken)
     {
         _httpClient = new HttpClient(handler);
-        string base64 = Convert.ToBase64String(Encoding.ASCII.GetBytes(userToken));
+        string base64 = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{Environment.UserName}:{userToken}"));
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", base64);
     }
 
