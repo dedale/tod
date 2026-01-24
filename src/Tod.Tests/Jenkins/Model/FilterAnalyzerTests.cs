@@ -1,5 +1,10 @@
 using NUnit.Framework;
+using Serilog;
+using Serilog.Sinks.TestCorrelator;
+using System.Text.RegularExpressions;
+using Tod.Core;
 using Tod.Jenkins;
+using Tod.Tests.Core;
 
 namespace Tod.Tests.Jenkins;
 
@@ -373,5 +378,73 @@ internal sealed class FilterAnalyzerTests
         var testsByFilter = result.GetTestsByFilterForGroup("tests");
         Assert.That(testsByFilter, Has.Count.EqualTo(1));
         Assert.That(testsByFilter.ContainsKey("unit"), Is.True);
+    }
+
+    [Test]
+    public void LogFilters_ComplexScenario_LogsCorrectly()
+    {
+        var rootFilter = new RootFilter("build", @"build-(?<chain>\w+)");
+        var testFilter1 = new TestFilter("test", @"test-(?<chain>\w+)", "chains");
+        var testFilter2 = new TestFilter("unit", "unit", "tests");
+        var testFilter3 = new TestFilter("unmatched", "unmatched", "tests");
+        var config = JenkinsConfig.New(
+            "http://localhost",
+            rootFilters: [rootFilter],
+            chainTestGroup: "chains",
+            testFilters: [testFilter1, testFilter2, testFilter3]
+        );
+
+        var rootGroup = new JobGroup(
+            new Dictionary<BranchName, JobName> { [new BranchName("main")] = new("MAIN-build-feature") },
+            new("CUSTOM-build-feature")
+        );
+        var testGroup1 = new JobGroup(
+            new Dictionary<BranchName, JobName> { [new BranchName("main")] = new("MAIN-test-feature") },
+            new("CUSTOM-test-feature")
+        );
+        var testGroup2 = new JobGroup(
+            new Dictionary<BranchName, JobName> { [new BranchName("main")] = new("MAIN-unit") },
+            new("CUSTOM-unit")
+        );
+        var byRoot = new Dictionary<RootName, JobGroup> { [new RootName("build-feature")] = rootGroup };
+        var byTest = new Dictionary<TestName, JobGroup>
+        {
+            [new TestName("test-feature")] = testGroup1,
+            [new TestName("unit")] = testGroup2
+        };
+        var jobGroups = new JobGroups(byRoot, byTest);
+
+        var durationByJob = new Dictionary<JobName, TimeSpan>
+        {
+            [new JobName("CUSTOM-test-feature")] = TimeSpan.FromMinutes(10),
+            [new JobName("CUSTOM-unit")] = TimeSpan.FromMinutes(5)
+        };
+
+        using (TestCorrelator.CreateContext())
+        {
+            var logger = new LoggerConfiguration()
+                .Destructure.With<JobNameDestructuringPolicy>()
+                .Destructure.With<BuildReferenceDestructuringPolicy>()
+                .Destructure.With<BuildResultInfoDestructuringPolicy>()
+                .Enrich.With<TimeSpanEnricher>()
+                .WriteTo.TestCorrelator()
+                .CreateLogger();
+
+            FilterAnalyzer.LogFilters(config, jobGroups, durationByJob, logger);
+
+            var events = TestCorrelator.GetLogEventsFromCurrentContext();
+            var logs = events.Select(e => $"{e.Level}: {e.RenderMessage().RemoveAnsiCodes()}").ToArray();
+            Assert.That(logs, Is.EqualTo([
+                @"Information: Chain: ""feature""",
+                @"Information:   Root: '""build""': ""CUSTOM-build-feature""",
+                @"Information:     '""test""' (""10 min"")",
+                @"Information:       ""CUSTOM-test-feature""",
+                @"Information: Test Group: ""tests""",
+                @"Information:   '""unit""' (""5 min"")",
+                @"Information:     ""CUSTOM-unit""",
+                @"Error: Error:",
+                @"Error:   ""TestFilter 'unmatched' does not match any test job""",
+            ]));
+        }
     }
 }

@@ -7,7 +7,7 @@ namespace Tod.Core;
 
 internal sealed class TimeSpanEnricher : ILogEventEnricher
 {
-    internal static string Pretty(TimeSpan t)
+    private static string Pretty(TimeSpan t)
     {
         if (t.TotalMilliseconds < 950)
         {
@@ -36,7 +36,6 @@ internal sealed class TimeSpanEnricher : ILogEventEnricher
 
     internal static string ColoredPretty(TimeSpan t) => $"\x1b[38;5;0079m{Pretty(t)}\x1b[0m";
 
-    [ExcludeFromCodeCoverage]
     public void Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
     {
         var properties = logEvent.Properties
@@ -52,7 +51,6 @@ internal sealed class TimeSpanEnricher : ILogEventEnricher
     }
 }
 
-[ExcludeFromCodeCoverage]
 internal static class JobNameFormatter
 {
     public static string Format(JobName job)
@@ -68,7 +66,6 @@ internal static class JobNameFormatter
     }
 }
 
-[ExcludeFromCodeCoverage]
 internal sealed class JobNameDestructuringPolicy : IDestructuringPolicy
 {
     public bool TryDestructure(object value, ILogEventPropertyValueFactory propertyValueFactory, [NotNullWhen(true)] out LogEventPropertyValue? result)
@@ -83,7 +80,6 @@ internal sealed class JobNameDestructuringPolicy : IDestructuringPolicy
     }
 }
 
-[ExcludeFromCodeCoverage]
 internal sealed class BuildReferenceDestructuringPolicy : IDestructuringPolicy
 {
     public bool TryDestructure(object value, ILogEventPropertyValueFactory propertyValueFactory, [NotNullWhen(true)] out LogEventPropertyValue? result)
@@ -98,7 +94,6 @@ internal sealed class BuildReferenceDestructuringPolicy : IDestructuringPolicy
     }
 }
 
-[ExcludeFromCodeCoverage]
 internal sealed class BuildResultInfoDestructuringPolicy : IDestructuringPolicy
 {
     public bool TryDestructure(object value, ILogEventPropertyValueFactory propertyValueFactory, [NotNullWhen(true)] out LogEventPropertyValue? result)
