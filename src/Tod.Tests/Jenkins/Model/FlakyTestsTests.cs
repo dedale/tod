@@ -25,11 +25,14 @@ internal sealed class FlakyTestsTests
         var buildCount = 30;
         var buildNumber = RandomData.NextBuildNumber;
         var failedTest = new FailedTest("FlakyClass", "FlakyTest", "FlakyDetails");
+        var flakies = 0;
         for (var i = 0; i < buildCount; i++, buildNumber++)
         {
             var failedTests = new List<FailedTest>();
-            if (RandomData.IsFlaky())
+            // i == 1 to ensure at least one flaky occurrence
+            if (i == 1 || RandomData.IsFlaky())
             {
+                flakies++;
                 failedTests.Add(failedTest);
             }
             var testBuild = RandomData.NextTestBuild(testJobName: s_testJob.Value, buildNumber: buildNumber, failedTests: [.. failedTests]);

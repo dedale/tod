@@ -1,4 +1,6 @@
-﻿namespace Tod.Jenkins;
+﻿using Serilog;
+
+namespace Tod.Jenkins;
 
 internal sealed class FilterJobs(TestFilter filter, Dictionary<JobName, TimeSpan> durationByJob)
 {
@@ -125,5 +127,50 @@ internal sealed class FilterAnalyzer(JenkinsConfig config, JobGroups jobGroups, 
             }
         }
         return new JobFilters(chainFiltersByChain, testsByFilterByGroup, errors);
+    }
+
+    public static void LogFilters(JenkinsConfig config, JobGroups jobGroups, Dictionary<JobName, TimeSpan> durationByOnDemandJob, ILogger? logger = null)
+    {
+        logger ??= Log.Logger;
+
+        var analyzer = new FilterAnalyzer(config, jobGroups, durationByOnDemandJob);
+        var result = analyzer.Run();
+
+        foreach (var chain in result.Chains.OrderBy(x => x))
+        {
+            logger.Information("Chain: {Chain}", chain);
+            var filters = result.GetChainFilters(chain);
+            logger.Information("  Root: '{RootFilter}': {@RootJob}", filters.RootFilter.Name, filters.RootJob);
+            foreach (var testName in filters.TestsByFilter.Keys.OrderBy(x => x))
+            {
+                logger.Information("    '{TestFilter}' ({Duration})", testName, filters.TestsByFilter[testName].TotalDuration);
+                foreach (var job in filters.TestsByFilter[testName].Jobs.OrderBy(x => x))
+                {
+                    logger.Information("      {@TestJob}", job);
+                }
+            }
+        }
+        foreach (var group in result.TestGroups)
+        {
+            logger.Information("Test Group: {Group}", group);
+            var testsByFilter = result.GetTestsByFilterForGroup(group);
+            foreach (var filter in testsByFilter.Keys.OrderBy(f => f))
+            {
+                var tests = testsByFilter[filter];
+                logger.Information("  '{Filter}' ({Duration})", filter, tests.TotalDuration);
+                foreach (var job in tests.Jobs.OrderBy(j => j))
+                {
+                    logger.Information("    {@Job}", job);
+                }
+            }
+        }
+        if (result.Errors.Length > 0)
+        {
+            logger.Error($"Error{(result.Errors.Length > 1 ? "s" : "")}:");
+            foreach (var error in result.Errors)
+            {
+                logger.Error("  {Error}", error);
+            }
+        }
     }
 }

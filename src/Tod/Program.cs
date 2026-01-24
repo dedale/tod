@@ -283,45 +283,7 @@ internal static class Program
         var durationByRefJob = referenceBranch.TestBuilds.ToDictionary(x => x.JobName, x => x.AverageDuration);
         var durationByOnDemandJob = testGroups.ToDictionary(g => g.OnDemandJob, g => durationByRefJob[g.ReferenceJobByBranch[refBranch]]);
 
-        var analyzer = new FilterAnalyzer(config, jobGroups, durationByOnDemandJob);
-        var result = analyzer.Run();
-
-        foreach (var chain in result.Chains.OrderBy(x => x))
-        {
-            Log.Information("Chain: {Chain}", chain);
-            var filters = result.GetChainFilters(chain);
-            Log.Information("  Root: '{RootFilter}': {@RootJob}", filters.RootFilter.Name, filters.RootJob);
-            foreach (var testName in filters.TestsByFilter.Keys.OrderBy(x => x))
-            {
-                Log.Information("    '{TestFilter}' ({Duration})", testName, filters.TestsByFilter[testName].TotalDuration);
-                foreach (var job in filters.TestsByFilter[testName].Jobs.OrderBy(x => x))
-                {
-                    Log.Information("      {@TestJob}", job);
-                }
-            }
-        }
-        foreach (var group in result.TestGroups)
-        {
-            Log.Information("Test Group: {Group}", group);
-            var testsByFilter = result.GetTestsByFilterForGroup(group);
-            foreach (var filter in testsByFilter.Keys.OrderBy(f => f))
-            {
-                var tests = testsByFilter[filter];
-                Log.Information("  '{Filter}' ({Duration})", filter, tests.TotalDuration);
-                foreach (var job in tests.Jobs.OrderBy(j => j))
-                {
-                    Log.Information("    {@Job}", job);
-                }
-            }
-        }
-        if (result.Errors.Length > 0)
-        {
-            Log.Error($"Error{(result.Errors.Length > 1 ? "s" : "")}:");
-            foreach (var error in result.Errors)
-            {
-                Log.Error("  {Error}", error);
-            }
-        }
+        FilterAnalyzer.LogFilters(config, jobGroups, durationByOnDemandJob);
 
         return Task.FromResult(0);
     }
