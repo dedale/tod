@@ -323,7 +323,6 @@ tod abort --config jenkins_config.json --workspace ./workspace --request-id 1234
 
 **Authorization:**
 - Users can only abort their own requests
-- The command compares the request owner's email with your current user email
 - Returns an error if you try to abort someone else's request
 
 **How it works:**
