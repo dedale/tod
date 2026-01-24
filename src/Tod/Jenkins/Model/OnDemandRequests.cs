@@ -23,6 +23,8 @@ internal sealed class CachedRequest(string path)
     }
 }
 
+// TODO Purge old requests
+
 internal sealed class OnDemandRequests
 {
     private readonly string _requestPath;

@@ -159,7 +159,7 @@ internal static class Program
 
         var userRequests = requests
             .Where(r => r.Value.Request.UserName == Environment.UserName)
-            .OrderByDescending(r => r.Value.Request.CreatedUtc)
+            .OrderBy(r => r.Value.Request.CreatedUtc)
             .ToList();
 
         if (userRequests.Count == 0)
@@ -174,7 +174,7 @@ internal static class Program
             userRequests.Count,
             Environment.UserName);
 
-        foreach (var cached in userRequests.OrderBy(r => r.Value.Request.CreatedUtc))
+        foreach (var cached in userRequests)
         {
             var request = cached.Value;
             Log.Information("");

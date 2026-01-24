@@ -16,6 +16,8 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
         branchReferences.Add(branchReference);
     }
 
+    // TODO init verb to create workspace directory structure
+
     public static Workspace New(string dir, JobGroups jobGroups)
     {
         var workspaceStore = new WorkspaceStore(dir);
