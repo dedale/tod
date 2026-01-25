@@ -135,7 +135,7 @@ internal sealed class JenkinsConfig
     private readonly Dictionary<string, TestFilter> _testFilterByName;
 
     public JenkinsConfig(string url)
-        : this(url, [], [], [], [], [], [], string.Empty, [], s_emptyMailConfig, null, [], [], null)
+        : this(url, [], [], [], [], [], [], string.Empty, [], s_emptyMailConfig, null, [], [], null, null)
     {
     }
 
@@ -154,7 +154,8 @@ internal sealed class JenkinsConfig
         int? keptDays,
         LoadThreshold[] loadThresholds,
         JobMapping[] jobMappings,
-        int? maxUserActiveRequests)
+        int? maxUserActiveRequests,
+        string? gerritReviewServer)
     {
         Url = url;
         MultiBranchFolders = multiBranchFolders;
@@ -172,6 +173,7 @@ internal sealed class JenkinsConfig
         LoadThresholds = loadThresholds;
         JobMappings = jobMappings;
         MaxUserActiveRequests = maxUserActiveRequests;
+        GerritReviewServer = gerritReviewServer;
     }
 
     public static JenkinsConfig New(
@@ -188,7 +190,8 @@ internal sealed class JenkinsConfig
         int? keptDays = null,
         LoadThreshold[]? loadThresholds = null,
         JobMapping[]? jobMappings = null,
-        int? maxUserActiveRequests = null
+        int? maxUserActiveRequests = null,
+        string? gerritReviewServer = null
     )
     {
         return new JenkinsConfig(
@@ -205,7 +208,8 @@ internal sealed class JenkinsConfig
             keptDays ?? null,
             loadThresholds ?? [],
             jobMappings ?? [],
-            maxUserActiveRequests ?? null
+            maxUserActiveRequests ?? null,
+            gerritReviewServer ?? null
         );
     }
 
@@ -223,6 +227,7 @@ internal sealed class JenkinsConfig
     public LoadThreshold[] LoadThresholds { get; }
     public JobMapping[] JobMappings { get; }
     public int? MaxUserActiveRequests { get; }
+    public string? GerritReviewServer { get; }
 
     public bool TryGetRootFilter(string name, [NotNullWhen(true)] out RootFilter? filter)
     {
@@ -282,7 +287,8 @@ internal sealed class JenkinsConfig
             keptDays: KeptDays,
             loadThresholds: LoadThresholds,
             jobMappings: JobMappings,
-            maxUserActiveRequests: MaxUserActiveRequests
+            maxUserActiveRequests: MaxUserActiveRequests,
+            gerritReviewServer: GerritReviewServer
         );
         newConfig.Save(configPath);
     }

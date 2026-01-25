@@ -4,6 +4,7 @@ using Serilog.Sinks.SystemConsole.Themes;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Tod.Core;
+using Tod.Gerrit;
 using Tod.Git;
 using Tod.Jenkins;
 using Tod.Net;
@@ -16,7 +17,7 @@ internal static class Program
     private static async Task<int> SyncJobs(SyncOptions options)
     {
         var config = JenkinsConfig.Load(options.ConfigPath);
-        using var jenkinsClient = new JenkinsClient(config, options.UserToken);
+        using var jenkinsClient = new JenkinsClient(config, options.JenkinsToken);
         var jobManager = new JobManager(config, jenkinsClient);
         var jobGroups = await jobManager.TryLoad(jobNames => config.SaveJobs(options.ConfigPath, jobNames)).ConfigureAwait(false);
         var workspaceStore = new WorkspaceStore(options.WorkspaceDir);
@@ -36,7 +37,7 @@ internal static class Program
         var config = JenkinsConfig.Load(options.ConfigPath);
         Debug.Assert(config is not null);
 
-        using var jenkinsClient = new JenkinsClient(config, options.UserToken);
+        using var jenkinsClient = new JenkinsClient(config, options.JenkinsToken);
         JobGroups? jobGroups;
         if (config.JobNames.Length == 0)
         {
@@ -80,7 +81,7 @@ internal static class Program
         var wantedBranch = options.BranchName is not null ? new BranchName(options.BranchName) : null;
         var rootFilters = options.RootFilters.ToArray();
 
-        var jenkinsClient = new JenkinsClient(config, options.UserToken);
+        var jenkinsClient = new JenkinsClient(config, options.JenkinsToken);
         var jobManager = new JobManager(config, jenkinsClient);
         var jobGroups = await jobManager.TryLoad().ConfigureAwait(false);
         Debug.Assert(jobGroups is not null);
@@ -96,6 +97,18 @@ internal static class Program
 
         Log.Information("Registering new request {RequestId} for commit {Commit} on branch {Branch}",
             request.Id, request.Commit, request.GitReference.Branch);
+
+        if (!string.IsNullOrEmpty(config.GerritReviewServer))
+        {
+            using var gerritClient = new GerritClient(config.GerritReviewServer, options.GerritToken);
+            if (!await gerritClient.IsKnown(request.Commit).ConfigureAwait(false))
+            {
+                Log.Error("Commit {Commit} is not known in Gerrit. Jenkins will not be able to checkout the code. " +
+                    "Make sure the commit has been pushed to Gerrit as a patchset.", request.Commit);
+                return 1;
+            }
+            Log.Debug("Commit {Commit} found in Gerrit", request.Commit);
+        }
 
         var chainBuilder = new RequestChainBuilder(workspace, filterManager);
         var chains = chainBuilder.Get(request.Commit, request.GitReference, rootDiffs, request.GetFilters());

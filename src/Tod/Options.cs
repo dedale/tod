@@ -19,12 +19,13 @@ internal abstract class BaseOptions
 [Verb("sync", HelpText = "Sync builds or jobs")]
 internal sealed class SyncOptions : BaseOptions
 {
-    [Option('u', "user-token", Required = true, HelpText = "User token for Jenkins authentication")]
-    public string UserToken { get; set; }
+    [Option('j', "jenkins-token", Required = true, HelpText = "Jenkins API token for authentication")]
+    public string JenkinsToken { get; set; }
 
-    [Option('j', "jobs", HelpText = "Synchronize jobs")]
+    [Option('s', "jobs", HelpText = "Synchronize jobs")]
     public bool Jobs { get; set; }
 }
+
 
 [ExcludeFromCodeCoverage]
 [Verb("new", HelpText = "Create a new request")]
@@ -39,9 +40,13 @@ internal sealed class NewOptions : BaseOptions
     [Option('t', "test-filters", Required = true, HelpText = "Test filter names")]
     public IEnumerable<string> TestFilters { get; set; }
 
-    [Option('u', "user-token", Required = true, HelpText = "User token for Jenkins authentication")]
-    public string UserToken { get; set; }
+    [Option('j', "jenkins-token", Required = true, HelpText = "Jenkins API token for authentication")]
+    public string JenkinsToken { get; set; }
+
+    [Option('g', "gerrit-token", Required = true, HelpText = "Gerrit API token for authentication")]
+    public string GerritToken { get; set; }
 }
+
 
 [ExcludeFromCodeCoverage]
 [Verb("jobs", HelpText = "Get job names from filters")]
