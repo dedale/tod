@@ -100,8 +100,10 @@ internal static class Program
         var chainBuilder = new RequestChainBuilder(workspace, filterManager);
         var chains = chainBuilder.Get(request.Commit, request.GitReference, rootDiffs, request.GetFilters());
 
+        var userActiveRequestsCount = workspace.OnDemandRequests.ActiveRequests
+            .Count(r => r.Value.Request.UserName == Environment.UserName);
         var requestValidator = new RequestValidator(config, jenkinsClient);
-        if (!await requestValidator.Validate(chains).ConfigureAwait(false))
+        if (!await requestValidator.Validate(chains, userActiveRequestsCount).ConfigureAwait(false))
         {
             Log.Error("Request validation failed.");
             return 1;

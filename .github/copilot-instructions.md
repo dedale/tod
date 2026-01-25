@@ -32,7 +32,7 @@ Tod is a Jenkins automation tool for managing CI/CD builds and tests.
 - Use init-only setters or constructor parameters for immutability
 
 ## Async Patterns
-- Always use `ConfigureAwait(false)` for library code
+- Always use `ConfigureAwait(false)` for await calls
 - Use `async Task` for methods that don't return values
 - Use `async Task<T>` for methods that return values
 - Avoid `async void` except for event handlers
@@ -95,3 +95,14 @@ Tod is a Jenkins automation tool for managing CI/CD builds and tests.
 - Prefer self-documenting code with clear names over comments
 - Always add a space after `//` in comments
 - Always add spaces at the start and end of block comments `/* comment */`
+
+## Misc
+- Prefer user name over email for user identification
+
+## Method Parameters and Dependencies
+- Pass only the minimal data needed as parameters, not entire objects
+- Prefer passing specific values (e.g., `int count`) over full instances (e.g., `OnDemandRequests`)
+- Reduces coupling and limits what methods can access
+- Makes dependencies explicit and testable
+- Example: Pass `int userActiveRequestsCount` instead of `OnDemandRequests` when only the count is needed
+- Follows the principle of least knowledge (Law of Demeter)

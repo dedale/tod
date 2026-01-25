@@ -135,7 +135,7 @@ internal sealed class JenkinsConfig
     private readonly Dictionary<string, TestFilter> _testFilterByName;
 
     public JenkinsConfig(string url)
-        : this(url, [], [], [], [], [], [], string.Empty, [], s_emptyMailConfig, null, [], [])
+        : this(url, [], [], [], [], [], [], string.Empty, [], s_emptyMailConfig, null, [], [], null)
     {
     }
 
@@ -153,7 +153,8 @@ internal sealed class JenkinsConfig
         MailConfig mailConfig,
         int? keptDays,
         LoadThreshold[] loadThresholds,
-        JobMapping[] jobMappings)
+        JobMapping[] jobMappings,
+        int? maxUserActiveRequests)
     {
         Url = url;
         MultiBranchFolders = multiBranchFolders;
@@ -170,6 +171,7 @@ internal sealed class JenkinsConfig
         KeptDays = keptDays;
         LoadThresholds = loadThresholds;
         JobMappings = jobMappings;
+        MaxUserActiveRequests = maxUserActiveRequests;
     }
 
     public static JenkinsConfig New(
@@ -185,7 +187,8 @@ internal sealed class JenkinsConfig
         MailConfig? mailConfig = null,
         int? keptDays = null,
         LoadThreshold[]? loadThresholds = null,
-        JobMapping[]? jobMappings = null
+        JobMapping[]? jobMappings = null,
+        int? maxUserActiveRequests = null
     )
     {
         return new JenkinsConfig(
@@ -201,7 +204,8 @@ internal sealed class JenkinsConfig
             mailConfig ?? s_emptyMailConfig,
             keptDays ?? null,
             loadThresholds ?? [],
-            jobMappings ?? []
+            jobMappings ?? [],
+            maxUserActiveRequests ?? null
         );
     }
 
@@ -218,6 +222,7 @@ internal sealed class JenkinsConfig
     public int? KeptDays { get; }
     public LoadThreshold[] LoadThresholds { get; }
     public JobMapping[] JobMappings { get; }
+    public int? MaxUserActiveRequests { get; }
 
     public bool TryGetRootFilter(string name, [NotNullWhen(true)] out RootFilter? filter)
     {
@@ -276,7 +281,8 @@ internal sealed class JenkinsConfig
             mailConfig: MailConfig,
             keptDays: KeptDays,
             loadThresholds: LoadThresholds,
-            jobMappings: JobMappings
+            jobMappings: JobMappings,
+            maxUserActiveRequests: MaxUserActiveRequests
         );
         newConfig.Save(configPath);
     }

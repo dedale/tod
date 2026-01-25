@@ -112,6 +112,7 @@ The Jenkins configuration file (`jenkins_config.json`) defines how Tod interacts
 | `url` | string | Jenkins server URL |
 | `multiBranchFolders` | string[] | Folders containing multi-branch pipeline jobs |
 | `keptDays` | int? | Number of days to keep build history (optional) |
+| `maxUserActiveRequests` | int? | Maximum number of active requests per user (optional) |
 
 ### Job Patterns
 
@@ -231,6 +232,34 @@ Load thresholds protect Jenkins from being overloaded by preventing requests whe
 | 110 | 35 min | 👍 Duration OK | 🔥 Both exceeded | ❌ Rejected |
 
 **Note:** If no thresholds are configured, all requests are accepted regardless of Jenkins load.
+
+### User Request Limits
+
+The `maxUserActiveRequests` setting limits how many active requests a single user can have running simultaneously. This prevents individual users from overwhelming the Jenkins server with too many concurrent requests.
+
+```json
+{
+  "maxUserActiveRequests": 3
+}
+```
+
+**How it works:**
+- Before registering a new request, Tod counts the user's currently active requests
+- An active request is one that has at least one chain not yet completed
+- If the user already has the maximum number of active requests, the new request is rejected
+- Completed requests do not count toward the limit
+- Each user's limit is tracked independently
+
+**Example scenarios:**
+
+| User Active Requests | Max Limit | Result |
+|---------------------|-----------|--------|
+| 0 | 3 | ✅ Accepted |
+| 2 | 3 | ✅ Accepted |
+| 3 | 3 | ❌ Rejected |
+| 5 | 3 | ❌ Rejected |
+
+**Note:** If `maxUserActiveRequests` is not configured, users can create unlimited requests.
 
 ## Commands
 
