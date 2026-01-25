@@ -225,10 +225,10 @@ Load thresholds protect Jenkins from being overloaded by preventing requests whe
 
 | Queue Size | Request Duration | Threshold 1 (50, 1h) | Threshold 2 (100, 30min) | Result |
 |------------|------------------|----------------------|--------------------------|--------|
-| 30 | 45 min | 👍 Queue OK | 👍 Queue OK | ✅ Accepted |
-| 60 | 45 min | 🔥 Both exceeded | 👍 Queue OK | ❌ Rejected |
-| 60 | 20 min | 👍 Duration OK | 👍 Duration OK | ✅ Accepted |
-| 110 | 35 min | 🔥 Both exceeded | 🔥 Both exceeded | ❌ Rejected |
+| 30 | 45 min | 👍 Both OK | 👍 Queue OK | ✅ Accepted |
+| 60 | 75 min | 🔥 Both exceeded | 👍 Queue OK | ❌ Rejected |
+| 60 | 20 min | 👍 Duration OK | 👍 Both OK | ✅ Accepted |
+| 110 | 35 min | 👍 Duration OK | 🔥 Both exceeded | ❌ Rejected |
 
 **Note:** If no thresholds are configured, all requests are accepted regardless of Jenkins load.
 
@@ -563,8 +563,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Transactional triggering of requests, safe resuming without double triggering
 - ChainStatus is wrong (TestTriggered when tests are done but ref still pending)
 - GANTT diagram in report
-- Abandon requests upon user request (then stop triggering their builds) (cf AbortAll)
-- Archive done requests
+- Archive or purge done requests
 - Improve performance (if needed) when looking for requests to update
 - Force new root build for a request (retrigger all its builds)
 - Storage abstraction for on-demand requests
@@ -577,9 +576,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Agent
 - Agent mode to automatically synchronize workspace and trigger requests periodically
-
-## Metrics
-- ELK support (customizable in config)
 
 ## Tod Tests
 - Remove NextBuildNumber limit and improve UTs that fail with the same build number
