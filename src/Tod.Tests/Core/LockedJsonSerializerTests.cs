@@ -10,20 +10,22 @@ namespace Tod.Tests.Core;
 [TestFixture]
 internal sealed class LockedJsonSerializerTests
 {
-    [Test]
-    public void New_ReturnsLockedJson_IsLocked()
+    [TestCase(0, 0)]
+    [TestCase(20, 10)]
+    public void New_ReturnsLockedJson_IsLocked(int timeoutInMs, int retryInMs)
     {
         using var temp = new TempDirectory();
         var dummy = Dummy.New();
         var path = Path.Combine(temp.Path, "request.json");
         using (var lockedJson = new LockedDummy(dummy, path, "New request"))
         {
-            Assert.That(() => new LockedDummy(dummy, path, "New request"), Throws.TypeOf<AlreadyLockedException>());
+            Assert.That(() => new LockedDummy(dummy, path, "New request", TimeSpan.FromMilliseconds(timeoutInMs), retryInMs), Throws.TypeOf<TimeoutException>());
         }
     }
 
-    [Test]
-    public void Load_ReturnsLockedJson_IsLocked()
+    [TestCase(0, 0)]
+    [TestCase(20, 10)]
+    public void Load_ReturnsLockedJson_IsLocked(int timeoutInMs, int retryInMs)
     {
         using var temp = new TempDirectory();
         var dummy = Dummy.New();
@@ -31,7 +33,7 @@ internal sealed class LockedJsonSerializerTests
         dummy.SaveNew(path);
         using (var loaded = LockedDummy.Load(path, "Load request"))
         {
-            Assert.That(() => new LockedDummy(dummy, path, "New request"), Throws.TypeOf<AlreadyLockedException>());
+            Assert.That(() => new LockedDummy(dummy, path, "New request", TimeSpan.FromMilliseconds(timeoutInMs), retryInMs), Throws.TypeOf<TimeoutException>());
         }
     }
 
@@ -49,8 +51,9 @@ internal sealed class LockedJsonSerializerTests
         }
     }
 
-    [Test]
-    public void Dispose_UnlocksFile_CanLockAgain()
+    [TestCase(0, 0)]
+    [TestCase(20, 10)]
+    public void Dispose_UnlocksFile_CanLockAgain(int timeoutInMs, int retryInMs)
     {
         using var temp = new TempDirectory();
         var dummy = Dummy.New();
@@ -58,11 +61,64 @@ internal sealed class LockedJsonSerializerTests
         using (var lockedJson = new LockedDummy(dummy, path, "New request"))
         {
             // Locked
-            Assert.That(() => new LockedDummy(dummy, path, "New request"), Throws.TypeOf<AlreadyLockedException>());
+            Assert.That(() => new LockedDummy(dummy, path, "New request", TimeSpan.FromMilliseconds(timeoutInMs), retryInMs), Throws.TypeOf<TimeoutException>());
         }
         // Unlocked
         using (var lockedJson2 = new LockedDummy(dummy, path, "New request"))
         {
+        }
+    }
+
+    [Test]
+    public async Task New_WhenUnlockedBeforeTimeout_CanLock()
+    {
+        using var temp = new TempDirectory();
+        Task<LockedDummy>? task = null;
+        try
+        {
+            var dummy = Dummy.New();
+            var path = Path.Combine(temp.Path, "request.json");
+            using (var lockedJson = new LockedDummy(dummy, path, "New request"))
+            {
+                task = Task.Run(() => new LockedDummy(dummy, path, "New request"));
+            }
+            await task.ConfigureAwait(false);
+            Assert.That(task.Result, Is.InstanceOf<LockedDummy>());
+        }
+        finally
+        {
+            if (task != null)
+            {
+                await task.ConfigureAwait(false);
+                task.Result.Dispose();
+            }
+        }
+    }
+
+    [Test]
+    public async Task Load_WhenUnlockedBeforeTimeout_CanLock()
+    {
+        using var temp = new TempDirectory();
+        Task<LockedDummy>? task = null;
+        try
+        {
+            var dummy = Dummy.New();
+            var path = Path.Combine(temp.Path, "request.json");
+            using (var lockedJson = new LockedDummy(dummy, path, "New request"))
+            {
+                task = Task.Run(() => LockedDummy.Load(path, "Load request", retryDelayInMs: 10));
+                lockedJson.Save();
+            }
+            await task.ConfigureAwait(false);
+            Assert.That(task.Result, Is.InstanceOf<LockedDummy>());
+        }
+        finally
+        {
+            if (task != null)
+            {
+                await task.ConfigureAwait(false);
+                task.Result.Dispose();
+            }
         }
     }
 

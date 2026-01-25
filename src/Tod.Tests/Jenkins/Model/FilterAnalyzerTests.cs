@@ -26,6 +26,14 @@ internal sealed class FilterAnalyzerTests
     }
 
     [Test]
+    public void Run_NoFiltersOrJobs_ForCoverage()
+    {
+        var config = JenkinsConfig.New("http://localhost");
+        var jobGroups = new JobGroups([], []);
+        FilterAnalyzer.LogFilters(config, jobGroups, []);
+    }
+
+    [Test]
     public void Run_RootFilterMatchesRootJob_CreatesChainFilter()
     {
         var rootFilter = new RootFilter("build", "build");

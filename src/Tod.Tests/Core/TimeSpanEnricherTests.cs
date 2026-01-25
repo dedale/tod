@@ -61,4 +61,22 @@ internal sealed class TimeSpanEnricherTests
             Assert.That(message, Is.EqualTo($@"Duration: ""{expected.Replace("*", "\x1b")}"""));
         }
     }
+
+    [Test]
+    public void Enrich_WhenNothingToDo()
+    {
+        using (TestCorrelator.CreateContext())
+        {
+            var logger = new LoggerConfiguration()
+                .Enrich.With<TimeSpanEnricher>()
+                .WriteTo.TestCorrelator()
+                .CreateLogger();
+
+            logger.Information("{@Dummy}", new { Value = "Foo" });
+
+            var events = TestCorrelator.GetLogEventsFromCurrentContext();
+            var message = events.Single().RenderMessage();
+            Assert.That(message, Is.EqualTo(@"{ Value: ""Foo"" }"));
+        }
+    }
 }
