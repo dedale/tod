@@ -28,6 +28,13 @@ internal sealed class GerritClientTests
     }
 
     [Test]
+    public void TestConstructor()
+    {
+        using var client = new GerritClient("https://gerrit.example.org", "token");
+        Assert.That(client, Is.Not.Null);
+    }
+
+    [Test]
     public async Task IsKnown_ReturnsTrue_WhenCommitExistsInGerrit()
     {
         var commit = RandomData.NextSha1();

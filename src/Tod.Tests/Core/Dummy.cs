@@ -46,9 +46,9 @@ internal sealed class LockedDummy : IDisposable
 {
     public ILockedJson<Dummy> Value { get; }
 
-    public LockedDummy(Dummy dummy, string path, string reason)
+    public LockedDummy(Dummy dummy, string path, string reason, TimeSpan? timeout = null, int retryDelayInMs = 100)
     {
-        Value = LockedJsonSerializer<Dummy, Dummy.Serializable>.New(dummy, path, reason, true);
+        Value = LockedJsonSerializer<Dummy, Dummy.Serializable>.New(dummy, path, reason, true, timeout, retryDelayInMs);
     }
 
     private LockedDummy(ILockedJson<Dummy> lockedJson)
@@ -56,14 +56,19 @@ internal sealed class LockedDummy : IDisposable
         Value = lockedJson;
     }
 
-    public static LockedDummy Load(string path, string reason)
+    public static LockedDummy Load(string path, string reason, int retryDelayInMs = 100)
     {
-        return new LockedDummy(LockedJsonSerializer<Dummy, Dummy.Serializable>.Load(path, reason, true));
+        return new LockedDummy(LockedJsonSerializer<Dummy, Dummy.Serializable>.Load(path, reason, true, retryDelayInMs: retryDelayInMs));
     }
 
     public static Dummy LoadUnlocked(string path)
     {
         return LockedJsonSerializer<Dummy, Dummy.Serializable>.LoadUnlocked(path);
+    }
+
+    public void Save()
+    {
+        Value.Save();
     }
 
     public void Dispose()

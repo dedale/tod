@@ -1,4 +1,6 @@
-﻿using System.Collections;
+﻿using Serilog;
+using System.Collections;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
@@ -53,6 +55,8 @@ internal static class LockedJsonSerializer<TValue, TSerializable>
     where TValue : IWithCustomSerialization<TSerializable>
     where TSerializable : ICustomSerializable<TValue>
 {
+    private static readonly TimeSpan s_defaultLockTimeout = TimeSpan.FromMinutes(1);
+
     private static readonly JsonSerializerOptions s_jsonOptionsIndented = GetJsonOptions(true);
     private static readonly JsonSerializerOptions s_jsonOptionsFlat = GetJsonOptions(false);
 
@@ -67,15 +71,33 @@ internal static class LockedJsonSerializer<TValue, TSerializable>
         return options;
     }
 
-    public static ILockedJson<TValue> New(TValue value, string path, string reason, bool indented = false)
+    private static FileLock NewFileLock(string path, string reason, TimeSpan? timeout = null, int retryDelayInMs = 100)
     {
-        var fileLock = new FileLock(path, reason);
+        var stopwatch = Stopwatch.StartNew();
+        timeout ??= s_defaultLockTimeout;
+        while (stopwatch.Elapsed < timeout)
+        {
+            try
+            {
+                return new FileLock(path, reason);
+            }
+            catch (AlreadyLockedException)
+            {
+                Thread.Sleep(retryDelayInMs);
+            }
+        }
+        throw new TimeoutException($"Timeout waiting for lock on '{path}'");
+    }
+
+    public static ILockedJson<TValue> New(TValue value, string path, string reason, bool indented = false, TimeSpan? timeout = null, int retryDelayInMs = 100)
+    {
+        var fileLock = NewFileLock(path, reason, timeout, retryDelayInMs);
         return new LockedJson(path, fileLock, value, indented);
     }
 
-    public static ILockedJson<TValue> Load(string path, string reason, bool indented = false)
+    public static ILockedJson<TValue> Load(string path, string reason, bool indented = false, TimeSpan? timeout = null, int retryDelayInMs = 100)
     {
-        var fileLock = new FileLock(path, reason);
+        var fileLock = NewFileLock(path, reason, timeout, retryDelayInMs);
         var json = File.ReadAllText(path, Encoding.UTF8);
         // Ignore indentation when reading
         var serializable = JsonSerializer.Deserialize<TSerializable>(json, s_jsonOptionsFlat);

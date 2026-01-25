@@ -29,8 +29,7 @@ internal sealed class FlakyTestsTests
         for (var i = 0; i < buildCount; i++, buildNumber++)
         {
             var failedTests = new List<FailedTest>();
-            // i == 1 to ensure at least one flaky occurrence
-            if (i == 1 || RandomData.IsFlaky())
+            if (i % 7 == 5)
             {
                 flakies++;
                 failedTests.Add(failedTest);
