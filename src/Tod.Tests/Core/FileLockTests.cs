@@ -19,28 +19,13 @@ internal sealed class FileLockTests
     }
 
     [Test]
-    public void Ctor_CreatesLockFileWithReason()
-    {
-        using var temp = new TempDirectory();
-        var testFilePath = Path.Combine(temp.Path, $"testfile_{Guid.NewGuid()}.txt");
-        using (var locker = NewFileLock(testFilePath, out var reason))
-        {
-            var lockPath = testFilePath + ".lock";
-            Assert.That(File.Exists(lockPath), Is.True);
-            Assert.That(FileLock.TryReadLockReason(testFilePath, out var existingReason), Is.True);
-            Assert.That(existingReason, Does.Contain(reason));
-        }
-        Assert.That(File.Exists(testFilePath + ".lock"), Is.False);
-    }
-
-    [Test]
     public void Ctor_WhenAlreadyLocked_Fails()
     {
         using var temp = new TempDirectory();
         var testFilePath = Path.Combine(temp.Path, $"testfile_{Guid.NewGuid()}.txt");
-        using (var locker1 = NewFileLock(testFilePath))
+        using (var locker1 = NewFileLock(testFilePath, out var reason))
         {
-            Assert.That(() => NewFileLock(testFilePath), Throws.TypeOf<AlreadyLockedException>());
+            Assert.That(() => NewFileLock(testFilePath), Throws.TypeOf<AlreadyLockedException>().And.Message.Contain(reason));
         }
     }
 

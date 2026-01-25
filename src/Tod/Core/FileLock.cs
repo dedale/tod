@@ -33,7 +33,7 @@ internal sealed class FileLock : IDisposable
         }
     }
 
-    public static bool TryReadLockReason(string filePath, [NotNullWhen(true)] out string? reason)
+    private static bool TryReadLockReason(string filePath, [NotNullWhen(true)] out string? reason)
     {
         var lockPath = filePath + ".lock";
         if (!File.Exists(lockPath))
