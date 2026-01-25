@@ -93,12 +93,12 @@ Create a `jenkins_config.json` file with your Jenkins settings:
 
 ### 2. Initialize Workspace
 ```
-tod sync --config jenkins_config.json --workspace ./workspace --user-token YOUR_JENKINS_TOKEN --jobs
+tod sync --config jenkins_config.json --workspace ./workspace --jenkins-token YOUR_JENKINS_TOKEN --jobs
 ```
 
 ### 3. Create a Test Request
 ```
-tod new --config jenkins_config.json --workspace ./workspace --branch main --root-filters build --test-filters unit integration --user-token YOUR_JENKINS_TOKEN
+tod new --config jenkins_config.json --workspace ./workspace --branch main --root-filters build --test-filters unit integration --jenkins-token YOUR_JENKINS_TOKEN --gerrit-token YOUR_GERRIT_TOKEN
 ```
 
 ## Configuration File Reference
@@ -251,7 +251,6 @@ The `maxUserActiveRequests` setting limits how many active requests a single use
 - Each user's limit is tracked independently
 
 **Example scenarios:**
-
 | User Active Requests | Max Limit | Result |
 |---------------------|-----------|--------|
 | 0 | 3 | ✅ Accepted |
@@ -260,6 +259,22 @@ The `maxUserActiveRequests` setting limits how many active requests a single use
 | 5 | 3 | ❌ Rejected |
 
 **Note:** If `maxUserActiveRequests` is not configured, users can create unlimited requests.
+
+### Gerrit Integration
+
+When `gerritReviewServer` is configured, Tod verifies that the commit exists in Gerrit before creating a request:
+
+```json
+{ "gerritReviewServer": "https://gerrit.example.com" }
+```
+
+**How it works:**
+- Before triggering builds, Tod queries Gerrit to verify the commit exists as a patchset
+- If the commit is not found, the request is rejected with an error
+- This prevents Jenkins from failing to checkout code that hasn't been pushed to Gerrit
+- Uses the same authentication token as Jenkins by default, or a dedicated Gerrit token if provided via `--gerrit-token`
+
+**Note:** If `gerritReviewServer` is not configured, this check is skipped.
 
 ## Commands
 
@@ -599,7 +614,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## git
 - Sha1 validation in ctor
-- Gerrit Review support
 - Check local commit has been pushed (or push it automatically?)
 - Hardcoded git commit count in history
 
