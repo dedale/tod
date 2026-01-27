@@ -1,5 +1,7 @@
 ﻿using CommandLine;
 using Serilog;
+using Serilog.Core;
+using Serilog.Events;
 using Serilog.Sinks.SystemConsole.Themes;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -305,12 +307,14 @@ internal static class Program
 
     private static async Task<int> Main(string[] args)
     {
+        var loggingLevel = new LoggingLevelSwitch(args.Any(a => a == "-d" || a == "--debug") ? LogEventLevel.Debug : LogEventLevel.Information));
+
         Log.Logger = new LoggerConfiguration()
             .Destructure.With<JobNameDestructuringPolicy>()
             .Destructure.With<BuildReferenceDestructuringPolicy>()
             .Destructure.With<BuildResultInfoDestructuringPolicy>()
             .Enrich.With<TimeSpanEnricher>()
-            .MinimumLevel.Information()
+            .MinimumLevel.ControlledBy(loggingLevel)
             .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}", theme: AnsiConsoleTheme.Literate)
             .CreateLogger();
         try
