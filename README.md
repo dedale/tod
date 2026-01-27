@@ -39,55 +39,55 @@ Create a `jenkins_config.json` file with your Jenkins settings:
 
 ```json
 {
-  "url": "https://jenkins.example.com",
-  "multiBranchFolders": ["MyProject"],
-  "referenceJobs": [
+  "Url": "https://jenkins.example.com",
+  "MultiBranchFolders": ["MyProject"],
+  "ReferenceJobs": [
     {
-      "pattern": "^MAIN-(?<root>build)$",
-      "branch": "main",
-      "isRoot": true
+      "Pattern": "^MAIN-(?<root>build)$",
+      "BranchName": "main",
+      "IsRoot": true
     },
     {
-      "pattern": "^MAIN-(?<test>.)$",
-      "branch": "main",
-      "isRoot": false
+      "Pattern": "^MAIN-(?<test>.)$",
+      "BranchName": "main",
+      "IsRoot": false
     }
   ],
-  "onDemandJobs": [
+  "OnDemandJobs": [
     {
-      "pattern": "CUSTOM-(?<root>build)$",
-      "isRoot": true
+      "Pattern": "CUSTOM-(?<root>build)$",
+      "IsRoot": true
     },
     {
-      "pattern": "CUSTOM-(?<test>.)$",
-      "isRoot": false
+      "Pattern": "CUSTOM-(?<test>.)$",
+      "IsRoot": false
     }
   ],
-  "rootFilters": [
+  "RootFilters": [
     {
-      "name": "build",
-      "pattern": "^build$"
+      "Name": "build",
+      "Pattern": "^build$"
     }
   ],
-  "chainTestGroup": "chains",
-  "testFilters": [
+  "ChainTestGroup": "chains",
+  "TestFilters": [
     {
-      "name": "unit",
-      "pattern": "^unit-tests$",
-      "group": "tests"
+      "Name": "unit",
+      "Pattern": "^unit-tests$",
+      "Group": "tests"
     },
     {
-      "name": "integration",
-      "pattern": "^integration-tests$",
-      "group": "tests"
+      "Name": "integration",
+      "Pattern": "^integration-tests$",
+      "Group": "tests"
     }
   ],
-  "mailConfig":
+  "MailConfig":
   {
-    "smtpServer": "smtp.example.com",
-    "fromAddress": "jenkins@example.com"
+    "SmtpHost": "smtp.example.com",
+    "From": "jenkins@example.com"
   },
-  "keptDays": 30
+  "KeptDays": 30
 }
 ```
 
@@ -109,8 +109,8 @@ The Jenkins configuration file (`jenkins_config.json`) defines how Tod interacts
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `url` | string | Jenkins server URL |
-| `multiBranchFolders` | string[] | Folders containing multi-branch pipeline jobs |
+| `Url` | string | Jenkins server URL |
+| `MultiBranchFolders` | string[] | Folders containing multi-branch pipeline jobs |
 | `keptDays` | int? | Number of days to keep build history (optional) |
 | `maxUserActiveRequests` | int? | Maximum number of active requests per user (optional) |
 
@@ -122,15 +122,15 @@ Define patterns for reference branch jobs (e.g., main, develop):
 
 ```json
 {
-  "pattern": "^MAIN-(?<root>build)$",
-  "branch": "main",
-  "isRoot": true
+  "Pattern": "^MAIN-(?<root>build)$",
+  "BranchName": "main",
+  "IsRoot": true
 }
 ```
 
-- `pattern`: Regex pattern to match job names
-- `branch`: Git branch this job builds
-- `isRoot`: `true` for root/build jobs, `false` for test jobs
+- `Pattern`: Regex pattern to match job names
+- `BranchName`: Git branch this job builds
+- `IsRoot`: `true` for root/build jobs, `false` for test jobs
 - Named groups: `(?<root>...)` for root jobs, `(?<test>...)` for test jobs
 
 #### On-Demand Jobs
@@ -139,8 +139,8 @@ Define patterns for custom/on-demand jobs:
 
 ```json
 {
-  "pattern": "CUSTOM-(?<root>build)$",
-  "isRoot": true
+  "Pattern": "CUSTOM-(?<root>build)$",
+  "IsRoot": true
 }
 ```
 
@@ -152,8 +152,8 @@ Define which root jobs to run:
 
 ```json
 {
-  "name": "build",
-  "pattern": "^build$"
+  "Name": "build",
+  "Pattern": "^build$"
 }
 ```
 
@@ -161,8 +161,8 @@ Supports chain patterns with named groups:
 
 ```json
 {
-  "name": "frontend-build",
-  "pattern": "^(?<chain>frontend)-build$"
+  "Name": "frontend-build",
+  "Pattern": "^(?<chain>frontend)-build$"
 }
 ```
 
@@ -172,24 +172,24 @@ Define which test jobs to run:
 
 ```json
 {
-  "name": "unit",
-  "pattern": "^unit-tests$",
-  "group": "tests"
+  "Name": "unit",
+  "Pattern": "^unit-tests$",
+  "Group": "tests"
 }
 ```
 
-- `name`: Filter identifier
-- `pattern`: Regex pattern to match test job names
-- `group`: Logical grouping (use `chainTestGroup` value for chain-linked tests)
+- `Name`: Filter identifier
+- `Pattern`: Regex pattern to match test job names
+- `Group`: Logical grouping (use `chainTestGroup` value for chain-linked tests)
 
-The `chainTestGroup` property links test filters to root filters via chain patterns.
+The `ChainTestGroup` property links test filters to root filters via chain patterns.
 
 ### Mail Configuration
 
 ```json
 {
-  "smtpServer": "smtp.example.com",
-  "fromAddress": "jenkins@example.com"
+  "SmtpHost": "smtp.example.com",
+  "From": "jenkins@example.com"
 }
 ```
 
@@ -199,22 +199,22 @@ Load thresholds protect Jenkins from being overloaded by preventing requests whe
 
 ```json
 {
-  "loadThresholds": [
+  "LoadThresholds": [
     {
-      "queueSize": 50,
-      "maxRequestDuration": "01:00:00"
+      "QueueSize": 50,
+      "MaxRequestDuration": "01:00:00"
     },
     {
-      "queueSize": 100,
-      "maxRequestDuration": "00:30:00"
+      "QueueSize": 100,
+      "MaxRequestDuration": "00:30:00"
     }
   ]
 }
 ```
 
 **Properties:**
-- `queueSize`: Maximum number of builds in Jenkins queue
-- `maxRequestDuration`: Maximum total duration for the request (format: "HH:MM:SS")
+- `QueueSize`: Maximum number of builds in Jenkins queue
+- `MaxRequestDuration`: Maximum total duration for the request (format: "HH:MM:SS")
 
 **How it works:**
 - Before registering a new request, Tod checks the current Jenkins queue size
@@ -235,11 +235,11 @@ Load thresholds protect Jenkins from being overloaded by preventing requests whe
 
 ### User Request Limits
 
-The `maxUserActiveRequests` setting limits how many active requests a single user can have running simultaneously. This prevents individual users from overwhelming the Jenkins server with too many concurrent requests.
+The `MaxUserActiveRequests` setting limits how many active requests a single user can have running simultaneously. This prevents individual users from overwhelming the Jenkins server with too many concurrent requests.
 
 ```json
 {
-  "maxUserActiveRequests": 3
+  "MaxUserActiveRequests": 3
 }
 ```
 
@@ -258,14 +258,14 @@ The `maxUserActiveRequests` setting limits how many active requests a single use
 | 3 | 3 | ❌ Rejected |
 | 5 | 3 | ❌ Rejected |
 
-**Note:** If `maxUserActiveRequests` is not configured, users can create unlimited requests.
+**Note:** If `MaxUserActiveRequests` is not configured, users can create unlimited requests.
 
 ### Gerrit Integration
 
-When `gerritReviewServer` is configured, Tod verifies that the commit exists in Gerrit before creating a request:
+When `GerritReviewServer` is configured, Tod verifies that the commit exists in Gerrit before creating a request:
 
 ```json
-{ "gerritReviewServer": "https://gerrit.example.com" }
+{ "GerritReviewServer": "https://gerrit.example.com" }
 ```
 
 **How it works:**
@@ -274,7 +274,7 @@ When `gerritReviewServer` is configured, Tod verifies that the commit exists in 
 - This prevents Jenkins from failing to checkout code that hasn't been pushed to Gerrit
 - Uses the same authentication token as Jenkins by default, or a dedicated Gerrit token if provided via `--gerrit-token`
 
-**Note:** If `gerritReviewServer` is not configured, this check is skipped.
+**Note:** If `GerritReviewServer` is not configured, this check is skipped.
 
 ## Commands
 
