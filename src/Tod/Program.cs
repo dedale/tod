@@ -26,7 +26,7 @@ internal static class Program
     private static async Task<int> SyncJobs(SyncOptions options)
     {
         var config = JenkinsConfig.Load(options.ConfigPath);
-        using var jenkinsClient = new JenkinsClient(config, options.JenkinsToken);
+        using var jenkinsClient = new JenkinsClient(config, Environment.UserName, options.JenkinsToken);
         var jobManager = new JobManager(config, jenkinsClient);
         var jobGroups = await jobManager.TryLoad(jobNames => config.SaveJobs(options.ConfigPath, jobNames)).ConfigureAwait(false);
         var workspaceStore = new WorkspaceStore(options.WorkspaceDir);
@@ -46,7 +46,7 @@ internal static class Program
         var config = JenkinsConfig.Load(options.ConfigPath);
         Debug.Assert(config is not null);
 
-        using var jenkinsClient = new JenkinsClient(config, options.JenkinsToken);
+        using var jenkinsClient = new JenkinsClient(config, Environment.UserName, options.JenkinsToken);
         JobGroups? jobGroups;
         if (config.JobNames.Length == 0)
         {
@@ -90,7 +90,10 @@ internal static class Program
         var wantedBranch = options.BranchName is not null ? new BranchName(options.BranchName) : null;
         var rootFilters = options.RootFilters.ToArray();
 
-        var jenkinsClient = new JenkinsClient(config, options.JenkinsToken);
+        var userName = options.User ?? Environment.UserName;
+        var userDomaine = options.UserDomain ?? Environment.UserDomainName;
+
+        var jenkinsClient = new JenkinsClient(config, userName, options.JenkinsToken);
         var jobManager = new JobManager(config, jenkinsClient);
         var jobGroups = await jobManager.TryLoad().ConfigureAwait(false);
         Debug.Assert(jobGroups is not null);
@@ -102,14 +105,14 @@ internal static class Program
             return ExitCodes.BadRequest;
         }
 
-        var request = Request.Create(commits.First(), gitReference, [.. options.TestFilters], UserServices.CurrentUserEmail);
+        var request = Request.Create(commits.First(), gitReference, [.. options.TestFilters], userName, UserServices.GetUserEmail(userName, userDomaine));
 
         Log.Information("Registering new request {RequestId} for commit {Commit} on branch {Branch}",
             request.Id, request.Commit, request.GitReference.Branch);
 
         if (!string.IsNullOrEmpty(config.GerritReviewServer))
         {
-            using var gerritClient = new GerritClient(config.GerritReviewServer, options.GerritToken);
+            using var gerritClient = new GerritClient(config.GerritReviewServer, userName, options.GerritToken);
             if (!await gerritClient.IsKnown(request.Commit).ConfigureAwait(false))
             {
                 Log.Error("Commit {Commit} is not known in Gerrit. Jenkins will not be able to checkout the code. " +
@@ -123,9 +126,9 @@ internal static class Program
         var chains = chainBuilder.Get(request.Commit, request.GitReference, rootDiffs, request.GetFilters());
 
         var userActiveRequestsCount = workspace.OnDemandRequests.ActiveRequests
-            .Count(r => r.Value.Request.UserName == Environment.UserName);
+            .Count(r => r.Value.Request.UserName == userName);
         var requestValidator = new RequestValidator(config, jenkinsClient);
-        if (!await requestValidator.Validate(chains, userActiveRequestsCount).ConfigureAwait(false))
+        if (!await requestValidator.Validate(chains, userName, userActiveRequestsCount).ConfigureAwait(false))
         {
             Log.Error("Request validation failed.");
             return ExitCodes.BadRequest;
@@ -140,8 +143,6 @@ internal static class Program
 
     private static Task<int> Jobs(JobsOptions options)
     {
-        using var gitRepo = new GitRepo(Environment.CurrentDirectory);
-        var commits = gitRepo.GetLastCommits(50);
         var config = JenkinsConfig.Load(options.ConfigPath);
         var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir), config.JobMappings);
         var wantedBranch = options.BranchName is not null ? new BranchName(options.BranchName) : null;
@@ -151,6 +152,15 @@ internal static class Program
         var jobGroups = JobManager.TryLoad(config, config.JobNames);
         Debug.Assert(jobGroups is not null);
         var filterManager = new FilterManager(config, jobGroups);
+
+        var commits = options.Commits.Select(x => new Sha1(x)).ToArray();
+        if (commits.Length == 0)
+        {
+            using (var gitRepo = new GitRepo(Environment.CurrentDirectory))
+            {
+                commits = gitRepo.GetLastCommits(50);
+            }
+        }
 
         var gitReference = workspace.GetGitReference(filterManager, wantedBranch, rootFilters, commits, out var rootDiffs);
         if (gitReference == null)
@@ -181,22 +191,21 @@ internal static class Program
             ? workspace.OnDemandRequests.AllRequests
             : workspace.OnDemandRequests.ActiveRequests;
 
+        var userName = options.User ?? Environment.UserName;
         var userRequests = requests
-            .Where(r => r.Value.Request.UserName == Environment.UserName)
+            .Where(r => r.Value.Request.UserName == userName)
             .OrderBy(r => r.Value.Request.CreatedUtc)
             .ToList();
 
         if (userRequests.Count == 0)
         {
             Log.Information("No {RequestType} requests found for user {User}",
-                options.All ? "requests" : "active requests",
-                Environment.UserName);
+                options.All ? "requests" : "active requests", userName);
             return Task.FromResult(ExitCodes.Success);
         }
 
         Log.Information($"Found {{Count}} {(options.All ? "request" + (userRequests.Count > 1 ? "s" : "") : "active request" + (userRequests.Count > 1 ? "s" : ""))} for user {{User}}:",
-            userRequests.Count,
-            Environment.UserName);
+            userRequests.Count, userName);
 
         foreach (var cached in userRequests)
         {
@@ -266,12 +275,11 @@ internal static class Program
             return ExitCodes.BadRequest;
         }
 
-        if (cachedRequest.Value.Request.UserName != Environment.UserName)
+        var userName = options.User ?? Environment.UserName;
+        if (cachedRequest.Value.Request.UserName != userName)
         {
             Log.Error("Cannot abort request '{RequestId}'. Request belongs to user '{Owner}' but you are '{CurrentUser}'",
-                requestId,
-                cachedRequest.Value.Request.UserName,
-                Environment.UserName);
+                requestId, cachedRequest.Value.Request.UserName, userName);
             return ExitCodes.BadRequest;
         }
 
@@ -314,7 +322,7 @@ internal static class Program
 
     private static async Task<int> Main(string[] args)
     {
-        var loggingLevel = new LoggingLevelSwitch(args.Any(a => a == "-d" || a == "--debug") ? LogEventLevel.Debug : LogEventLevel.Information));
+        var loggingLevel = new LoggingLevelSwitch(args.Any(a => a == "-d" || a == "--debug") ? LogEventLevel.Debug : LogEventLevel.Information);
 
         Log.Logger = new LoggerConfiguration()
             .Destructure.With<JobNameDestructuringPolicy>()

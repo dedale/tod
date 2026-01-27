@@ -80,11 +80,12 @@ internal sealed class RequestManagerTests
         return new RequestManager(workspace, _jenkinsClient.Object, _reportSender.Object);
     }
 
+    private static readonly string s_user = "user";
     private static readonly string s_userEmail = $"user@example.org";
 
     private Task<RequestState> CreateRequestState(IOnDemandStore onDemandStore, BuildReference? referenceRoot = null)
     {
-        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _mainBranch, ["test"], s_userEmail);
+        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _mainBranch, ["test"], s_user, s_userEmail);
         var onDemandRoot = RequestRootBuildReference.Queue(_onDemandRootJob, request.Commit);
         var chains = new RequestChain[] {
             new(
@@ -120,7 +121,7 @@ internal sealed class RequestManagerTests
 
         var requestFilters = new[] { "integration" };
 
-        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[1], _mainBranch, requestFilters, s_userEmail);
+        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[1], _mainBranch, requestFilters, s_user, s_userEmail);
 
         var expectedBuildNumber = RandomData.NextBuildNumber;
         _jenkinsClient.Setup(c => c.TriggerBuild(OnDemandJobKind.Root, _onDemandRootJob, It.Is<TriggerParameters>(p => p.Commit == request.Commit)))
@@ -152,7 +153,7 @@ internal sealed class RequestManagerTests
 
         var branchReference = AddMainBranchReference(referenceStore);
 
-        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("unknown"), ["integration"], s_userEmail);
+        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("unknown"), ["integration"], s_user, s_userEmail);
 
         var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
         var requestManager = GetRequestManager(workspace);
@@ -171,7 +172,7 @@ internal sealed class RequestManagerTests
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithFlakies(out var flakyStore);
 
-        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _mainBranch, ["integration"], s_userEmail);
+        var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _mainBranch, ["integration"], s_user, s_userEmail);
 
         var branchReference = new BranchReference(referenceStore);
         branchReference.TryAddRoot(_referenceRootJob);
@@ -208,7 +209,7 @@ internal sealed class RequestManagerTests
         )), Is.True);
 
         var requestFilters = new[] { "integration" };
-        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[1], _mainBranch, requestFilters, s_userEmail);
+        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[1], _mainBranch, requestFilters, s_user, s_userEmail);
 
         _jenkinsClient.Setup(c => c.TriggerBuild(OnDemandJobKind.Root, _onDemandRootJob, It.Is<TriggerParameters>(p => p.Commit == request.Commit)))
             .Returns(Task.CompletedTask);
@@ -253,7 +254,7 @@ internal sealed class RequestManagerTests
         )), Is.True);
 
         var requestFilters = new[] { "integration" };
-        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, s_userEmail);
+        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, s_user, s_userEmail);
 
         var onDemandRootBuild = new RootBuild(
             _onDemandRootJob,
@@ -319,7 +320,7 @@ internal sealed class RequestManagerTests
         )), Is.True);
 
         var requestFilters = new[] { "integration" };
-        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, s_userEmail);
+        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, s_user, s_userEmail);
 
         var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
 
@@ -374,7 +375,7 @@ internal sealed class RequestManagerTests
         )), Is.True);
 
         var requestFilters = new[] { "integration" };
-        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, s_userEmail);
+        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, s_user, s_userEmail);
 
         var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
 

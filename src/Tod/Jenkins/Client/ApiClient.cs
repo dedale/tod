@@ -20,15 +20,15 @@ internal sealed class ApiClient : IApiClient
         UseDefaultCredentials = true
     };
 
-    public ApiClient(string userToken)
-        : this(DefaultHandler, userToken)
+    public ApiClient(string userName, string userToken)
+        : this(DefaultHandler, userName, userToken)
     {
     }
 
-    internal ApiClient(HttpMessageHandler handler, string userToken)
+    internal ApiClient(HttpMessageHandler handler, string userName, string userToken)
     {
         _httpClient = new HttpClient(handler);
-        string base64 = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{Environment.UserName}:{userToken}"));
+        string base64 = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{userName}:{userToken}"));
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", base64);
     }
 

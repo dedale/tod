@@ -4,9 +4,9 @@ using Tod.Jenkins;
 
 namespace Tod.Gerrit;
 
-internal sealed class GerritClient(string gerritServerUrl, string gerritToken, IApiClient? apiClient = null) : IGerritClient, IDisposable
+internal sealed class GerritClient(string gerritServerUrl, string userName, string gerritToken, IApiClient? apiClient = null) : IGerritClient, IDisposable
 {
-    private readonly IApiClient _apiClient = apiClient ?? new ApiClient(gerritToken);
+    private readonly IApiClient _apiClient = apiClient ?? new ApiClient(userName, gerritToken);
 
     public async Task<bool> IsKnown(Sha1 commit)
     {
