@@ -16,6 +16,13 @@ namespace Tod;
 [ExcludeFromCodeCoverage]
 internal static class Program
 {
+    private static class ExitCodes
+    {
+        public const int Success = 0;
+        public const int BadRequest = 1;
+        public const int InternalError = 2;
+    }
+
     private static async Task<int> SyncJobs(SyncOptions options)
     {
         var config = JenkinsConfig.Load(options.ConfigPath);
@@ -25,7 +32,7 @@ internal static class Program
         var workspaceStore = new WorkspaceStore(options.WorkspaceDir);
         var workSpace = Workspace.Load(options.WorkspaceDir, workspaceStore, config.JobMappings);
         workSpace.UpdateJobs(workspaceStore, jobGroups!);
-        return 0;
+        return ExitCodes.Success;
     }
 
     private static async Task<int> Sync(SyncOptions options)
@@ -71,7 +78,7 @@ internal static class Program
         }
         Log.Information("Sync completed in {Duration}", stopwatch.Elapsed);
 
-        return 0;
+        return ExitCodes.Success;
     }
 
     private static async Task<int> New(NewOptions options)
@@ -92,7 +99,7 @@ internal static class Program
         var gitReference = workspace.GetGitReference(filterManager, wantedBranch, rootFilters, commits, out var rootDiffs);
         if (gitReference == null)
         {
-            return 1;
+            return ExitCodes.BadRequest;
         }
 
         var request = Request.Create(commits.First(), gitReference, [.. options.TestFilters], UserServices.CurrentUserEmail);
@@ -121,14 +128,14 @@ internal static class Program
         if (!await requestValidator.Validate(chains, userActiveRequestsCount).ConfigureAwait(false))
         {
             Log.Error("Request validation failed.");
-            return 1;
+            return ExitCodes.BadRequest;
         }
 
         var mailSender = new MailSender(config.MailConfig);
         var reportSender = new ReportSender(new JenkinsJobLinker(config), mailSender);
         var requestManager = new RequestManager(workspace, jenkinsClient, reportSender);
         await requestManager.Register(request, chains).ConfigureAwait(false);
-        return 0;
+        return ExitCodes.Success;
     }
 
     private static Task<int> Jobs(JobsOptions options)
@@ -148,7 +155,7 @@ internal static class Program
         var gitReference = workspace.GetGitReference(filterManager, wantedBranch, rootFilters, commits, out var rootDiffs);
         if (gitReference == null)
         {
-            return Task.FromResult(1);
+            return Task.FromResult(ExitCodes.BadRequest);
         }
 
         var chainBuilder = new RequestChainBuilder(workspace, filterManager);
@@ -162,7 +169,7 @@ internal static class Program
             }
         }
         Log.Information("Total: {Duration}", chains.TotalDuration());
-        return Task.FromResult(0);
+        return Task.FromResult(ExitCodes.Success);
     }
 
     private static Task<int> List(ListOptions options)
@@ -184,7 +191,7 @@ internal static class Program
             Log.Information("No {RequestType} requests found for user {User}",
                 options.All ? "requests" : "active requests",
                 Environment.UserName);
-            return Task.FromResult(0);
+            return Task.FromResult(ExitCodes.Success);
         }
 
         Log.Information($"Found {{Count}} {(options.All ? "request" + (userRequests.Count > 1 ? "s" : "") : "active request" + (userRequests.Count > 1 ? "s" : ""))} for user {{User}}:",
@@ -215,7 +222,7 @@ internal static class Program
             }
         }
 
-        return Task.FromResult(0);
+        return Task.FromResult(ExitCodes.Success);
     }
 
     private static async Task<int> Report(ReportOptions options)
@@ -223,7 +230,7 @@ internal static class Program
         if (!Guid.TryParse(options.RequestId, out var requestId))
         {
             Log.Error("Invalid request ID format: '{RequestId}'", options.RequestId);
-            return 1;
+            return ExitCodes.BadRequest;
         }
         var config = JenkinsConfig.Load(options.ConfigPath);
         var reportSender = new ReportSender(
@@ -239,7 +246,7 @@ internal static class Program
         }
         var report = RequestReportBuilder.Instance.Build(cachedRequest.Value, workspace);
         await reportSender.Send(cachedRequest.Value, report).ConfigureAwait(false);
-        return 0;
+        return ExitCodes.Success;
     }
 
     private static async Task<int> Abort(AbortOptions options)
@@ -247,7 +254,7 @@ internal static class Program
         if (!Guid.TryParse(options.RequestId, out var requestId))
         {
             Log.Error("Invalid request ID format: '{RequestId}'", options.RequestId);
-            return 1;
+            return ExitCodes.BadRequest;
         }
 
         // No need for job mappings when aborting requests
@@ -256,7 +263,7 @@ internal static class Program
         if (cachedRequest == null)
         {
             Log.Error("Request with ID '{RequestId}' not found in workspace", requestId);
-            return 1;
+            return ExitCodes.BadRequest;
         }
 
         if (cachedRequest.Value.Request.UserName != Environment.UserName)
@@ -265,14 +272,14 @@ internal static class Program
                 requestId,
                 cachedRequest.Value.Request.UserName,
                 Environment.UserName);
-            return 1;
+            return ExitCodes.BadRequest;
         }
 
         using var lockedRequest = cachedRequest.Lock(nameof(Abort));
         await lockedRequest.Update(r => Task.FromResult(r.AbortAll())).ConfigureAwait(false);
 
         Log.Information("Request {RequestId} has been aborted", requestId);
-        return 0;
+        return ExitCodes.Success;
     }
 
     private static Task<int> Filters(FiltersOptions options)
@@ -282,7 +289,7 @@ internal static class Program
         if (jobGroups == null)
         {
             Log.Error("Failed to load job groups. Please run 'sync --jobs' first.");
-            return Task.FromResult(1);
+            return Task.FromResult(ExitCodes.InternalError);
         }
 
         // Implicit constraint: all jobs exist for (at least) one reference branch
@@ -302,7 +309,7 @@ internal static class Program
 
         FilterAnalyzer.LogFilters(config, jobGroups, durationByOnDemandJob);
 
-        return Task.FromResult(0);
+        return Task.FromResult(ExitCodes.Success);
     }
 
     private static async Task<int> Main(string[] args)
@@ -329,12 +336,12 @@ internal static class Program
                 (ReportOptions options) => Report(options),
                 (AbortOptions options) => Abort(options),
                 (FiltersOptions options) => Filters(options),
-                errors => Task.FromResult(1)).ConfigureAwait(false);
+                errors => Task.FromResult(ExitCodes.BadRequest)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             Log.Fatal(ex, "Application terminated unexpectedly");
-            return 1;
+            return ExitCodes.InternalError;
         }
         finally
         {
