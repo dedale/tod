@@ -2,7 +2,6 @@ using Moq;
 using NUnit.Framework;
 using System.Text.Json;
 using Tod.Gerrit;
-using Tod.Git;
 using Tod.Jenkins;
 using Tod.Tests.Jenkins;
 
@@ -30,7 +29,7 @@ internal sealed class GerritClientTests
     [Test]
     public void TestConstructor()
     {
-        using var client = new GerritClient("https://gerrit.example.org", "token");
+        using var client = new GerritClient("https://gerrit.example.org", "user", "token");
         Assert.That(client, Is.Not.Null);
     }
 
@@ -61,7 +60,7 @@ internal sealed class GerritClientTests
         _apiClient.Setup(x => x.GetAsync(expectedUrl)).ReturnsAsync(jsonResponse);
         _apiClient.Setup(x => x.Dispose());
 
-        using var client = new GerritClient(ServerUrl, GerritToken, _apiClient.Object);
+        using var client = new GerritClient(ServerUrl, "user", GerritToken, _apiClient.Object);
         var result = await client.IsKnown(commit);
 
         Assert.That(result, Is.True);
@@ -77,7 +76,7 @@ internal sealed class GerritClientTests
         _apiClient.Setup(x => x.GetAsync(expectedUrl)).ReturnsAsync(jsonResponse);
         _apiClient.Setup(x => x.Dispose());
 
-        using var client = new GerritClient(ServerUrl, GerritToken, _apiClient.Object);
+        using var client = new GerritClient(ServerUrl, "user", GerritToken, _apiClient.Object);
         var result = await client.IsKnown(commit);
 
         Assert.That(result, Is.False);
@@ -92,7 +91,7 @@ internal sealed class GerritClientTests
         _apiClient.Setup(x => x.GetAsync(expectedUrl)).ThrowsAsync(new InvalidOperationException("Network error"));
         _apiClient.Setup(x => x.Dispose());
 
-        using var client = new GerritClient(ServerUrl, GerritToken, _apiClient.Object);
+        using var client = new GerritClient(ServerUrl, "user", GerritToken, _apiClient.Object);
         var result = await client.IsKnown(commit);
 
         Assert.That(result, Is.False);
@@ -123,7 +122,7 @@ internal sealed class GerritClientTests
         _apiClient.Setup(x => x.GetAsync(expectedUrl)).ReturnsAsync(jsonResponse);
         _apiClient.Setup(x => x.Dispose());
 
-        using var client = new GerritClient(ServerUrl, GerritToken, _apiClient.Object);
+        using var client = new GerritClient(ServerUrl, "user", GerritToken, _apiClient.Object);
         var result = await client.IsKnown(commit);
 
         Assert.That(result, Is.True);

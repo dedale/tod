@@ -9,9 +9,7 @@ namespace Tod.Core;
 [ExcludeFromCodeCoverage]
 internal static class UserServices
 {
-    public static readonly string CurrentUserEmail = GetCurrentUserEmail();
-
-    public static string? GetGitUserEmail()
+    private static string? GetGitUserEmail()
     {
         try
         {
@@ -47,8 +45,9 @@ internal static class UserServices
         }
     }
 
-    private static string GetCurrentUserEmail()
+    public static string GetUserEmail(string? userName, string? userDomain)
     {
+        var current = userName == null && userDomain == null;
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             var fileName = "Tod.Windows.dll";
@@ -57,10 +56,12 @@ internal static class UserServices
             {
                 try
                 {
+                    userName ??= Environment.UserName;
+                    userDomain ??= Environment.UserDomainName;
                     var assembly = Assembly.LoadFrom(path);
                     var type = assembly.GetType("Tod.Windows.UserDirectory");
                     var method = type?.GetMethod("GetCurrentUserEmail", BindingFlags.Public | BindingFlags.Static);
-                    var email = method?.Invoke(null, null) as string;
+                    var email = method?.Invoke(null, [userName, userDomain]) as string;
                     if (email != null)
                     {
                         return email;
@@ -72,11 +73,14 @@ internal static class UserServices
                 }
             }
         }
-        var gitEmail = GetGitUserEmail();
-        if (!string.IsNullOrEmpty(gitEmail))
+        if (current)
         {
-            return gitEmail;
+            var gitEmail = GetGitUserEmail();
+            if (!string.IsNullOrEmpty(gitEmail))
+            {
+                return gitEmail;
+            }
         }
-        throw new InvalidOperationException("Unable to retrieve current user email on this platform.");
+        throw new InvalidOperationException($"Unable to retrieve user email for {(string.IsNullOrEmpty(userDomain) ? $"{userDomain}\\" : "")}{userName}.");
     }
 }

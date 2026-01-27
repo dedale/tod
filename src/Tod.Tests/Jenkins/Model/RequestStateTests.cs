@@ -6,11 +6,12 @@ namespace Tod.Tests.Jenkins;
 [TestFixture]
 internal sealed class RequestStateTests
 {
-    private readonly Request _request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["tests"], s_userEmail);
+    private readonly Request _request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("main"), ["tests"], s_user, s_userEmail);
     private readonly BuildReference _referenceRoot = new("MainBuild", RandomData.NextBuildNumber);
     private readonly JobName _onDemandRootJob = new("OnDemandBuild");
     private readonly BuildReference _onDemandRoot = new("OnDemandBuild", RandomData.NextBuildNumber);
 
+    private static readonly string s_user = "user";
     private static readonly string s_userEmail = $"user@example.org";
     private static readonly RequestBuildDiff s_requestBuildDiff1 = new(new("MainTest1"), new("OnDemandTest1"));
     private static readonly RequestBuildDiff s_requestBuildDiff2 = new(new("MainTest2"), new("OnDemandTest2"));

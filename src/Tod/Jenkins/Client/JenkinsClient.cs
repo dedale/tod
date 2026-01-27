@@ -1,6 +1,5 @@
 ﻿using System.Text.RegularExpressions;
 using Tod.Git;
-using Tod.Gerrit;
 
 namespace Tod.Jenkins;
 
@@ -20,9 +19,9 @@ internal interface IJenkinsClient
     Task<int> GetQueueSize();
 }
 
-internal sealed class JenkinsClient(JenkinsConfig config, string userToken, IApiClient? apiClient = null) : IJenkinsClient, IDisposable
+internal sealed class JenkinsClient(JenkinsConfig config, string userName, string userToken, IApiClient? apiClient = null) : IJenkinsClient, IDisposable
 {
-    private readonly IApiClient _apiClient = apiClient ?? new ApiClient(userToken);
+    private readonly IApiClient _apiClient = apiClient ?? new ApiClient(userName, userToken);
 
     public async Task<Build[]> GetLastBuilds(JobName jobName, int count = 100)
     {

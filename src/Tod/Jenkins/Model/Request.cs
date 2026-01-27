@@ -19,16 +19,16 @@ internal sealed record Request
         Filters = filters;
     }
 
-    public static Request Create(Sha1 commit, Sha1 refCommit, BranchName refBranch, string[] filters, string userEmail)
+    public static Request Create(Sha1 commit, Sha1 refCommit, BranchName refBranch, string[] filters, string userName, string userEmail)
     {
-        return Create(commit, new GitReference(refBranch, refCommit), filters, userEmail);
+        return Create(commit, new GitReference(refBranch, refCommit), filters, userName, userEmail);
     }
 
-    public static Request Create(Sha1 commit, GitReference gitReference, string[] filters, string userEmail)
+    public static Request Create(Sha1 commit, GitReference gitReference, string[] filters, string userName, string userEmail)
     {
         return new Request(
             Guid.NewGuid(),
-            Environment.UserName,
+            userName,
             userEmail,
             DateTime.UtcNow,
             commit,

@@ -1,11 +1,10 @@
 ﻿using Serilog;
-using Tod.Core;
 
 namespace Tod.Jenkins;
 
 internal sealed class RequestValidator(JenkinsConfig config, IJenkinsClient jenkinsClient)
 {
-    public async Task<bool> Validate(RequestChain[] chains, int userActiveRequestsCount)
+    public async Task<bool> Validate(RequestChain[] chains, string userName, int userActiveRequestsCount)
     {
         if (config.MaxUserActiveRequests.HasValue)
         {
@@ -13,7 +12,7 @@ internal sealed class RequestValidator(JenkinsConfig config, IJenkinsClient jenk
             {
                 Log.Warning("User {User} already has {ActiveRequests} active request(s), which equals or exceeds the maximum of {MaxRequests}. " +
                     "Aborting request registration. Please wait for some requests to complete or abort them.",
-                    Environment.UserName, userActiveRequestsCount, config.MaxUserActiveRequests.Value);
+                    userName, userActiveRequestsCount, config.MaxUserActiveRequests.Value);
                 return false;
             }
         }

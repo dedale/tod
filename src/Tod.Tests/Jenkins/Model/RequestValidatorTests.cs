@@ -30,7 +30,7 @@ internal sealed class RequestValidatorTests
         var validator = new RequestValidator(_config, _jenkinsClient.Object);
         var chains = CreateRequestChains(TimeSpan.FromHours(2));
 
-        var result = await validator.Validate(chains, 0);
+        var result = await validator.Validate(chains, "user", 0);
 
         Assert.That(result, Is.True);
     }
@@ -44,7 +44,7 @@ internal sealed class RequestValidatorTests
         var validator = new RequestValidator(_config, _jenkinsClient.Object);
         var chains = CreateRequestChains(TimeSpan.FromHours(2));
 
-        var result = await validator.Validate(chains, 0);
+        var result = await validator.Validate(chains, "user", 0);
 
         Assert.That(result, Is.True);
     }
@@ -58,7 +58,7 @@ internal sealed class RequestValidatorTests
         var validator = new RequestValidator(_config, _jenkinsClient.Object);
         var chains = CreateRequestChains(TimeSpan.FromHours(2));
 
-        var result = await validator.Validate(chains, 0);
+        var result = await validator.Validate(chains, "user", 0);
 
         Assert.That(result, Is.True);
     }
@@ -72,7 +72,7 @@ internal sealed class RequestValidatorTests
         var validator = new RequestValidator(_config, _jenkinsClient.Object);
         var chains = CreateRequestChains(TimeSpan.FromHours(2));
 
-        var result = await validator.Validate(chains, 0);
+        var result = await validator.Validate(chains, "user", 0);
 
         Assert.That(result, Is.False);
     }
@@ -90,7 +90,7 @@ internal sealed class RequestValidatorTests
         var validator = new RequestValidator(_config, _jenkinsClient.Object);
         var chains = CreateRequestChains(TimeSpan.FromHours(2));
 
-        var result = await validator.Validate(chains, 0);
+        var result = await validator.Validate(chains, "user", 0);
 
         Assert.That(result, Is.True);
     }
@@ -108,7 +108,7 @@ internal sealed class RequestValidatorTests
         var validator = new RequestValidator(_config, _jenkinsClient.Object);
         var chains = CreateRequestChains(TimeSpan.FromHours(2));
 
-        var result = await validator.Validate(chains, 0);
+        var result = await validator.Validate(chains, "user", 0);
 
         Assert.That(result, Is.False);
     }
@@ -122,7 +122,7 @@ internal sealed class RequestValidatorTests
         var validator = new RequestValidator(_config, _jenkinsClient.Object);
         var chains = CreateRequestChains(TimeSpan.FromHours(2));
 
-        var result = await validator.Validate(chains, 0);
+        var result = await validator.Validate(chains, "user", 0);
 
         Assert.That(result, Is.False);
     }
@@ -136,7 +136,7 @@ internal sealed class RequestValidatorTests
         var validator = new RequestValidator(_config, _jenkinsClient.Object);
         var chains = CreateRequestChains(TimeSpan.FromHours(2));
 
-        var result = await validator.Validate(chains, 0);
+        var result = await validator.Validate(chains, "user", 0);
 
         Assert.That(result, Is.False);
     }
@@ -150,7 +150,7 @@ internal sealed class RequestValidatorTests
         var validator = new RequestValidator(_config, _jenkinsClient.Object);
         var chains = Array.Empty<RequestChain>();
 
-        var result = await validator.Validate(chains, 0);
+        var result = await validator.Validate(chains, "user", 0);
 
         Assert.That(result, Is.True);
     }
@@ -162,7 +162,7 @@ internal sealed class RequestValidatorTests
         var validator = new RequestValidator(_config, _jenkinsClient.Object);
         var chains = CreateRequestChains(TimeSpan.Zero);
 
-        var result = await validator.Validate(chains, 2);
+        var result = await validator.Validate(chains, "user", 2);
 
         Assert.That(result, Is.True);
     }
@@ -175,7 +175,7 @@ internal sealed class RequestValidatorTests
         var validator = new RequestValidator(_config, _jenkinsClient.Object);
         var chains = CreateRequestChains(TimeSpan.Zero);
 
-        var result = await validator.Validate(chains, 2);
+        var result = await validator.Validate(chains, "user", 2);
 
         Assert.That(result, Is.True);
     }
@@ -187,7 +187,7 @@ internal sealed class RequestValidatorTests
         var validator = new RequestValidator(_config, _jenkinsClient.Object);
         var chains = CreateRequestChains(TimeSpan.Zero);
 
-        var result = await validator.Validate(chains, 2);
+        var result = await validator.Validate(chains, "user", 2);
 
         Assert.That(result, Is.False);
     }
@@ -199,7 +199,7 @@ internal sealed class RequestValidatorTests
         var validator = new RequestValidator(_config, _jenkinsClient.Object);
         var chains = CreateRequestChains(TimeSpan.Zero);
 
-        var result = await validator.Validate(chains, 2);
+        var result = await validator.Validate(chains, "user", 2);
 
         Assert.That(result, Is.False);
     }
@@ -212,7 +212,7 @@ internal sealed class RequestValidatorTests
         var validator = new RequestValidator(_config, _jenkinsClient.Object);
         var chains = CreateRequestChains(TimeSpan.Zero);
 
-        var result = await validator.Validate(chains, 1);
+        var result = await validator.Validate(chains, "user", 1);
 
         Assert.That(result, Is.True);
     }
@@ -225,7 +225,7 @@ internal sealed class RequestValidatorTests
         var validator = new RequestValidator(_config, _jenkinsClient.Object);
         var chains = CreateRequestChains(TimeSpan.Zero);
 
-        var result = await validator.Validate(chains, 0);
+        var result = await validator.Validate(chains, "user", 0);
 
         Assert.That(result, Is.True);
     }

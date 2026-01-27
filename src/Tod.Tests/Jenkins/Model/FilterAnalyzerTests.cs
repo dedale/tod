@@ -1,7 +1,6 @@
 using NUnit.Framework;
 using Serilog;
 using Serilog.Sinks.TestCorrelator;
-using System.Text.RegularExpressions;
 using Tod.Core;
 using Tod.Jenkins;
 using Tod.Tests.Core;

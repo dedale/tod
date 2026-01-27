@@ -26,7 +26,7 @@ internal sealed class ApiClientTests
     [Test]
     public void DefaultCtor_Works()
     {
-        using var client = new ApiClient("token");
+        using var client = new ApiClient("user", "token");
         Assert.That(client, Is.Not.Null);
     }
 
@@ -44,7 +44,7 @@ internal sealed class ApiClientTests
             };
         });
 
-        using var client = new ApiClient(handler, "token");
+        using var client = new ApiClient(handler, "user", "token");
         var result = await client.GetAsync("http://test.com/api").ConfigureAwait(false);
         Assert.That(result.RootElement.GetProperty("key").GetString(), Is.EqualTo("value"));
     }
@@ -58,7 +58,7 @@ internal sealed class ApiClientTests
             Content = new StringContent("Not Found")
         });
 
-        using var client = new ApiClient(handler, "token");
+        using var client = new ApiClient(handler, "user", "token");
         var ex = Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync("http://test.com/api").ConfigureAwait(false));
         var httpEx = ex.InnerException as HttpRequestException;
         Assert.That(httpEx, Is.Not.Null);
@@ -88,7 +88,7 @@ internal sealed class ApiClientTests
             };
         });
 
-        using var client = new ApiClient(handler, "token");
+        using var client = new ApiClient(handler, "user", "token");
         var result = await client.GetAsync("http://test.com/api").ConfigureAwait(false);
         Assert.That(result.RootElement.GetProperty("key").GetString(), Is.EqualTo("value"));
     }
@@ -105,7 +105,7 @@ internal sealed class ApiClientTests
             };
         });
 
-        using var client = new ApiClient(handler, "token");
+        using var client = new ApiClient(handler, "user", "token");
         var ex = Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync("http://test.com/api").ConfigureAwait(false));
         var httpEx = ex.InnerException as HttpRequestException;
         Assert.That(httpEx, Is.Not.Null);
@@ -123,7 +123,7 @@ internal sealed class ApiClientTests
             Content = new StringContent(response)
         });
 
-        using var client = new ApiClient(handler, "token");
+        using var client = new ApiClient(handler, "user", "token");
         var result = await client.GetStringAsync("http://test.com/api").ConfigureAwait(false);
         Assert.That(result, Is.EqualTo(response));
     }
@@ -154,7 +154,7 @@ internal sealed class ApiClientTests
             };
         });
 
-        using var client = new ApiClient(handler, "token");
+        using var client = new ApiClient(handler, "user", "token");
         var result = await client.PostAsync("http://test.com/crumb", "http://test.com/job/test/build").ConfigureAwait(false);
         Assert.That(result, Is.EqualTo("http://test.com/queue/item/123"));
     }
@@ -182,7 +182,7 @@ internal sealed class ApiClientTests
                 Content = new StringContent("Bad Request")
             };
         });
-        using var client = new ApiClient(handler, "token");
+        using var client = new ApiClient(handler, "user", "token");
         var ex = Assert.ThrowsAsync<InvalidOperationException>(async () => await client.PostAsync("http://test.com/crumb", "http://test.com/job/test/build").ConfigureAwait(false));
         var httpEx = ex.InnerException as HttpRequestException;
         Assert.That(httpEx, Is.Not.Null);
@@ -216,7 +216,7 @@ internal sealed class ApiClientTests
             };
         });
 
-        using var client = new ApiClient(handler, "token");
+        using var client = new ApiClient(handler, "user", "token");
         var result = await client.PostAsync("http://test.com/crumb", "http://test.com/job/test/build").ConfigureAwait(false);
         Assert.That(result, Is.Null);
     }

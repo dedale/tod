@@ -65,7 +65,7 @@ internal sealed class JenkinsClientTests
     [Test]
     public void TestConstructor()
     {
-        using var client = new JenkinsClient(s_config, "token");
+        using var client = new JenkinsClient(s_config, "user", "token");
         Assert.That(client, Is.Not.Null);
     }
 
@@ -80,7 +80,7 @@ internal sealed class JenkinsClientTests
             .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/api/json?tree=builds[id,number,result,timestamp,duration,building,changeSets[items[commitId]]]{{0,{count}}}"))
             .ReturnsAsync(new BuildList { Builds = builds }.Serialize());
         apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var lastBuilds = await client.GetLastBuilds(jobName, count).ConfigureAwait(false);
             Assert.That(lastBuilds, Has.Length.EqualTo(builds.Length));
@@ -103,7 +103,7 @@ internal sealed class JenkinsClientTests
             .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/api/json?tree=builds[id,number,result,timestamp,duration,building,changeSets[items[commitId]]]{{0,{count}}}"))
             .ReturnsAsync(new BuildList { Builds = builds }.Serialize());
         apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var lastBuilds = await client.GetLastBuilds(jobName, count).ConfigureAwait(false);
             var expectedBuilds = builds.Where(b => !b.Building).ToArray();
@@ -139,7 +139,7 @@ internal sealed class JenkinsClientTests
                 ])
             );
         apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var jobs = await client.GetScheduledJobs(new(jobName, buildNumber)).ConfigureAwait(false);
             Assert.That(jobs, Is.EquivalentTo(scheduledJobs));
@@ -170,7 +170,7 @@ internal sealed class JenkinsClientTests
                 ])
             );
         apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var builds = await client.GetTriggeredBuilds(new(jobName, buildNumber)).ConfigureAwait(false);
             Assert.That(builds, Is.EquivalentTo(triggeredBuilds));
@@ -188,7 +188,7 @@ internal sealed class JenkinsClientTests
             .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/{buildNumber}/api/json?tree=actions[failCount]"))
             .ReturnsAsync(new { actions = new[] { new { failCount = 3 } } }.Serialize());
         apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var failCount = await client.GetFailCount(new(jobName, buildNumber)).ConfigureAwait(false);
             Assert.That(failCount, Is.EqualTo(3));
@@ -208,7 +208,7 @@ internal sealed class JenkinsClientTests
                 new { foo = "bar" }
             } }.Serialize());
         apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var failCount = await client.GetFailCount(new(jobName, buildNumber)).ConfigureAwait(false);
             Assert.That(failCount, Is.Zero);
@@ -233,7 +233,7 @@ internal sealed class JenkinsClientTests
                             upstreamBuild = 42,
                             upstreamProject = "MyUpstreamProject" } } } } }.Serialize());
         apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var buildData = await client.GetTestData(new(jobName, buildNumber)).ConfigureAwait(false);
             Assert.That(buildData.FailCount, Is.EqualTo(3));
@@ -261,7 +261,7 @@ internal sealed class JenkinsClientTests
                             foo = "bar" } } } }
             }.Serialize());
         apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var buildData = await client.GetTestData(new(jobName, buildNumber)).ConfigureAwait(false);
             Assert.That(buildData.FailCount, Is.EqualTo(7));
@@ -289,7 +289,7 @@ internal sealed class JenkinsClientTests
                             upstreamProject = "MyUpstreamProject" } } } }
             }.Serialize());
         apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var buildData = await client.GetTestData(new(jobName, buildNumber)).ConfigureAwait(false);
             Assert.That(buildData.FailCount, Is.EqualTo(0));
@@ -314,7 +314,7 @@ internal sealed class JenkinsClientTests
             .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/{buildNumber}/testReport/api/json"))
             .ReturnsAsync(testReport.Serialize());
         apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var failedTests = await client.GetFailedTests(new(jobName, buildNumber)).ConfigureAwait(false);
             var expectedFailedTests = tests.Where(t => t.IsFailed).Select(t => new FailedTest(t.ClassName, t.TestName, t.ErrorDetails)).ToArray();
@@ -335,7 +335,7 @@ internal sealed class JenkinsClientTests
             .ReturnsAsync(location);
         var queueUrl = location + "api/json";
         apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var parameters = new TriggerParameters(commit, null);
             await client.TriggerBuild(OnDemandJobKind.Root, jobName, parameters).ConfigureAwait(false);
@@ -356,7 +356,7 @@ internal sealed class JenkinsClientTests
             .ReturnsAsync(location);
         var queueUrl = location + "api/json";
         apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var parameters = new TriggerParameters(RandomData.NextSha1(), rootBuildNumber);
             await client.TriggerBuild(OnDemandJobKind.Test, jobName, parameters).ConfigureAwait(false);
@@ -374,7 +374,7 @@ internal sealed class JenkinsClientTests
             .Setup(c => c.PostAsync($"{s_url}/crumbIssuer/api/json", $"{s_url}/{jobName.UrlPath}/buildWithParameters?REFSPEC={Uri.EscapeDataString(commit.Value)}"))
             .ReturnsAsync("");
         apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var parameters = new TriggerParameters(commit, null);
             Assert.That(async () => await client.TriggerBuild(OnDemandJobKind.Root, jobName, parameters).ConfigureAwait(false),
@@ -400,7 +400,7 @@ internal sealed class JenkinsClientTests
                 ])
             );
         apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var rootBuild = await client.TryGetRootBuild(new(jobName, buildNumber)).ConfigureAwait(false);
             Assert.That(rootBuild, Is.EqualTo(new BuildReference("MyBuild", 9)));
@@ -424,7 +424,7 @@ internal sealed class JenkinsClientTests
                 ])
             );
         apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var rootBuild = await client.TryGetRootBuild(new(jobName, buildNumber)).ConfigureAwait(false);
             Assert.That(rootBuild, Is.Null);
@@ -440,7 +440,7 @@ internal sealed class JenkinsClientTests
             .Setup(c => c.GetAsync($"{s_url}/api/json?tree=jobs[name]"))
             .ReturnsAsync(new { jobs = new[] { new { name = "JobA" }, new { name = "JobB" } } }.Serialize());
         apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var jobs = await client.GetJobNames([]).ConfigureAwait(false);
             Assert.That(jobs, Is.EqualTo([new JobName("JobA"), new JobName("JobB")]));
@@ -482,7 +482,7 @@ internal sealed class JenkinsClientTests
             } }.Serialize());
 
         apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var jobs = await client.GetJobNames(multiBranchFolders).ConfigureAwait(false);
             Assert.That(jobs, Is.EqualTo([
@@ -520,7 +520,7 @@ internal sealed class JenkinsClientTests
                 }
             }.Serialize());
         apiClient.Setup(c => c.Dispose());
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var parameters = await client.GetBuildParameters(new(jobName, buildNumber)).ConfigureAwait(false);
             var expectedParameters = new Dictionary<string, string>
@@ -543,7 +543,7 @@ internal sealed class JenkinsClientTests
             .ReturnsAsync(new { items = new object[] { } }.Serialize());
         apiClient.Setup(c => c.Dispose());
 
-        using (var client = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var queueSize = await client.GetQueueSize().ConfigureAwait(false);
             Assert.That(queueSize, Is.EqualTo(0));
@@ -569,7 +569,7 @@ internal sealed class JenkinsClientTests
             .ReturnsAsync(queue.Serialize());
         apiClient.Setup(c => c.Dispose());
 
-        using (var jenkinsClient = new JenkinsClient(s_config, "token", apiClient.Object))
+        using (var jenkinsClient = new JenkinsClient(s_config, "user", "token", apiClient.Object))
         {
             var queueSize = await jenkinsClient.GetQueueSize().ConfigureAwait(false);
             Assert.That(queueSize, Is.EqualTo(3));
