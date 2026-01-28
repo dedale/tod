@@ -91,7 +91,7 @@ internal static class Program
         var rootFilters = options.RootFilters.ToArray();
 
         var userName = options.User ?? Environment.UserName;
-        var userDomaine = options.UserDomain ?? Environment.UserDomainName;
+        var userDomain = options.UserDomain ?? Environment.UserDomainName;
 
         var jenkinsClient = new JenkinsClient(config, userName, options.JenkinsToken);
         var jobManager = new JobManager(config, jenkinsClient);
@@ -105,7 +105,7 @@ internal static class Program
             return ExitCodes.BadRequest;
         }
 
-        var request = Request.Create(commits.First(), gitReference, [.. options.TestFilters], userName, UserServices.GetUserEmail(userName, userDomaine));
+        var request = Request.Create(commits.First(), gitReference, [.. options.TestFilters], userName, UserServices.GetUserEmail(userName, userDomain));
 
         Log.Information("Registering new request {RequestId} for commit {Commit} on branch {Branch}",
             request.Id, request.Commit, request.GitReference.Branch);
@@ -117,7 +117,7 @@ internal static class Program
             {
                 Log.Error("Commit {Commit} is not known in Gerrit. Jenkins will not be able to checkout the code. " +
                     "Make sure the commit has been pushed to Gerrit as a patchset.", request.Commit);
-                return 1;
+                return ExitCodes.BadRequest;
             }
             Log.Debug("Commit {Commit} found in Gerrit", request.Commit);
         }
@@ -251,7 +251,7 @@ internal static class Program
         if (cachedRequest == null)
         {
             Log.Error("Request with ID '{RequestId}' not found in workspace", requestId);
-            return 1;
+            return ExitCodes.BadRequest;
         }
         var report = RequestReportBuilder.Instance.Build(cachedRequest.Value, workspace);
         await reportSender.Send(cachedRequest.Value, report).ConfigureAwait(false);

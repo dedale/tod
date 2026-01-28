@@ -14,7 +14,7 @@ internal static class UserDirectory
         var principal = UserPrincipal.FindByIdentity(context, IdentityType.SamAccountName, userName);
         if (principal == null)
         {
-            throw new InvalidOperationException($"User '{(string.IsNullOrEmpty(userDomain) ? $"{userDomain}\\" : "")}{userName}' not found in Active Directory");
+            throw new InvalidOperationException($"User '{(!string.IsNullOrEmpty(userDomain) ? $"{userDomain}\\" : "")}{userName}' not found in Active Directory");
         }
         return principal.EmailAddress;
     }

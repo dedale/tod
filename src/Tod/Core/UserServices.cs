@@ -60,7 +60,7 @@ internal static class UserServices
                     userDomain ??= Environment.UserDomainName;
                     var assembly = Assembly.LoadFrom(path);
                     var type = assembly.GetType("Tod.Windows.UserDirectory");
-                    var method = type?.GetMethod("GetCurrentUserEmail", BindingFlags.Public | BindingFlags.Static);
+                    var method = type?.GetMethod("GetUserEmail", BindingFlags.Public | BindingFlags.Static);
                     var email = method?.Invoke(null, [userName, userDomain]) as string;
                     if (email != null)
                     {
@@ -81,6 +81,6 @@ internal static class UserServices
                 return gitEmail;
             }
         }
-        throw new InvalidOperationException($"Unable to retrieve user email for {(string.IsNullOrEmpty(userDomain) ? $"{userDomain}\\" : "")}{userName}.");
+        throw new InvalidOperationException($"Unable to retrieve user email for {(!string.IsNullOrEmpty(userDomain) ? $"{userDomain}\\" : "")}{userName}.");
     }
 }

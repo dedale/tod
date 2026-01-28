@@ -111,8 +111,8 @@ The Jenkins configuration file (`jenkins_config.json`) defines how Tod interacts
 |----------|------|-------------|
 | `Url` | string | Jenkins server URL |
 | `MultiBranchFolders` | string[] | Folders containing multi-branch pipeline jobs |
-| `keptDays` | int? | Number of days to keep build history (optional) |
-| `maxUserActiveRequests` | int? | Maximum number of active requests per user (optional) |
+| `KeptDays` | int? | Number of days to keep build history (optional) |
+| `MaxUserActiveRequests` | int? | Maximum number of active requests per user (optional) |
 
 ### Job Patterns
 
@@ -180,7 +180,7 @@ Define which test jobs to run:
 
 - `Name`: Filter identifier
 - `Pattern`: Regex pattern to match test job names
-- `Group`: Logical grouping (use `chainTestGroup` value for chain-linked tests)
+- `Group`: Logical grouping (use `ChainTestGroup` value for chain-linked tests)
 
 The `ChainTestGroup` property links test filters to root filters via chain patterns.
 
