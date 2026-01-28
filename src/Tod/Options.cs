@@ -14,7 +14,7 @@ internal abstract class BaseOptions
     [Option('w', "workspace", Required = true, HelpText = "Path to workspace dir")]
     public string WorkspaceDir { get; set; }
 
-    [Option('d', "--debug", HelpText = "Enable debug logs")]
+    [Option('d', "debug", HelpText = "Enable debug logs")]
     public bool Debug { get; set; }
 }
 
