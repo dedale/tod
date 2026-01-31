@@ -61,8 +61,7 @@ internal static class UserServices
                     var assembly = Assembly.LoadFrom(path);
                     var type = assembly.GetType("Tod.Windows.UserDirectory");
                     var method = type?.GetMethod("GetUserEmail", BindingFlags.Public | BindingFlags.Static);
-                    var email = method?.Invoke(null, [userName, userDomain]) as string;
-                    if (email != null)
+                    if (method?.Invoke(null, [userName, userDomain]) is string email)
                     {
                         return email;
                     }

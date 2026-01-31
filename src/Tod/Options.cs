@@ -44,10 +44,10 @@ internal sealed class NewOptions : BaseOptions
     public IEnumerable<string> TestFilters { get; set; }
 
     [Option('u', "user", HelpText = "User name when working in service mode")]
-    public string User { get; set; }
+    public string? User { get; set; }
 
     [Option("domain", HelpText = "User domain when running in service mode")]
-    public string UserDomain { get; set; }
+    public string? UserDomain { get; set; }
 
     [Option('j', "jenkins-token", Required = true, HelpText = "Jenkins API token for authentication")]
     public string JenkinsToken { get; set; }
@@ -82,7 +82,7 @@ internal sealed class ReportOptions : BaseOptions
     public string RequestId { get; set; }
 
     [Option('u', "user", HelpText = "User name when working in service mode")]
-    public string User { get; set; }
+    public string? User { get; set; }
 }
 
 [ExcludeFromCodeCoverage]
@@ -93,7 +93,7 @@ internal sealed class ListOptions : BaseOptions
     public bool All { get; set; }
 
     [Option('u', "user", HelpText = "User name when working in service mode")]
-    public string User { get; set; }
+    public string? User { get; set; }
 }
 
 [ExcludeFromCodeCoverage]
@@ -104,7 +104,7 @@ internal sealed class AbortOptions : BaseOptions
     public string RequestId { get; set; }
 
     [Option('u', "user", HelpText = "User name when working in service mode")]
-    public string User { get; set; }
+    public string? User { get; set; }
 }
 
 [ExcludeFromCodeCoverage]

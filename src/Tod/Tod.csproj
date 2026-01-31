@@ -10,7 +10,7 @@
     <ToolCommandName>tod</ToolCommandName>
 
     <PackageId>Tod</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.6.1</Version>
     <Authors>dedale</Authors>
     <Description>Tod is a command line tool to run test on-demand on Jenkins.</Description>
     <PackageTags>tod;jenkins;test;automation</PackageTags>
@@ -41,8 +41,27 @@
              Targets="Restore;Build"
              Properties="Configuration=$(Configuration)" />
 
+    <PropertyGroup>
+      <TodWindowsOutputPath>$(ArtifactsPath)\bin\Tod.Windows\$(Configuration)_win-x64</TodWindowsOutputPath>
+    </PropertyGroup>
+
     <ItemGroup>
-      <Content Include="$(ArtifactsPath)\bin\Tod.Windows\$(Configuration)\Tod.Windows.dll">
+      <Content Include="$(TodWindowsOutputPath)\Tod.Windows.dll">
+        <Pack>true</Pack>
+        <PackagePath>tools/$(TargetFramework)/any/</PackagePath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="$(TodWindowsOutputPath)\System.DirectoryServices.dll">
+        <Pack>true</Pack>
+        <PackagePath>tools/$(TargetFramework)/any/</PackagePath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="$(TodWindowsOutputPath)\System.DirectoryServices.AccountManagement.dll">
+        <Pack>true</Pack>
+        <PackagePath>tools/$(TargetFramework)/any/</PackagePath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="$(TodWindowsOutputPath)\System.DirectoryServices.Protocols.dll">
         <Pack>true</Pack>
         <PackagePath>tools/$(TargetFramework)/any/</PackagePath>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

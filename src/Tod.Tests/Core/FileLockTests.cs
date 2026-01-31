@@ -23,7 +23,7 @@ internal sealed class FileLockTests
     {
         using var temp = new TempDirectory();
         var testFilePath = Path.Combine(temp.Path, $"testfile_{Guid.NewGuid()}.txt");
-        using (var locker1 = NewFileLock(testFilePath, out var reason))
+        using (NewFileLock(testFilePath, out var reason))
         {
             Assert.That(() => NewFileLock(testFilePath), Throws.TypeOf<AlreadyLockedException>().And.Message.Contain(reason));
         }
