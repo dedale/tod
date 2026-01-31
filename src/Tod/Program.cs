@@ -26,11 +26,12 @@ internal static class Program
     private static async Task<int> SyncJobs(SyncOptions options)
     {
         var config = JenkinsConfig.Load(options.ConfigPath);
+        JobName.Init(config.JobMappings);
         using var jenkinsClient = new JenkinsClient(config, Environment.UserName, options.JenkinsToken);
         var jobManager = new JobManager(config, jenkinsClient);
         var jobGroups = await jobManager.TryLoad(jobNames => config.SaveJobs(options.ConfigPath, jobNames)).ConfigureAwait(false);
         var workspaceStore = new WorkspaceStore(options.WorkspaceDir);
-        var workSpace = Workspace.Load(options.WorkspaceDir, workspaceStore, config.JobMappings);
+        var workSpace = Workspace.Load(options.WorkspaceDir, workspaceStore);
         workSpace.UpdateJobs(workspaceStore, jobGroups!);
         return ExitCodes.Success;
     }
@@ -45,6 +46,7 @@ internal static class Program
         var stopwatch = Stopwatch.StartNew();
         var config = JenkinsConfig.Load(options.ConfigPath);
         Debug.Assert(config is not null);
+        JobName.Init(config.JobMappings);
 
         using var jenkinsClient = new JenkinsClient(config, Environment.UserName, options.JenkinsToken);
         JobGroups? jobGroups;
@@ -59,7 +61,7 @@ internal static class Program
         }
         Debug.Assert(jobGroups is not null);
 
-        var workSpace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir), config.JobMappings);
+        var workSpace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
         var filterManager = new FilterManager(config, jobGroups);
         var mailSender = new MailSender(config.MailConfig);
         var reportSender = new ReportSender(new JenkinsJobLinker(config), mailSender);
@@ -86,7 +88,8 @@ internal static class Program
         using var gitRepo = new GitRepo(Environment.CurrentDirectory);
         var commits = gitRepo.GetLastCommits(50);
         var config = JenkinsConfig.Load(options.ConfigPath);
-        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir), config.JobMappings);
+        JobName.Init(config.JobMappings);
+        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
         var wantedBranch = options.BranchName is not null ? new BranchName(options.BranchName) : null;
         var rootFilters = options.RootFilters.ToArray();
 
@@ -144,7 +147,8 @@ internal static class Program
     private static Task<int> Jobs(JobsOptions options)
     {
         var config = JenkinsConfig.Load(options.ConfigPath);
-        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir), config.JobMappings);
+        JobName.Init(config.JobMappings);
+        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
         var wantedBranch = options.BranchName is not null ? new BranchName(options.BranchName) : null;
         var rootFilters = options.RootFilters.ToArray();
 
@@ -242,11 +246,12 @@ internal static class Program
             return ExitCodes.BadRequest;
         }
         var config = JenkinsConfig.Load(options.ConfigPath);
+        JobName.Init(config.JobMappings);
         var reportSender = new ReportSender(
             new JenkinsJobLinker(config),
             new MailSender(config.MailConfig)
         );
-        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir), config.JobMappings);
+        var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
         var cachedRequest = workspace.OnDemandRequests.AllRequests.FirstOrDefault(r => r.Value.Request.Id == requestId);
         if (cachedRequest == null)
         {

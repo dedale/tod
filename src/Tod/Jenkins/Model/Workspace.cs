@@ -78,7 +78,7 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
         return workspace;
     }
 
-    public static Workspace Load(string dir, IWorkspaceStore workspaceStore, JobMapping[]? jobMappings = null)
+    public static Workspace Load(string dir, IWorkspaceStore workspaceStore)
     {
         var branchReferences = new List<BranchReference>();
         foreach (var branch in workspaceStore.Branches)
@@ -88,8 +88,7 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
             branchReferences.Add(branchReference);
         }
         var onDemandBuilds = new OnDemandBuilds(workspaceStore.OnDemandStore);
-        var buildReferenceComparer = new BuildReferenceComparer(jobMappings ?? []);
-        var onDemandRequests = new OnDemandRequests(Path.Combine(dir, "Requests"), buildReferenceComparer);
+        var onDemandRequests = new OnDemandRequests(Path.Combine(dir, "Requests"));
         var flakyTests = workspaceStore.FlakyStore.Load();
         return new Workspace(branchReferences, onDemandBuilds, onDemandRequests, flakyTests);
     }

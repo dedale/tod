@@ -29,22 +29,15 @@ internal sealed class OnDemandRequests
 {
     private readonly string _requestPath;
     private readonly Dictionary<Guid, CachedRequest> _requestById;
-    private readonly BuildReferenceComparer _buildReferenceComparer;
 
     public string RequestPath => _requestPath;
 
     [JsonConstructor]
     public OnDemandRequests(string requestPath)
-        : this(requestPath, null)
-    {
-    }
-
-    public OnDemandRequests(string requestPath, BuildReferenceComparer? buildReferenceComparer)
     {
         _requestPath = requestPath;
         Directory.CreateDirectory(_requestPath);
         _requestById = Directory.GetFiles(_requestPath).Select(f => new CachedRequest(f)).ToDictionary(r => r.Value.Request.Id);
-        _buildReferenceComparer = buildReferenceComparer ?? BuildReferenceComparer.Default;
     }
 
     [JsonIgnore]
@@ -66,7 +59,7 @@ internal sealed class OnDemandRequests
         foreach (var cached in _requestById.Values)
         {
             var request = cached.Value;
-            if (!request.TryGetChainReference(rootBuild, _buildReferenceComparer, out var chainDiff))
+            if (!request.TryGetChainReference(rootBuild, out var chainDiff))
             {
                 continue;
             }
@@ -106,7 +99,7 @@ internal sealed class OnDemandRequests
             {
                 var sameRoot = chainDiff.OnDemandRoot.Match(
                     onQueued: (_, _) => false,
-                    onDone: buildRef => _buildReferenceComparer.Equals(buildRef, rootBuild)
+                    onDone: buildRef => buildRef.Equals(rootBuild)
                 );
                 if (!sameRoot)
                 {

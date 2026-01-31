@@ -23,8 +23,10 @@ internal static class DictionaryExtensions
 
 [DebuggerStepThrough]
 [JsonConverter(typeof(SingleStringValueConverterFactory))]
-internal sealed record JobName(string Value) : IComparable<JobName>
+internal sealed record JobName(string Value) : IComparable<JobName>, IEquatable<JobName>
 {
+    private static JobMapping[] s_jobMappings = [];
+
     private readonly string _urlPath = $"job/{string.Join("/job/", Value.Split('/'))}";
 
     public string UrlPath => _urlPath;
@@ -34,55 +36,50 @@ internal sealed record JobName(string Value) : IComparable<JobName>
         return string.Compare(Value, other?.Value, StringComparison.Ordinal);
     }
 
+    [ExcludeFromCodeCoverage]
     public override string ToString()
     {
         return Value;
     }
 
     public KeyValuePair<string, object?> Tag => KeyValuePair.Create<string, object?>(nameof(JobName), this);
-}
 
-internal sealed class JobNameComparer(JobMapping[] jobMappings) : IEqualityComparer<JobName>
-{
-    private string FixJobName(string name)
+    private static string FixJobName(string name, JobMapping[] jobMappings)
     {
         return jobMappings
             .Aggregate(name, (current, mapping) => current.Replace(mapping.OldName, mapping.NewName, StringComparison.Ordinal));
     }
 
-    public bool Equals(JobName? x, JobName? y)
+    internal bool Equals(JobName? other, JobMapping[]? jobMappings)
     {
-        return ReferenceEquals(x, y) || (x is not null && y is not null && FixJobName(x.Value) == FixJobName(y.Value));
+        if (other is null)
+        {
+            return false;
+        }
+        jobMappings ??= s_jobMappings;
+        return Value.Equals(other.Value, StringComparison.Ordinal)
+            || FixJobName(Value, jobMappings).Equals(FixJobName(other.Value, jobMappings), StringComparison.Ordinal);
     }
 
-    public int GetHashCode([DisallowNull] JobName obj)
+    public bool Equals(JobName? other)
     {
-        return FixJobName(obj.Value).GetHashCode(StringComparison.Ordinal);
-    }
-}
-
-internal sealed class BuildReferenceComparer(IEqualityComparer<JobName> jobNameComparer) : IEqualityComparer<BuildReference>
-{
-    public static BuildReferenceComparer Default = new();
-
-    public BuildReferenceComparer()
-        : this(new JobNameComparer([]))
-    {
+        return Equals(other, null);
     }
 
-    public BuildReferenceComparer(JobMapping[] jobMappings)
-        : this(new JobNameComparer(jobMappings))
+    internal int GetHashCode(JobMapping[]? jobMappings)
     {
+        return FixJobName(Value, jobMappings ?? s_jobMappings).GetHashCode(StringComparison.Ordinal);
     }
 
-    public bool Equals(BuildReference? x, BuildReference? y)
+    public override int GetHashCode()
     {
-        return ReferenceEquals(x, y) || (x is not null && y is not null && jobNameComparer.Equals(x.JobName, y.JobName) && x.BuildNumber == y.BuildNumber);
+        return GetHashCode(null);
     }
 
-    public int GetHashCode([DisallowNull] BuildReference obj)
+    [ExcludeFromCodeCoverage]
+    public static void Init(JobMapping[]? jobMappings)
     {
-        return HashCode.Combine(jobNameComparer.GetHashCode(obj.JobName), obj.BuildNumber);
+        s_jobMappings = jobMappings ?? [];
     }
 }
 
@@ -129,7 +126,7 @@ internal sealed record TestName(string Value) : IComparable<TestName>
 }
 
 [method: JsonConstructor]
-internal sealed record BuildReference(JobName JobName, int BuildNumber) : IComparable<BuildReference>
+internal sealed record BuildReference(JobName JobName, int BuildNumber) : IComparable<BuildReference>, IEquatable<BuildReference>
 {
     public BuildReference(string jobName, int buildBumber)
         : this(new JobName(jobName), buildBumber)
@@ -152,6 +149,28 @@ internal sealed record BuildReference(JobName JobName, int BuildNumber) : ICompa
 
     public BuildReference Next() => new(JobName, BuildNumber + 1);
 
+    internal bool Equals(BuildReference? other, JobMapping[]? jobMappings)
+    {
+        return ReferenceEquals(this, other)
+            || (other is not null && JobName.Equals(other.JobName, jobMappings) && BuildNumber == other.BuildNumber);
+    }
+
+    public bool Equals(BuildReference? other)
+    {
+        return Equals(other, null);
+    }
+
+    internal int GetHashCode(JobMapping[]? jobMappings)
+    {
+        return HashCode.Combine(JobName.GetHashCode(jobMappings), BuildNumber);
+    }
+
+    public override int GetHashCode()
+    {
+        return GetHashCode(null);
+    }
+
+    [ExcludeFromCodeCoverage]
     public override string ToString()
     {
         return $"{JobName} #{BuildNumber}";
