@@ -400,4 +400,15 @@ internal sealed class ReportSenderTests
 
         return Send_FailedTestDiff(failedTestsDiff, statusMessage);
     }
+
+    [Test]
+    public Task Send_WithVeryLongTestDetails_InMail()
+    {
+        var failedTestResults = new FailedTestResult[] {
+            new(new FailedTest("ClassName", $"TestName", new string('z', 10000)), Newness.New, false),
+        };
+        var failedTestsDiff = new FailedTestDiff(TestBuildDiffStatus.NewFailures, failedTestResults);
+
+        return Send_FailedTestDiff(failedTestsDiff, "zzzzz...");
+    }
 }

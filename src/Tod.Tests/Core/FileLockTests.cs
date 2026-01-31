@@ -94,4 +94,14 @@ internal sealed class FileLockTests
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Value));
         Assert.That(totalCountByOtherExceptions, Is.Empty);
     }
+
+    [Test]
+    public void Ctor_Unauthorized()
+    {
+        using var temp = new TempDirectory();
+        var testFilePath = Path.Combine(temp.Path, $"testfile_{Guid.NewGuid()}.txt");
+        var lockPath = testFilePath + ".lock";
+        Directory.CreateDirectory(lockPath);
+        Assert.That(() => NewFileLock(testFilePath), Throws.TypeOf<AlreadyLockedException>());
+    }
 }
