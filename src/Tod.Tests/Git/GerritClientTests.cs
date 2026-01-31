@@ -13,6 +13,7 @@ internal sealed class GerritClientTests
     private Mock<IApiClient> _apiClient;
     private const string ServerUrl = "https://gerrit.example.com";
     private const string GerritToken = "test-gerrit-token";
+    private const string GerritMagicPrefix = ")]}'\r\n";
 
     [SetUp]
     public void SetUp()
@@ -38,7 +39,7 @@ internal sealed class GerritClientTests
     {
         var commit = RandomData.NextSha1();
         var expectedUrl = $"{ServerUrl}/a/changes/?q=commit:{commit.Value}";
-        var jsonResponse = JsonDocument.Parse("""
+        var jsonResponse = GerritMagicPrefix + """
             [
                 {
                     "id": "project~branch~I1234567890123456789012345678901234567890",
@@ -55,9 +56,9 @@ internal sealed class GerritClientTests
                     "_number": 12345
                 }
             ]
-            """);
+            """;
 
-        _apiClient.Setup(x => x.GetAsync(expectedUrl)).ReturnsAsync(jsonResponse);
+        _apiClient.Setup(x => x.GetStringAsync(expectedUrl)).ReturnsAsync(jsonResponse);
         _apiClient.Setup(x => x.Dispose());
 
         using var client = new GerritClient(ServerUrl, "user", GerritToken, _apiClient.Object);
@@ -71,9 +72,9 @@ internal sealed class GerritClientTests
     {
         var commit = RandomData.NextSha1();
         var expectedUrl = $"{ServerUrl}/a/changes/?q=commit:{commit.Value}";
-        var jsonResponse = JsonDocument.Parse("[]");
+        var jsonResponse = GerritMagicPrefix + "[]";
 
-        _apiClient.Setup(x => x.GetAsync(expectedUrl)).ReturnsAsync(jsonResponse);
+        _apiClient.Setup(x => x.GetStringAsync(expectedUrl)).ReturnsAsync(jsonResponse);
         _apiClient.Setup(x => x.Dispose());
 
         using var client = new GerritClient(ServerUrl, "user", GerritToken, _apiClient.Object);
@@ -88,7 +89,7 @@ internal sealed class GerritClientTests
         var commit = RandomData.NextSha1();
         var expectedUrl = $"{ServerUrl}/a/changes/?q=commit:{commit.Value}";
 
-        _apiClient.Setup(x => x.GetAsync(expectedUrl)).ThrowsAsync(new InvalidOperationException("Network error"));
+        _apiClient.Setup(x => x.GetStringAsync(expectedUrl)).ThrowsAsync(new InvalidOperationException("Network error"));
         _apiClient.Setup(x => x.Dispose());
 
         using var client = new GerritClient(ServerUrl, "user", GerritToken, _apiClient.Object);
@@ -102,7 +103,7 @@ internal sealed class GerritClientTests
     {
         var commit = RandomData.NextSha1();
         var expectedUrl = $"{ServerUrl}/a/changes/?q=commit:{commit.Value}";
-        var jsonResponse = JsonDocument.Parse("""
+        var jsonResponse = GerritMagicPrefix + """
             [
                 {
                     "id": "project~branch~I1111111111111111111111111111111111111111",
@@ -117,9 +118,9 @@ internal sealed class GerritClientTests
                     "_number": 12346
                 }
             ]
-            """);
+            """;
 
-        _apiClient.Setup(x => x.GetAsync(expectedUrl)).ReturnsAsync(jsonResponse);
+        _apiClient.Setup(x => x.GetStringAsync(expectedUrl)).ReturnsAsync(jsonResponse);
         _apiClient.Setup(x => x.Dispose());
 
         using var client = new GerritClient(ServerUrl, "user", GerritToken, _apiClient.Object);
