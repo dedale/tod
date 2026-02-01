@@ -103,7 +103,7 @@ internal sealed class RequestManagerTests
     {
         var rootDiffs = new JobDiff[] { new("chain", _referenceRootJob, _onDemandRootJob) };
         var chainBuilder = new RequestChainBuilder(workspace, _filterManager.Object);
-        return chainBuilder.Get(request.Commit, request.GitReference, rootDiffs, request.GetFilters());
+        return chainBuilder.Get(request.Commit, request.GitReference, rootDiffs, request.GetTestFilters());
     }
 
     [Test]

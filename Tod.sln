@@ -39,6 +39,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{
 		.github\workflows\publish.yml = .github\workflows\publish.yml
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tod.Windows.Tests", "src\Tod.Windows.Tests\Tod.Windows.Tests.csproj", "{AA4056B0-32CF-4B3C-BFBB-1F8BAB6F4569}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -61,6 +63,10 @@ Global
 		{EFA533EF-46E6-45A8-80E4-3ED2F8E489BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EFA533EF-46E6-45A8-80E4-3ED2F8E489BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EFA533EF-46E6-45A8-80E4-3ED2F8E489BD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AA4056B0-32CF-4B3C-BFBB-1F8BAB6F4569}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AA4056B0-32CF-4B3C-BFBB-1F8BAB6F4569}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AA4056B0-32CF-4B3C-BFBB-1F8BAB6F4569}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AA4056B0-32CF-4B3C-BFBB-1F8BAB6F4569}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

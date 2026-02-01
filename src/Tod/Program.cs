@@ -126,7 +126,7 @@ internal static class Program
         }
 
         var chainBuilder = new RequestChainBuilder(workspace, filterManager);
-        var chains = chainBuilder.Get(request.Commit, request.GitReference, rootDiffs, request.GetFilters());
+        var chains = chainBuilder.Get(request.Commit, request.GitReference, rootDiffs, request.GetTestFilters());
 
         var userActiveRequestsCount = workspace.OnDemandRequests.ActiveRequests
             .Count(r => r.Value.Request.UserName == userName);
@@ -219,7 +219,7 @@ internal static class Program
             Log.Information("  Created: {CreatedUtc:yyyy-MM-dd HH:mm:ss}", request.Request.CreatedUtc);
             Log.Information("  Branch: {Branch}", request.Request.GitReference.Branch);
             Log.Information("  Commit: {Commit}", request.Request.Commit);
-            Log.Information("  Filters: {Filters}", request.Request.Filters);
+            Log.Information("  Filters: {Filters}", request.Request.TestFilters);
             Log.Information("  Status: {Status}", request.IsDone ? "Done" : "Active");
 
             foreach (var chain in request.ChainDiffs)
@@ -258,6 +258,7 @@ internal static class Program
             Log.Error("Request with ID '{RequestId}' not found in workspace", requestId);
             return ExitCodes.BadRequest;
         }
+        Log.Information("Generating report for request {RequestId}", requestId);
         var report = RequestReportBuilder.Instance.Build(cachedRequest.Value, workspace);
         await reportSender.Send(cachedRequest.Value, report).ConfigureAwait(false);
         return ExitCodes.Success;

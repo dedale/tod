@@ -1,6 +1,5 @@
 using Moq;
 using NUnit.Framework;
-using System.Text.Json;
 using Tod.Gerrit;
 using Tod.Jenkins;
 using Tod.Tests.Jenkins;

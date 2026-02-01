@@ -46,6 +46,11 @@ internal static class IBuildChainsExtensions
         return chains.TestBuilds.GetOrAdd(testBuild.JobName).TryAdd(testBuild);
     }
 
+    public static RootBuild GetRootBuild(this IBuildChains chains, BuildReference buildReference)
+    {
+        return chains.RootBuilds.GetOrAdd(buildReference.JobName)[buildReference];
+    }
+
     public static TestBuild GetTestBuild(this IBuildChains chains, BuildReference buildReference)
     {
         return chains.TestBuilds.GetOrAdd(buildReference.JobName)[buildReference];

@@ -8,6 +8,7 @@ internal static class UserDirectory
 {
     public static string GetUserEmail(string? userName, string? userDomain)
     {
+        using var resolver = new WindowsDesktopAssemblyResolver();
         userName ??= Environment.UserName;
         userDomain ??= Environment.UserDomainName;
         using var context = new PrincipalContext(ContextType.Domain, userDomain);

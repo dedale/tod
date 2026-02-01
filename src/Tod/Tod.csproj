@@ -29,6 +29,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="$(AssemblyName).Tests" />
     <InternalsVisibleTo Include="$(AssemblyName).Tests.Benchmarks" />
+    <InternalsVisibleTo Include="$(AssemblyName).Windows" />
+    <InternalsVisibleTo Include="$(AssemblyName).Windows.Tests" />
   </ItemGroup>
 
   <ItemGroup>
@@ -51,7 +53,7 @@
         <PackagePath>tools/$(TargetFramework)/any/</PackagePath>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
-      <Content Include="$(TodWindowsOutputPath)\System.DirectoryServices.dll">
+      <Content Include="$(TodWindowsOutputPath)\System.Data.SqlClient.dll">
         <Pack>true</Pack>
         <PackagePath>tools/$(TargetFramework)/any/</PackagePath>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -62,6 +64,11 @@
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
       <Content Include="$(TodWindowsOutputPath)\System.DirectoryServices.Protocols.dll">
+        <Pack>true</Pack>
+        <PackagePath>tools/$(TargetFramework)/any/</PackagePath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="$(TodWindowsOutputPath)\System.Windows.Forms.DataVisualization.dll">
         <Pack>true</Pack>
         <PackagePath>tools/$(TargetFramework)/any/</PackagePath>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

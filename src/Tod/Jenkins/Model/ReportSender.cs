@@ -1,4 +1,8 @@
 ﻿using Serilog;
+using System.Data;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Xml.Linq;
 using Tod.Net;
 
@@ -61,9 +65,10 @@ internal sealed class ChainReport(BuildReferenceResult rootResult, BuildDiffResu
     public BuildDiffResult[] BuildDiffs { get; } = buildDiffs;
 }
 
-internal sealed class RequestReport(ChainReport[] chainReports)
+internal sealed class RequestReport(ChainReport[] chainReports, XElement? ganttChart = null)
 {
     public ChainReport[] ChainReports { get; } = chainReports;
+    public XElement? GanttChart { get; } = ganttChart;
 }
 
 internal interface IRequestReportBuilder
@@ -87,6 +92,34 @@ internal sealed class RequestReportBuilder : IRequestReportBuilder
     {
     }
 
+    [ExcludeFromCodeCoverage]
+    private static XElement? GetGanttChart(RequestState requestState, OnDemandBuilds onDemandBuilds)
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            var fileName = "Tod.Windows.dll";
+            var path = Path.Combine(AppContext.BaseDirectory, fileName);
+            if (File.Exists(path))
+            {
+                try
+                {
+                    var assembly = Assembly.LoadFrom(path);
+                    var type = assembly.GetType("Tod.Windows.HtmlGanttChartBuilder");
+                    var method = type?.GetMethod("Build", BindingFlags.Public | BindingFlags.Static, [typeof(RequestState), typeof(OnDemandBuilds)]);
+                    if (method?.Invoke(null, [requestState, onDemandBuilds]) is XElement element)
+                    {
+                        return element;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed to build Gantt chart from '{WindowsLib}'", fileName);
+                }
+            }
+        }
+        return null;
+    }
+
     private static RequestReport Build(RequestState requestState, BranchReference branchReference, OnDemandBuilds onDemandBuilds, IFlakyTests flakyTests)
     {
         var chainReports = new List<ChainReport>();
@@ -101,7 +134,7 @@ internal sealed class RequestReportBuilder : IRequestReportBuilder
             {
                 TestBuild? referenceTestBuild = null;
                 var referenceResult = diff.ReferenceBuild.Match(
-                    onPending: jobName => BuildReferenceResult.Pending(jobName),
+                    onPending: BuildReferenceResult.Pending,
                     onDone: referenceBuildRef =>
                     {
                         referenceTestBuild = branchReference.GetTestBuild(referenceBuildRef);
@@ -128,7 +161,10 @@ internal sealed class RequestReportBuilder : IRequestReportBuilder
             }
             chainReports.Add(new ChainReport(rootResult, [.. buildDiffs]));
         }
-        return new RequestReport([.. chainReports]);
+
+        var ganttChart = GetGanttChart(requestState, onDemandBuilds);
+
+        return new RequestReport([.. chainReports], ganttChart);
     }
 
     public RequestReport Build(RequestState request, IEnumerable<BranchReference> branchReferences, OnDemandBuilds onDemandBuilds, IFlakyTests flakyTests)
@@ -500,7 +536,7 @@ pre {
                     new XElement("td", $"{request.Request.GitReference.Branch} (commit {request.Request.GitReference.Commit})")),
                 new XElement("tr",
                     new XElement("th", "🎯 Test Filters"),
-                    new XElement("td", string.Join(" ", request.Request.GetFilters()))),
+                    new XElement("td", string.Join(" ", request.Request.GetTestFilters()))),
                 newFailedTests + updatedFailedTests > 0 ? new XElement("tr",
                     new XElement("th", $"🧪 Failed test{(newFailedTests + updatedFailedTests > 1 ? "s" : "")}"),
                     new XElement("td", failedTestsSummary)) : null),
@@ -514,6 +550,7 @@ pre {
                     new XElement("td", GetLink(chainDiff.OnDemandRoot)),
                     new XElement("td", $"{(chainDiff.Status == ChainStatus.RootTriggered ? "⏳" : "✅")} {chainDiff.Status}"),
                     new XElement("td", $"{(chainDiff.Status == ChainStatus.RootTriggered ? "" : chainDiff.Status == ChainStatus.TestsTriggered ? "⏳" : "🏁")} {chainDiff.Status}")))),
+            full ? report.GanttChart : null,
             full ? report.ChainReports.Select(GetElement) : null);
     }
 
