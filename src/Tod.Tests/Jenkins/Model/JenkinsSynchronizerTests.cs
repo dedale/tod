@@ -84,8 +84,9 @@ internal sealed class JenkinsSynchronizerTests
         }
     }
 
-    [Test]
-    public async Task Update_BranchReference_DoNotAddKnownRootBuilds()
+    [TestCase(0)]
+    [TestCase(-1)]
+    public async Task Update_BranchReference_DoNotAddKnownRootBuilds(int buildNumberDelta)
     {
         using var mocks = StoreMocks.New()
             .WithReferenceStore(_mainBranch, _refRootJob, out var referenceStore)
@@ -111,6 +112,7 @@ internal sealed class JenkinsSynchronizerTests
             scheduled
         ));
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
+        var rootBuilds = RandomBuilds.Generate(1, [build.Number + buildNumberDelta]).ToArray();
         client.Setup(x => x.GetLastBuilds(_refRootJob, 100)).ReturnsAsync(builds);
         client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
@@ -202,8 +204,9 @@ internal sealed class JenkinsSynchronizerTests
         handler.VerifyAll();
     }
 
-    [Test]
-    public async Task Update_BranchReference_DoNotAddKnownTestBuilds()
+    [TestCase(0)]
+    [TestCase(-1)]
+    public async Task Update_BranchReference_DoNotAddKnownTestBuilds(int buildNumberDelta)
     {
         var testJobName = new JobName("MAIN-test");
 
@@ -242,7 +245,7 @@ internal sealed class JenkinsSynchronizerTests
             []
         ));
         var testBuildReference = triggered[0];
-        var testBuilds = RandomBuilds.Generate(1, [testBuildReference.BuildNumber]).ToArray();
+        var testBuilds = RandomBuilds.Generate(1, [testBuildReference.BuildNumber + buildNumberDelta]).ToArray();
         var testBuild = testBuilds[0];
         var failedTests = RandomFailedTests.Generate(2).ToArray();
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);

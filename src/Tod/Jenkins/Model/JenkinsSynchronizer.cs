@@ -11,9 +11,11 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
         {
             Log.Debug("Fetching root builds for {@JobName}", rootBuilds.JobName);
             var builds = await jenkinsClient.GetLastBuilds(rootBuilds.JobName).ConfigureAwait(false);
+            var minBuildNumber = builds.Length > 0 && rootBuilds.Count > 0 ? rootBuilds.Min(r => r.BuildNumber) : int.MinValue;
             foreach (var build in builds.Reverse())
             {
-                if (rootBuilds.Contains(build.Number))
+                // After a purge, do not try to add old builds
+                if (rootBuilds.Contains(build.Number) || build.Number < minBuildNumber)
                 {
                     continue;
                 }
@@ -47,9 +49,11 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
         {
             Log.Debug("Fetching test builds for {@JobName}", testBuilds.JobName);
             var builds = await jenkinsClient.GetLastBuilds(testBuilds.JobName).ConfigureAwait(false);
+            var minBuildNumber = testBuilds.Count > 0 ? testBuilds.Min(r => r.BuildNumber) : int.MinValue;
             foreach (var build in builds.Reverse())
             {
-                if (testBuilds.Contains(build.Number))
+                // After a purge, do not try to add old builds
+                if (testBuilds.Contains(build.Number) || build.Number < minBuildNumber)
                 {
                     continue;
                 }
