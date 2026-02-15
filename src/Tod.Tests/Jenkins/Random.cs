@@ -25,7 +25,13 @@ internal static class RandomBuilds
             timestamp = timestamp.AddMinutes(-s_rand.Next(10, 20));
             var durationInMs = s_rand.Next(5, 15) * 60 * 1000;
             var building = buildings.Length > i ? buildings[i] : false;
-            var commits = Enumerable.Range(0, commitCount ?? s_rand.Next(1, 3)).Select(_ => RandomData.NextSha1().Value).ToArray();
+            var commits = Enumerable.Range(0, commitCount ?? s_rand.Next(1, 3)).Select(_ =>
+            {
+                var sha1 = RandomData.NextSha1().Value;
+                var user = RandomData.NextUser();
+                var author = new CommitAuthor(user.Name, user.Email);
+                return new Commit(sha1, author);
+            }).ToArray();
             yield return new Build(id, number, result, timestamp, durationInMs, building, commits);
         }
     }
@@ -75,6 +81,19 @@ internal static class RandomData
         }
     }
 
+    public static (string Name, string Email) NextUser()
+    {
+        var users = new[]
+        {
+            ("John Doe", "john.doe@example.com"),
+            ("Jane Smith", "jane.smith@example.com"),
+            ("Alice Johnson", "alice.johnson@example.com"),
+            ("Bob Brown", "bob.brown@example.com"),
+            ("Charlie Davis", "charlie.davis@example.com")
+        };
+        return users[s_random.Next(users.Length)];
+    }
+
     public static RootBuild NextRootBuild(
         string jobName = "MyJob",
         int buildNumber = 0,
@@ -85,6 +104,13 @@ internal static class RandomData
         DateTime endUtc = default
     )
     {
+        var commitShas = Enumerable.Range(0, commits).Select(_ => NextSha1()).ToArray();
+        var commitAuthors = commitShas.Select(_ =>
+        {
+            var user = NextUser();
+            return new CommitAuthor(user.Name, user.Email);
+        }).ToArray();
+
         return new RootBuild(
             new JobName(jobName),
             Guid.NewGuid().ToString(),
@@ -92,8 +118,9 @@ internal static class RandomData
             startUtc == DateTime.MinValue ? DateTime.UtcNow.AddHours(-1) : startUtc,
             endUtc == DateTime.MinValue ? DateTime.UtcNow : endUtc,
             isSuccessful,
-            [.. Enumerable.Range(0, commits).Select(_ => NextSha1())],
-            [.. (testJobNames ?? ["MyTestJob1", "MyTestJob2"]).Select(j => new JobName(j))]
+            commitShas,
+            [.. (testJobNames ?? ["MyTestJob1", "MyTestJob2"]).Select(j => new JobName(j))],
+            commitAuthors
         );
     }
 

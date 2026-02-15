@@ -8,7 +8,7 @@ using Tod.Tests.IO;
 namespace Tod.Tests.Jenkins;
 
 [TestFixture]
-internal sealed class ReportSenderTests
+internal sealed class RequestReportSenderTests
 {
     private readonly BranchName _mainBranch = new("main");
     private readonly JobName _referenceRootJob = new("MAIN-build");
@@ -19,7 +19,7 @@ internal sealed class ReportSenderTests
     private TempDirectory _temp;
     private Mock<IJobLinker> _mockJobLinker;
     private Mock<IMailSender> _mockMailSender;
-    private ReportSender _reportSender;
+    private RequestReportSender _reportSender;
 
     [SetUp]
     public void SetUp()
@@ -27,7 +27,7 @@ internal sealed class ReportSenderTests
         _temp = new TempDirectory();
         _mockJobLinker = new Mock<IJobLinker>(MockBehavior.Strict);
         _mockMailSender = new Mock<IMailSender>(MockBehavior.Strict);
-        _reportSender = new ReportSender(_mockJobLinker.Object, _mockMailSender.Object);
+        _reportSender = new RequestReportSender(_mockJobLinker.Object, _mockMailSender.Object);
     }
 
     [TearDown]

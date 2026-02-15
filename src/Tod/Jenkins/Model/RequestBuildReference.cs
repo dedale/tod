@@ -14,16 +14,22 @@ internal abstract class RefTestBuildReference : IWithCustomSerialization<RefTest
     public abstract void Match(Action<JobName> onPending, Action<BuildReference> onDone);
     public abstract T Match<T>(Func<JobName, T> onPending, Func<BuildReference, T> onDone);
 
+    public abstract JobName JobName { get; }
+
     private sealed class Pending(JobName jobName) : RefTestBuildReference
     {
         public override void Match(Action<JobName> onPending, Action<BuildReference> _) => onPending(jobName);
         public override T Match<T>(Func<JobName, T> onPending, Func<BuildReference, T> _) => onPending(jobName);
+
+        public override JobName JobName => jobName;
     }
 
     private sealed class Done(BuildReference reference) : RefTestBuildReference
     {
         public override void Match(Action<JobName> _, Action<BuildReference> onDone) => onDone(reference);
         public override T Match<T>(Func<JobName, T> _, Func<BuildReference, T> onDone) => onDone(reference);
+
+        public override JobName JobName => reference.JobName;
     }
 
     public static RefTestBuildReference Create(JobName jobName) => new Pending(jobName);

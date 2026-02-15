@@ -9,7 +9,15 @@ internal interface IByJobNameStore
     void Add(JobName jobName);
     void Remove(JobName jobName);
     void Save<T>(JobName jobName, T item);
-    T Load<T>(JobName jobName, Func<JobName, T> create);
+    T Load<T>(JobName jobName, Func<T> create);
+}
+
+internal interface IByChainStore
+{
+    IEnumerable<string> ChainNames { get; }
+    void Add(string chainName);
+    void Save<T>(string chainName, T item);
+    T Load<T>(string chainName, Func<T> create);
 }
 
 internal interface IByJobNameStoreFactory
@@ -22,6 +30,7 @@ internal interface IReferenceStore
     BranchName Branch { get; }
     IByJobNameStore RootStore { get; }
     IByJobNameStore TestStore { get; }
+    IByChainStore ChainStore { get; }
 }
 
 internal interface IOnDemandStore
@@ -120,7 +129,7 @@ internal sealed class ByJobNameStore : IByJobNameStore
         File.WriteAllText(jsonPath, json);
     }
 
-    public T Load<T>(JobName jobName, Func<JobName, T> create)
+    public T Load<T>(JobName jobName, Func<T> create)
     {
         var jsonPath = Path.Combine(_jsonDir, $"{jobName.Value.Replace('/', Path.DirectorySeparatorChar)}.json");
         if (File.Exists(jsonPath))
@@ -128,7 +137,7 @@ internal sealed class ByJobNameStore : IByJobNameStore
             var json = File.ReadAllText(jsonPath);
             return JsonSerializer.Deserialize<T>(json)!;
         }
-        return create(jobName);
+        return create();
     }
 }
 
@@ -145,6 +154,61 @@ internal sealed class ByJobNameStoreFactory(BuildBranch buildBranch, string json
     }
 }
 
+internal sealed class ByChainStore : IByChainStore
+{
+    private readonly HashSet<string> _chainNames;
+    private readonly string _jsonPath;
+    private readonly string _jsonDir;
+
+    public ByChainStore(string jsonPath)
+    {
+        _jsonPath = jsonPath;
+        _jsonDir = Path.GetDirectoryName(_jsonPath)!;
+        if (File.Exists(_jsonPath))
+        {
+            _chainNames = [.. JsonSerializer.Deserialize<List<string>>(File.ReadAllText(_jsonPath))!];
+        }
+        else
+        {
+            _chainNames = [];
+        }
+    }
+
+    public IEnumerable<string> ChainNames => _chainNames;
+
+    public void Add(string chainName)
+    {
+        if (_chainNames.Add(chainName))
+        {
+            Directory.CreateDirectory(_jsonDir);
+            var json = JsonSerializer.Serialize(_chainNames);
+            File.WriteAllText(_jsonPath, json);
+        }
+    }
+
+    private static string ChainFileName(string chainName) => chainName.Length == 0 ? "__DEFAULT__" : chainName;
+
+    // TODO Remove old
+    public void Save<T>(string chainName, T item)
+    {
+        var json = JsonSerializer.Serialize(item);
+        var jsonPath = Path.Combine(_jsonDir, $"{ChainFileName(chainName)}.json");
+        Directory.CreateDirectory(_jsonDir);
+        File.WriteAllText(jsonPath, json);
+    }
+
+    public T Load<T>(string chainName, Func<T> create)
+    {
+        var jsonPath = Path.Combine(_jsonDir, $"{ChainFileName(chainName)}.json");
+        if (File.Exists(jsonPath))
+        {
+            var json = File.ReadAllText(jsonPath);
+            return JsonSerializer.Deserialize<T>(json)!;
+        }
+        return create();
+    }
+}
+
 internal sealed class ReferenceStore : IReferenceStore
 {
     public ReferenceStore(BranchName branch, string dir)
@@ -153,11 +217,13 @@ internal sealed class ReferenceStore : IReferenceStore
         Branch = branch;
         RootStore = new ByJobNameStoreFactory(buildBranch, Path.Combine(dir, "RootBuilds.json")).New();
         TestStore = new ByJobNameStoreFactory(buildBranch, Path.Combine(dir, "TestBuilds.json")).New();
+        ChainStore = new ByChainStore(Path.Combine(dir, "Chains.json"));
     }
 
     public BranchName Branch { get; }
     public IByJobNameStore RootStore { get; }
     public IByJobNameStore TestStore { get; }
+    public IByChainStore ChainStore { get; }
 }
 
 internal sealed class OnDemandStore(string dir) : IOnDemandStore

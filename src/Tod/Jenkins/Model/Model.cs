@@ -220,11 +220,12 @@ internal abstract class BaseBuild(JobName jobName, string id, int buildNumber, D
     public BuildReference Reference => _reference;
 }
 
-internal sealed class RootBuild(JobName jobName, string id, int buildNumber, DateTime startTimeUtc, DateTime endTimeUtc, bool isSuccessful, Sha1[] commits, JobName[] scheduled)
+internal sealed class RootBuild(JobName jobName, string id, int buildNumber, DateTime startTimeUtc, DateTime endTimeUtc, bool isSuccessful, Sha1[] commits, JobName[] scheduled, CommitAuthor[]? commitAuthors = null)
     : BaseBuild(jobName, id, buildNumber, startTimeUtc, endTimeUtc, isSuccessful)
 {
     public Sha1[] Commits { get; } = commits;
     public JobName[] Scheduled { get; } = scheduled;
+    public CommitAuthor[] CommitAuthors { get; } = commitAuthors ?? [];
 
     [ExcludeFromCodeCoverage]
     public override string ToString()

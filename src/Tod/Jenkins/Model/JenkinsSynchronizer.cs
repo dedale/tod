@@ -3,7 +3,7 @@ using Tod.Git;
 
 namespace Tod.Jenkins;
 
-internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBuildHandler postBuildHandler)
+internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IEnumerable<IPostBuildHandler> postBuildHandlers)
 {
     private async Task UpdateReferenceRootBuilds(BuildCollections<RootBuild> allRootBuilds)
     {
@@ -29,11 +29,17 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     build.TimestampUtc.AddMilliseconds(build.DurationInMs),
                     build.Result == BuildResult.Success,
                     build.GetCommits(),
-                    scheduled
+                    scheduled,
+                    build.GetCommitAuthors()
                 );
 
                 Log.Information("Adding root build {@RootBuild} ({@IsSuccessful})", rootBuild.Reference, rootBuild.IsSuccessful ? BuildResultInfo.Success("Success") : BuildResultInfo.Failure("Failure"));
                 rootBuilds.TryAdd(rootBuild);
+
+                foreach (var handler in postBuildHandlers)
+                {
+                    await handler.PostReferenceRootBuild(rootBuild, scheduled).ConfigureAwait(false);
+                }
             }
         }
     }
@@ -92,10 +98,14 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
 
                 foreach (var rootBuild in testBuild.RootBuilds)
                 {
-                    await postBuildHandler.PostReferenceTestBuild(rootBuild, testBuild.Reference).ConfigureAwait(false);
+                    foreach (var handler in postBuildHandlers)
+                    {
+                        await handler.PostReferenceTestBuild(rootBuild, testBuild.Reference).ConfigureAwait(false);
+                    }
                 }
             }
         }
+
         return newTestBuilds;
     }
 
@@ -136,7 +146,8 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     build.TimestampUtc.AddMilliseconds(build.DurationInMs),
                     build.Result == BuildResult.Success,
                     commits,
-                    scheduled
+                    scheduled,
+                    build.GetCommitAuthors()
                 );
 
                 // After a purge, do not try to add old builds
@@ -148,7 +159,10 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
 
                     if (commits.Length == 1)
                     {
-                        await postBuildHandler.PostOnDemandRootBuild(rootBuild.Reference, commits[0], rootBuild.IsSuccessful).ConfigureAwait(false);
+                        foreach (var handler in postBuildHandlers)
+                        {
+                            await handler.PostOnDemandRootBuild(rootBuild.Reference, commits[0], rootBuild.IsSuccessful).ConfigureAwait(false);
+                        }
                     }
                 }
             }
@@ -213,7 +227,10 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IPostBui
                     }
                     testBuilds.TryAdd(testBuild, false);
 
-                    await postBuildHandler.PostOnDemandTestBuild(rootBuild, testBuild.Reference).ConfigureAwait(false);
+                    foreach (var handler in postBuildHandlers)
+                    {
+                        await handler.PostOnDemandTestBuild(rootBuild, testBuild.Reference).ConfigureAwait(false);
+                    }
                 }
             }
         }

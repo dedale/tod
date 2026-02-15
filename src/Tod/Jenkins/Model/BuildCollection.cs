@@ -86,7 +86,7 @@ internal sealed class BuildCollection<T>(JobName jobName, IByJobNameStore byJobN
 
         public static InnerCollection Load(JobName jobName, IByJobNameStore byJobNameStore)
         {
-            var serializable = byJobNameStore.Load(jobName, j => new Serializable(j, []));
+            var serializable = byJobNameStore.Load(jobName, () => new Serializable(jobName, []));
 
             Telemetry.BuildsLoaded.Add(serializable.Builds.Count, byJobNameStore.BuildBranch.Tag, jobName.Tag);
 

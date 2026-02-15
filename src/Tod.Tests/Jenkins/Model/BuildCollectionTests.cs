@@ -26,8 +26,8 @@ internal sealed class BuildCollectionTests
     private void StoreSetupLoad(JobName jobName)
     {
         _store.Setup(s => s.BuildBranch).Returns(s_mainBuildBranch);
-        _store.Setup(s => s.Load(jobName, It.IsAny<Func<JobName, BuildCollection<RootBuild>.InnerCollection.Serializable>>()))
-            .Returns((JobName j, Func<JobName, BuildCollection<RootBuild>.InnerCollection.Serializable> f) => f(j));
+        _store.Setup(s => s.Load(jobName, It.IsAny<Func<BuildCollection<RootBuild>.InnerCollection.Serializable>>()))
+            .Returns((JobName j, Func<BuildCollection<RootBuild>.InnerCollection.Serializable> f) => f());
     }
 
     [Test]

@@ -1,4 +1,4 @@
-﻿using Moq;
+using Moq;
 using NUnit.Framework;
 using Tod.Jenkins;
 
@@ -26,6 +26,11 @@ internal sealed class JenkinsSynchronizerTests
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(onDemandRootJobName);
         return new Workspace([branchReference], onDemandBuilds, new OnDemandRequests("requests"), new FlakyTests(flakyStore));
+    }
+
+    private static JenkinsConfig CreateMinimalConfig()
+    {
+        return JenkinsConfig.New("https://jenkins.test");
     }
 
     [Test]
@@ -58,8 +63,7 @@ internal sealed class JenkinsSynchronizerTests
             client.Setup(x => x.GetLastBuilds(_refTestJob1, 100)).ReturnsAsync([]);
             client.Setup(x => x.GetLastBuilds(_refTestJob2, 100)).ReturnsAsync([]);
             client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
-            var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
-            var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
+            var synchronizer = new JenkinsSynchronizer(client.Object, []);
             var workspace = NewWorkspace(branchReference, _onDemandRootJob, onDemandStore, flakyStore);
             await synchronizer.Update(workspace).ConfigureAwait(false);
             Assert.That(branchReference.RootBuilds, Has.Count.EqualTo(1));
@@ -80,7 +84,6 @@ internal sealed class JenkinsSynchronizerTests
             Assert.That(branchReference.TestBuilds[0].JobName.Value, Is.EqualTo("MAIN-test1"));
             Assert.That(branchReference.TestBuilds[1].JobName.Value, Is.EqualTo("MAIN-test2"));
             client.VerifyAll();
-            handler.VerifyAll();
         }
     }
 
@@ -115,13 +118,11 @@ internal sealed class JenkinsSynchronizerTests
         var rootBuilds = RandomBuilds.Generate(1, [build.Number + buildNumberDelta]).ToArray();
         client.Setup(x => x.GetLastBuilds(_refRootJob, 100)).ReturnsAsync(builds);
         client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
-        var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
-        var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
+        var synchronizer = new JenkinsSynchronizer(client.Object, []);
         var workspace = NewWorkspace(branchReference, _onDemandRootJob, onDemandStore, flakyStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
         Assert.That(branchReference.RootBuilds, Has.Count.EqualTo(1));
         client.VerifyAll();
-        handler.VerifyAll();
     }
 
     [Test]
@@ -188,7 +189,7 @@ internal sealed class JenkinsSynchronizerTests
         {
             handler.Setup(x => x.PostReferenceTestBuild(new BuildReference(_refRootJob, rootBuilds[i].Number), triggered[i][0])).Returns(Task.CompletedTask);
         }
-        var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
+        var synchronizer = new JenkinsSynchronizer(client.Object, [handler.Object]);
         var workspace = NewWorkspace(branchReference, _onDemandRootJob, onDemandStore, flakyStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
         var testCollection = branchReference.TestBuilds.Single(x => x.JobName == _refTestJob1);
@@ -252,14 +253,12 @@ internal sealed class JenkinsSynchronizerTests
         client.Setup(x => x.GetLastBuilds(_refRootJob, 100)).ReturnsAsync([]);
         client.Setup(x => x.GetLastBuilds(testJobName, 100)).ReturnsAsync(testBuilds);
         client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
-        var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
-        var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
+        var synchronizer = new JenkinsSynchronizer(client.Object, []);
         var workspace = NewWorkspace(branchReference, _onDemandRootJob, onDemandStore, flakyStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
         var testCollection = branchReference.TestBuilds.Single(x => x.JobName == testJobName);
         Assert.That(testCollection, Has.Count.EqualTo(1));
         client.VerifyAll();
-        handler.VerifyAll();
     }
 
     [Test]
@@ -322,14 +321,12 @@ internal sealed class JenkinsSynchronizerTests
         client.Setup(x => x.GetLastBuilds(testJobName, 100)).ReturnsAsync(testBuilds);
         client.Setup(x => x.GetLastBuilds(otherTestJobName, 100)).ReturnsAsync([]);
         client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
-        var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
-        var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
+        var synchronizer = new JenkinsSynchronizer(client.Object, []);
         var workspace = NewWorkspace(branchReference, _onDemandRootJob, onDemandStore, flakyStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
         var testCollection = branchReference.TestBuilds.Single(x => x.JobName == testJobName);
         Assert.That(testCollection, Has.Count.EqualTo(1));
         client.VerifyAll();
-        handler.VerifyAll();
     }
 
     [Test]
@@ -370,7 +367,7 @@ internal sealed class JenkinsSynchronizerTests
             .ReturnsAsync(new TestBuildData(0, [rootRef]));
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
         handler.Setup(x => x.PostReferenceTestBuild(rootRef, testRef)).Returns(Task.CompletedTask);
-        var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
+        var synchronizer = new JenkinsSynchronizer(client.Object, [handler.Object]);
         var workspace = NewWorkspace(branchReference, _onDemandRootJob, onDemandStore, flakyStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
         var testCollection = branchReference.TestBuilds.Single(x => x.JobName == _refTestJob1);
@@ -406,7 +403,7 @@ internal sealed class JenkinsSynchronizerTests
         });
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
         handler.Setup(x => x.PostOnDemandRootBuild(new BuildReference(_onDemandRootJob, build.Number), commit, build.Result == BuildResult.Success)).Returns(Task.CompletedTask);
-        var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
+        var synchronizer = new JenkinsSynchronizer(client.Object, [handler.Object]);
         var workspace = NewWorkspace(onDemandBuilds, flakyStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
         Assert.That(onDemandBuilds.RootBuilds, Has.Count.EqualTo(1));
@@ -443,8 +440,7 @@ internal sealed class JenkinsSynchronizerTests
         client.Setup(x => x.GetLastBuilds(_onDemandTestJob1, 100)).ReturnsAsync([]);
         client.Setup(x => x.GetLastBuilds(_onDemandTestJob2, 100)).ReturnsAsync([]);
         client.Setup(x => x.GetBuildParameters(new(_onDemandRootJob, build.Number))).ReturnsAsync(new Dictionary<string, string>());
-        var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
-        var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
+        var synchronizer = new JenkinsSynchronizer(client.Object, []);
         var workspace = NewWorkspace(onDemandBuilds, flakyStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
         Assert.That(onDemandBuilds.RootBuilds, Has.Count.EqualTo(1));
@@ -457,7 +453,6 @@ internal sealed class JenkinsSynchronizerTests
         Assert.That(rootBuild.Commits, Is.EqualTo(build.GetCommits()));
         Assert.That(rootBuild.Scheduled, Is.Empty);
         client.VerifyAll();
-        handler.VerifyAll();
     }
 
     [Test]
@@ -486,13 +481,11 @@ internal sealed class JenkinsSynchronizerTests
         ));
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
         client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync(builds);
-        var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
-        var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
+        var synchronizer = new JenkinsSynchronizer(client.Object, []);
         var workspace = NewWorkspace(onDemandBuilds, flakyStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
         Assert.That(onDemandBuilds.RootBuilds, Has.Count.EqualTo(1));
         client.VerifyAll();
-        handler.VerifyAll();
     }
 
     [TestCase(0)]
@@ -541,7 +534,7 @@ internal sealed class JenkinsSynchronizerTests
         }
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
         handler.Setup(x => x.PostOnDemandTestBuild(new(_onDemandRootJob, rootBuild.Number), testBuildReference)).Returns(Task.CompletedTask);
-        var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
+        var synchronizer = new JenkinsSynchronizer(client.Object, [handler.Object]);
         var workspace = NewWorkspace(onDemandBuilds, flakyStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
         var testCollection = onDemandBuilds.TestBuilds.Single(x => x.JobName == _onDemandTestJob1);
@@ -589,7 +582,7 @@ internal sealed class JenkinsSynchronizerTests
         client.Setup(x => x.GetFailCount(new(_onDemandTestJob1, testBuild.Number))).ReturnsAsync(0);
         var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
         handler.Setup(x => x.PostOnDemandTestBuild(new(_onDemandRootJob, rootBuild.Number), testBuildReference)).Returns(Task.CompletedTask);
-        var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
+        var synchronizer = new JenkinsSynchronizer(client.Object, [handler.Object]);
         var workspace = NewWorkspace(onDemandBuilds, flakyStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
         var testCollection = onDemandBuilds.TestBuilds.Single(x => x.JobName == _onDemandTestJob1);
@@ -637,14 +630,12 @@ internal sealed class JenkinsSynchronizerTests
         client.Setup(x => x.GetLastBuilds(_onDemandTestJob1, 100)).ReturnsAsync(testBuilds);
         client.Setup(x => x.GetLastBuilds(_onDemandTestJob2, 100)).ReturnsAsync([]);
         client.Setup(x => x.TryGetRootBuild(new(_onDemandTestJob1, testBuild.Number))).ReturnsAsync((BuildReference?)null);
-        var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
-        var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
+        var synchronizer = new JenkinsSynchronizer(client.Object, []);
         var workspace = NewWorkspace(onDemandBuilds, flakyStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
         var testCollection = onDemandBuilds.TestBuilds.Single(x => x.JobName == _onDemandTestJob1);
         Assert.That(testCollection, Has.Count.EqualTo(0));
         client.VerifyAll();
-        handler.VerifyAll();
     }
 
     [Test]
@@ -692,14 +683,12 @@ internal sealed class JenkinsSynchronizerTests
         var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
         client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
         client.Setup(x => x.GetLastBuilds(testJobName, 100)).ReturnsAsync(testBuilds);
-        var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
-        var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
+        var synchronizer = new JenkinsSynchronizer(client.Object, []);
         var workspace = NewWorkspace(onDemandBuilds, flakyStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
         var testCollection = onDemandBuilds.TestBuilds.Single(x => x.JobName == testJobName);
         Assert.That(testCollection, Has.Count.EqualTo(1));
         client.VerifyAll();
-        handler.VerifyAll();
     }
 
     [Test]
@@ -760,13 +749,11 @@ internal sealed class JenkinsSynchronizerTests
         client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
         client.Setup(x => x.GetLastBuilds(testJobName, 100)).ReturnsAsync(testBuilds);
         client.Setup(x => x.GetLastBuilds(otherTestJobName, 100)).ReturnsAsync([]);
-        var handler = new Mock<IPostBuildHandler>(MockBehavior.Strict);
-        var synchronizer = new JenkinsSynchronizer(client.Object, handler.Object);
+        var synchronizer = new JenkinsSynchronizer(client.Object, []);
         var workspace = NewWorkspace(onDemandBuilds, flakyStore);
         await synchronizer.Update(workspace).ConfigureAwait(false);
         var testCollection = onDemandBuilds.TestBuilds.Single(x => x.JobName == testJobName);
         Assert.That(testCollection, Has.Count.EqualTo(1));
         client.VerifyAll();
-        handler.VerifyAll();
     }
 }

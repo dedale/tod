@@ -32,14 +32,18 @@ internal class StoreMocks : IDisposable
         var mockReferenceStore = new Mock<IReferenceStore>(MockBehavior.Strict);
         var rootStore = new Mock<IByJobNameStore>(MockBehavior.Strict);
         var testStore = new Mock<IByJobNameStore>(MockBehavior.Strict);
+        var chainStore = new Mock<IByChainStore>(MockBehavior.Strict);
         mockReferenceStore.Setup(x => x.Branch).Returns(branch);
         mockReferenceStore.Setup(x => x.RootStore).Returns(rootStore.Object);
         mockReferenceStore.Setup(x => x.TestStore).Returns(testStore.Object);
+        mockReferenceStore.Setup(x => x.ChainStore).Returns(chainStore.Object);
         rootStore.Setup(x => x.JobNames).Returns(rootJobs);
         testStore.Setup(x => x.JobNames).Returns([]);
+        chainStore.Setup(x => x.ChainNames).Returns([]);
         _mocks.Add(mockReferenceStore);
         _mocks.Add(rootStore);
         _mocks.Add(testStore);
+        _mocks.Add(chainStore);
         referenceStore = mockReferenceStore.Object;
         return new BuildStoreMocks(BuildBranch.Create(branch), rootStore, testStore);
     }
@@ -49,8 +53,8 @@ internal class StoreMocks : IDisposable
         public BuildStoreMocks WithRootJobs(JobName job)
         {
             rootStore.Setup(s => s.BuildBranch).Returns(buildBranch);
-            rootStore.Setup(s => s.Load(job, It.IsAny<Func<JobName, BuildCollection<RootBuild>.InnerCollection.Serializable>>()))
-                .Returns((JobName j, Func<JobName, BuildCollection<RootBuild>.InnerCollection.Serializable> f) => f(j));
+            rootStore.Setup(s => s.Load(job, It.IsAny<Func<BuildCollection<RootBuild>.InnerCollection.Serializable>>()))
+                .Returns((JobName j, Func<BuildCollection<RootBuild>.InnerCollection.Serializable> f) => f());
             return this;
         }
 
@@ -65,8 +69,8 @@ internal class StoreMocks : IDisposable
             testStore.Setup(s => s.BuildBranch).Returns(buildBranch);
             foreach (var job in jobs)
             {
-                testStore.Setup(s => s.Load(job, It.IsAny<Func<JobName, BuildCollection<TestBuild>.InnerCollection.Serializable>>()))
-                    .Returns((JobName j, Func<JobName, BuildCollection<TestBuild>.InnerCollection.Serializable> f) => f(j));
+                testStore.Setup(s => s.Load(job, It.IsAny<Func<BuildCollection<TestBuild>.InnerCollection.Serializable>>()))
+                    .Returns((JobName j, Func<BuildCollection<TestBuild>.InnerCollection.Serializable> f) => f());
                 testStore.Setup(x => x.Add(job));
             }
             return this;

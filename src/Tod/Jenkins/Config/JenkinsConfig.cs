@@ -127,6 +127,10 @@ internal sealed record LoadThreshold(int QueueSize, TimeSpan MaxRequestDuration)
 
 internal sealed record JobMapping(string OldName, string NewName);
 
+internal sealed record ReferenceReportConfig(
+    bool Enabled
+);
+
 internal sealed class JenkinsConfig
 {
     private static readonly MailConfig s_emptyMailConfig = new(string.Empty, string.Empty);
@@ -135,7 +139,7 @@ internal sealed class JenkinsConfig
     private readonly Dictionary<string, TestFilter> _testFilterByName;
 
     public JenkinsConfig(string url)
-        : this(url, [], [], [], [], [], [], string.Empty, [], s_emptyMailConfig, null, [], [], null, null)
+        : this(url, [], [], [], [], [], [], string.Empty, [], s_emptyMailConfig, null, [], [], null, null, null)
     {
     }
 
@@ -155,7 +159,8 @@ internal sealed class JenkinsConfig
         LoadThreshold[] loadThresholds,
         JobMapping[] jobMappings,
         int? maxUserActiveRequests,
-        string? gerritReviewServer)
+        string? gerritReviewServer,
+        ReferenceReportConfig? referenceReportConfig)
     {
         Url = url;
         MultiBranchFolders = multiBranchFolders;
@@ -174,6 +179,7 @@ internal sealed class JenkinsConfig
         JobMappings = jobMappings;
         MaxUserActiveRequests = maxUserActiveRequests;
         GerritReviewServer = gerritReviewServer;
+        ReferenceReportConfig = referenceReportConfig;
     }
 
     public static JenkinsConfig New(
@@ -191,7 +197,8 @@ internal sealed class JenkinsConfig
         LoadThreshold[]? loadThresholds = null,
         JobMapping[]? jobMappings = null,
         int? maxUserActiveRequests = null,
-        string? gerritReviewServer = null
+        string? gerritReviewServer = null,
+        ReferenceReportConfig? referenceReportConfig = null
     )
     {
         return new JenkinsConfig(
@@ -209,7 +216,8 @@ internal sealed class JenkinsConfig
             loadThresholds ?? [],
             jobMappings ?? [],
             maxUserActiveRequests ?? null,
-            gerritReviewServer ?? null
+            gerritReviewServer ?? null,
+            referenceReportConfig ?? null
         );
     }
 
@@ -228,6 +236,7 @@ internal sealed class JenkinsConfig
     public JobMapping[] JobMappings { get; }
     public int? MaxUserActiveRequests { get; }
     public string? GerritReviewServer { get; }
+    public ReferenceReportConfig? ReferenceReportConfig { get; }
 
     public bool TryGetRootFilter(string name, [NotNullWhen(true)] out RootFilter? filter)
     {
@@ -288,7 +297,8 @@ internal sealed class JenkinsConfig
             loadThresholds: LoadThresholds,
             jobMappings: JobMappings,
             maxUserActiveRequests: MaxUserActiveRequests,
-            gerritReviewServer: GerritReviewServer
+            gerritReviewServer: GerritReviewServer,
+            referenceReportConfig: ReferenceReportConfig
         );
         newConfig.Save(configPath);
     }

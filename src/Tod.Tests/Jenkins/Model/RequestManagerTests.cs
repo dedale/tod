@@ -17,7 +17,7 @@ internal sealed class RequestManagerTests
     private TempDirectory _temp;
     private Mock<IFilterManager> _filterManager;
     private Mock<IJenkinsClient> _jenkinsClient;
-    private Mock<IReportSender> _reportSender;
+    private Mock<IRequestReportSender> _reportSender;
 
     [SetUp]
     public void SetUp()
@@ -25,7 +25,7 @@ internal sealed class RequestManagerTests
         _temp = new TempDirectory();
         _filterManager = new Mock<IFilterManager>(MockBehavior.Strict);
         _jenkinsClient = new Mock<IJenkinsClient>(MockBehavior.Strict);
-        _reportSender = new Mock<IReportSender>(MockBehavior.Strict);
+        _reportSender = new Mock<IRequestReportSender>(MockBehavior.Strict);
     }
 
     [TearDown]

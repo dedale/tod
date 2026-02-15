@@ -3,14 +3,7 @@ using Tod.Git;
 
 namespace Tod.Jenkins;
 
-internal interface IPostBuildHandler
-{
-    Task PostOnDemandRootBuild(BuildReference rootBuild, Sha1 commit, bool success);
-    Task PostOnDemandTestBuild(BuildReference rootBuild, BuildReference testBuild);
-    Task PostReferenceTestBuild(BuildReference rootBuild, BuildReference testBuild);
-}
-
-internal sealed class RequestManager(Workspace workspace, IJenkinsClient jenkinsClient, IReportSender reportSender) : IPostBuildHandler
+internal sealed class RequestManager(Workspace workspace, IJenkinsClient jenkinsClient, IRequestReportSender reportSender) : IPostBuildHandler
 {
     public async Task Register(Request request, RequestChain[] chains)
     {
@@ -25,6 +18,11 @@ internal sealed class RequestManager(Workspace workspace, IJenkinsClient jenkins
         {
             await reportSender.Send(requestState, workspace).ConfigureAwait(false);
         }
+    }
+
+    public Task PostReferenceRootBuild(RootBuild rootBuild, JobName[] scheduled)
+    {
+        return Task.CompletedTask;
     }
 
     public async Task PostOnDemandRootBuild(BuildReference onDemandRoot, Sha1 commit, bool success)

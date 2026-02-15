@@ -22,13 +22,13 @@ internal sealed class InMemoryByJobNameStore(BuildBranch buildBranch) : IByJobNa
         _store.Remove(jobName);
     }
 
-    public T Load<T>(JobName jobName, Func<JobName, T> create)
+    public T Load<T>(JobName jobName, Func<T> create)
     {
         if (_store.TryGetValue(jobName, out var item))
         {
             return (T)item;
         }
-        return create(jobName);
+        return create();
     }
 
     public void Save<T>(JobName jobName, T item)
@@ -44,11 +44,39 @@ internal sealed class InMemoryByJobNameStoreFactory(BuildBranch buildBranch) : I
     public IByJobNameStore New() => _store;
 }
 
+internal sealed class InMemoryByChainStore : IByChainStore
+{
+    private readonly HashSet<string> _chainNames = [];
+    private readonly Dictionary<string, object> _store = [];
+
+    public IEnumerable<string> ChainNames => _chainNames;
+
+    public void Add(string chainName)
+    {
+        _chainNames.Add(chainName);
+    }
+
+    public void Save<T>(string chainName, T item)
+    {
+        _store[chainName] = item!;
+    }
+
+    public T Load<T>(string chainName, Func<T> create)
+    {
+        if (_store.TryGetValue(chainName, out var item))
+        {
+            return (T)item;
+        }
+        return create();
+    }
+}
+
 internal sealed class InMemoryReferenceStore : IReferenceStore
 {
     private readonly BranchName _branch;
     private readonly InMemoryByJobNameStore _rootStore;
     private readonly InMemoryByJobNameStore _testStore;
+    private readonly InMemoryByChainStore _chainStore;
 
     public InMemoryReferenceStore(BranchName branch)
     {
@@ -56,11 +84,13 @@ internal sealed class InMemoryReferenceStore : IReferenceStore
         var buildBranch = BuildBranch.Create(branch);
         _rootStore = new InMemoryByJobNameStore(buildBranch);
         _testStore = new InMemoryByJobNameStore(buildBranch);
+        _chainStore = new InMemoryByChainStore();
     }
 
     public BranchName Branch => _branch;
     public IByJobNameStore RootStore => _rootStore;
     public IByJobNameStore TestStore => _testStore;
+    public IByChainStore ChainStore => _chainStore;
 }
 
 internal sealed class InMemoryOnDemandStore : IOnDemandStore

@@ -6,26 +6,39 @@ namespace Tod.Jenkins;
 
 internal sealed class BranchReference : IBuildChains
 {
+    private readonly ChainReportTrackers _chainReportTrackers;
+
     public BranchReference(IReferenceStore referenceStore)
-        : this(referenceStore.Branch, referenceStore.RootStore, referenceStore.TestStore)
+        : this(referenceStore.Branch, referenceStore.RootStore, referenceStore.TestStore, referenceStore.ChainStore)
     {
     }
 
-    private BranchReference(BranchName branchName, IByJobNameStore rootStore, IByJobNameStore testStore)
-        : this(branchName, new BuildCollections<RootBuild>(rootStore), new BuildCollections<TestBuild>(testStore))
+    private BranchReference(BranchName branchName, IByJobNameStore rootStore, IByJobNameStore testStore, IByChainStore chainStore)
+        : this(branchName, new BuildCollections<RootBuild>(rootStore), new BuildCollections<TestBuild>(testStore), new ChainReportTrackers(chainStore))
     {
     }
 
-    private BranchReference(BranchName branchName, BuildCollections<RootBuild> rootBuilds, BuildCollections<TestBuild> testBuilds)
+    private BranchReference(BranchName branchName, BuildCollections<RootBuild> rootBuilds, BuildCollections<TestBuild> testBuilds, ChainReportTrackers chainReportTrackers)
     {
         BranchName = branchName;
         RootBuilds = rootBuilds;
         TestBuilds = testBuilds;
+        _chainReportTrackers = chainReportTrackers;
     }
 
     public BranchName BranchName { get; }
     public BuildCollections<RootBuild> RootBuilds { get; }
     public BuildCollections<TestBuild> TestBuilds { get; }
+
+    public ChainReportTracker GetOrCreateChainTracker(string chainName)
+    {
+        return _chainReportTrackers.GetOrCreate(chainName);
+    }
+
+    public ChainReportTracker? GetChainTracker(string chainName)
+    {
+        return _chainReportTrackers.Get(chainName);
+    }
 
     public bool TryFindRootBuildByCommit(Sha1 commitId, JobName jobName, [NotNullWhen(true)] out RootBuild? rootBuild)
     {

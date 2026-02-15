@@ -64,9 +64,21 @@ internal static class Program
         var workSpace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
         var filterManager = new FilterManager(config, jobGroups);
         var mailSender = new MailSender(config.MailConfig);
-        var reportSender = new ReportSender(new JenkinsJobLinker(config), mailSender);
+        var reportSender = new RequestReportSender(new JenkinsJobLinker(config), mailSender);
         var requestManager = new RequestManager(workSpace, jenkinsClient, reportSender);
-        var jenkinsSynchronizer = new JenkinsSynchronizer(jenkinsClient, requestManager);
+
+        var postBuildHandlers = new List<IPostBuildHandler> { requestManager };
+
+        if (config.ReferenceReportConfig?.Enabled == true)
+        {
+            foreach (var branchReference in workSpace.BranchReferences)
+            {
+                var referenceReportHandler = new ReferenceReportHandler(branchReference, config, workSpace.FlakyTests);
+                postBuildHandlers.Add(referenceReportHandler);
+            }
+        }
+
+        var jenkinsSynchronizer = new JenkinsSynchronizer(jenkinsClient, postBuildHandlers);
         await jenkinsSynchronizer.Update(workSpace).ConfigureAwait(false);
 
         if (config.KeptDays != null && config.KeptDays > 0)
@@ -138,7 +150,7 @@ internal static class Program
         }
 
         var mailSender = new MailSender(config.MailConfig);
-        var reportSender = new ReportSender(new JenkinsJobLinker(config), mailSender);
+        var reportSender = new RequestReportSender(new JenkinsJobLinker(config), mailSender);
         var requestManager = new RequestManager(workspace, jenkinsClient, reportSender);
         await requestManager.Register(request, chains).ConfigureAwait(false);
         return ExitCodes.Success;
@@ -247,7 +259,7 @@ internal static class Program
         }
         var config = JenkinsConfig.Load(options.ConfigPath);
         JobName.Init(config.JobMappings);
-        var reportSender = new ReportSender(
+        var reportSender = new RequestReportSender(
             new JenkinsJobLinker(config),
             new MailSender(config.MailConfig)
         );

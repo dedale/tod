@@ -5,6 +5,7 @@ Tod is a Jenkins automation tool for managing CI/CD builds and tests.
 
 ## Coding Standards
 - Use C# 14.0 features targeting .NET 10
+- Ensure proper decoupling and separation of concerns in code design
 - Follow existing patterns: Mock with MockBehavior.Strict in tests
 - Always call VerifyAll() in TearDown methods
 - Use primary constructors where appropriate
@@ -77,6 +78,7 @@ Tod is a Jenkins automation tool for managing CI/CD builds and tests.
 - Use readonly where possible
 - Interface implementations: descriptive names matching their purpose
 - Avoid Hungarian notation except for private fields (_prefix) and static private fields (s_prefix)
+- Use valueByKey naming pattern for dictionaries (e.g., userById, configByName)
 
 ## Disposal Pattern
 - Implement IDisposable for classes that manage unmanaged resources or hold locks

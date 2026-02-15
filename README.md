@@ -87,7 +87,11 @@ Create a `jenkins_config.json` file with your Jenkins settings:
     "SmtpHost": "smtp.example.com",
     "From": "jenkins@example.com"
   },
-  "KeptDays": 30
+  "KeptDays": 30,
+  "ReferenceReportConfig": {
+    "Enabled": true,
+    "TestCompletionTimeout": "02:00:00"
+  }
 }
 ```
 
@@ -113,6 +117,8 @@ The Jenkins configuration file (`jenkins_config.json`) defines how Tod interacts
 | `MultiBranchFolders` | string[] | Folders containing multi-branch pipeline jobs |
 | `KeptDays` | int? | Number of days to keep build history (optional) |
 | `MaxUserActiveRequests` | int? | Maximum number of active requests per user (optional) |
+| `GerritReviewServer` | string? | Gerrit review server URL (optional). When set, verifies commits exist in Gerrit before triggering Jenkins builds |
+| `ReferenceReportConfig` | ReferenceReportConfig? | Configuration for automatic reference build reports (optional). See [Reference Build Reports](#reference-build-reports) |
 
 ### Job Patterns
 
@@ -275,6 +281,48 @@ When `GerritReviewServer` is configured, Tod verifies that the commit exists in 
 - Uses the same authentication token as Jenkins by default, or a dedicated Gerrit token if provided via `--gerrit-token`
 
 **Note:** If `GerritReviewServer` is not configured, this check is skipped.
+
+### Reference Build Reports
+
+When `ReferenceReportConfig` is configured, Tod automatically sends email reports to commit authors when reference builds complete with new test failures:
+
+```json
+{
+  "ReferenceReportConfig": {
+    "Enabled": true,
+    "TestCompletionTimeout": "02:00:00"
+  }
+}
+```
+
+**Properties:**
+- `Enabled`: Enable or disable automatic reference reports (required)
+- `TestCompletionTimeout`: Maximum time to wait for test builds to complete (optional, format: "HH:MM:SS")
+
+**How it works:**
+- Monitors reference branch builds (e.g., main, develop) for completion
+- When all test builds for a root build are complete, analyzes test failures
+- Compares current test results with the last successful build to identify new failures
+- Sends email report to all commit authors if new failures are detected
+- Includes failed builds in the report (accumulates authors from consecutive failed builds)
+
+**Example scenarios:**
+
+| Scenario | Result |
+|----------|--------|
+| All tests pass | No report sent |
+| 5 new test failures | Report sent to commit authors |
+| Failed build #100, #101, then successful #102 with failures | Report includes authors from all 3 builds |
+| No commit author info (old builds) | No report sent |
+
+**Email report includes:**
+- Chain name and root build numbers
+- List of commits and their authors
+- Summary of new failures vs total failures
+- Details of each new failed test (not recurring failures)
+- Flaky test indicators
+
+**Note:** Reference reports use the same SMTP configuration as on-demand reports (`MailConfig`).
 
 ## Commands
 
@@ -588,6 +636,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Timeout support for FileLock
 
 ## Jenkins
+- Send email to commiters when all reference builds of a chain are done (with results)
 - Support complex job dependency graphs
 - Support job renaming
 - Multiple changesets support (identify the right one containing the files to test) (needed?)

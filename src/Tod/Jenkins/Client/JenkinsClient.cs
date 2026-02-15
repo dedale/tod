@@ -25,7 +25,7 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userName, strin
 
     public async Task<Build[]> GetLastBuilds(JobName jobName, int count = 100)
     {
-        var url = $"{config.Url}/{jobName.UrlPath}/api/json?tree=builds[id,number,result,timestamp,duration,building,changeSets[items[commitId]]]{{0,{count}}}";
+        var url = $"{config.Url}/{jobName.UrlPath}/api/json?tree=builds[id,number,result,timestamp,duration,building,changeSets[items[commitId,author[fullName],authorEmail]]]{{0,{count}}}";
         var doc = await _apiClient.GetAsync(url).ConfigureAwait(false);
         var builds = new List<Build>();
         foreach (var buildElement in doc.RootElement.GetProperty("builds").EnumerateArray())
