@@ -19,7 +19,7 @@ internal sealed class ChainReportTrackerTests
         tracker.AddRootBuild(rootBuild, [_testJob1, _testJob2]);
 
         var serializable = tracker.ToSerializable();
-        Assert.That(serializable.ReferenceChains.Count, Is.EqualTo(1));
+        Assert.That(serializable.BaselineChains.Count, Is.EqualTo(1));
         Assert.That(serializable.ContainsBuild(rootBuild), Is.True);
     }
 
@@ -59,7 +59,7 @@ internal sealed class ChainReportTrackerTests
         var rootBuild = RandomData.NextRootBuild(commits: 2, testJobNames: [_testJob1.Value, _testJob2.Value]);
         tracker.AddRootBuild(rootBuild, [_testJob1, _testJob2]);
 
-        ReferenceChain[]? readyBuilds = null;
+        BaselineChain[]? readyBuilds = null;
         await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), () => Task.CompletedTask).ConfigureAwait(false);
         await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob2, new BuildReference(_testJob2, RandomData.NextBuildNumber), () =>
         {
@@ -82,7 +82,7 @@ internal sealed class ChainReportTrackerTests
         tracker.AddRootBuild(failedBuild, [_testJob1]);
         tracker.AddRootBuild(successBuild, [_testJob1]);
 
-        ReferenceChain[]? readyBuilds = null;
+        BaselineChain[]? readyBuilds = null;
         await tracker.MarkTestDone(successBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), () =>
         {
             readyBuilds = tracker.GetReadyForReport();
@@ -109,7 +109,7 @@ internal sealed class ChainReportTrackerTests
 
         await tracker.MarkTestDone(successBuild1.BuildNumber, _testJob1, new BuildReference(_testJob1, 50), () => Task.CompletedTask).ConfigureAwait(false);
 
-        ReferenceChain[]? readyBuilds = null;
+        BaselineChain[]? readyBuilds = null;
         await tracker.MarkTestDone(successBuild2.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), () =>
         {
             readyBuilds = tracker.GetReadyForReport();
@@ -173,7 +173,7 @@ internal sealed class ChainReportTrackerTests
         var restored = serializable.FromSerializable(store);
 
         var restoredSerializable = restored.ToSerializable();
-        Assert.That(restoredSerializable.ReferenceChains.Count, Is.EqualTo(2));
+        Assert.That(restoredSerializable.BaselineChains.Count, Is.EqualTo(2));
         Assert.That(restoredSerializable.ContainsBuild(100), Is.True);
         Assert.That(restoredSerializable.ContainsBuild(101), Is.True);
 

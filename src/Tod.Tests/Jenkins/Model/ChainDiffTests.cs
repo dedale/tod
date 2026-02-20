@@ -166,7 +166,7 @@ internal sealed class ChainDiffTests
 
         var clone = chainDiff.SerializationRoundTrip<ChainDiff, ChainDiff.Serializable>();
         Assert.That(clone.Status, Is.EqualTo(chainDiff.Status));
-        Assert.That(clone.ReferenceRoot, Is.EqualTo(chainDiff.ReferenceRoot));
+        Assert.That(clone.BaselineRoot, Is.EqualTo(chainDiff.BaselineRoot));
         Assert.That(clone.OnDemandRoot, Is.EqualTo(chainDiff.OnDemandRoot));
         Assert.That(clone.TestBuildDiffs.Count, Is.EqualTo(chainDiff.TestBuildDiffs.Count()));
     }

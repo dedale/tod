@@ -5,7 +5,7 @@ using Tod.Tests.IO;
 namespace Tod.Tests.Jenkins.Model;
 
 [TestFixture]
-internal sealed class ReferenceReportBuilderTests
+internal sealed class BaselineReportBuilderTests
 {
     private readonly JobName _rootJob = new("MyRootJob");
     private readonly JobName _testJob1 = new("MyTestJob1");
@@ -13,7 +13,7 @@ internal sealed class ReferenceReportBuilderTests
     private readonly BranchName _mainBranch = new("main");
 
     private TempDirectory _temp;
-    private BranchReference _branchReference;
+    private BaselineBranch _baselineBranch;
     private IFlakyTests _flakyTests;
 
     [SetUp]
@@ -21,8 +21,8 @@ internal sealed class ReferenceReportBuilderTests
     {
         _temp = new TempDirectory();
         var store = new WorkspaceStore(_temp.Path);
-        var refStore = store.GetReferenceStore(_mainBranch);
-        _branchReference = new BranchReference(refStore);
+        var refStore = store.GetBaselineStore(_mainBranch);
+        _baselineBranch = new BaselineBranch(refStore);
         var flakyStore = InMemoryFlakyStore.Default;
         _flakyTests = new FlakyTests(flakyStore);
     }
@@ -36,9 +36,9 @@ internal sealed class ReferenceReportBuilderTests
     [Test]
     public void Build_WithNoRootBuilds_ReturnsNull()
     {
-        var rootBuilds = Array.Empty<ReferenceChain>();
+        var rootBuilds = Array.Empty<BaselineChain>();
 
-        var report = ReferenceReportBuilder.Build(rootBuilds, "TestChain", _branchReference, _flakyTests);
+        var report = BaselineReportBuilder.Build(rootBuilds, "TestChain", _baselineBranch, _flakyTests);
 
         Assert.That(report, Is.Null);
     }
@@ -48,17 +48,17 @@ internal sealed class ReferenceReportBuilderTests
     {
         var rootBuild = RandomData.NextRootBuild(jobName: _rootJob.Value, commits: 2, testJobNames: [_testJob1.Value]);
         var testBuildRef = new BuildReference(_testJob1, RandomData.NextBuildNumber);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1).DoneReference(testBuildRef.BuildNumber)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1).DoneBaseline(testBuildRef.BuildNumber)
         };
-        var tracking = new ReferenceChain(rootBuild.Reference, rootBuild.IsSuccessful, testBuilds, false);
+        var tracking = new BaselineChain(rootBuild.Reference, rootBuild.IsSuccessful, testBuilds, false);
 
-        _branchReference.TryAdd(rootBuild);
+        _baselineBranch.TryAdd(rootBuild);
         var testBuild = new TestBuild(_testJob1, "id", testBuildRef.BuildNumber, DateTime.UtcNow.AddMinutes(-10), DateTime.UtcNow, true, [rootBuild.Reference], []);
-        _branchReference.TestBuilds.GetOrAdd(_testJob1).TryAdd(testBuild);
+        _baselineBranch.TestBuilds.GetOrAdd(_testJob1).TryAdd(testBuild);
 
-        var report = ReferenceReportBuilder.Build([tracking], "TestChain", _branchReference, _flakyTests);
+        var report = BaselineReportBuilder.Build([tracking], "TestChain", _baselineBranch, _flakyTests);
 
         Assert.That(report, Is.Not.Null);
         Assert.That(report!.ChainName, Is.EqualTo("TestChain"));
@@ -75,26 +75,26 @@ internal sealed class ReferenceReportBuilderTests
         var testBuildRef1 = new BuildReference(_testJob1, 200);
         var testBuildRef2 = new BuildReference(_testJob1, 201);
 
-        var testBuilds1 = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds1 = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1).DoneReference(testBuildRef1.BuildNumber)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1).DoneBaseline(testBuildRef1.BuildNumber)
         };
-        var testBuilds2 = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds2 = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1).DoneReference(testBuildRef2.BuildNumber)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1).DoneBaseline(testBuildRef2.BuildNumber)
         };
 
-        var tracking1 = new ReferenceChain(rootBuild1.Reference, rootBuild1.IsSuccessful, testBuilds1, false);
-        var tracking2 = new ReferenceChain(rootBuild2.Reference, rootBuild2.IsSuccessful, testBuilds2, false);
+        var tracking1 = new BaselineChain(rootBuild1.Reference, rootBuild1.IsSuccessful, testBuilds1, false);
+        var tracking2 = new BaselineChain(rootBuild2.Reference, rootBuild2.IsSuccessful, testBuilds2, false);
 
-        _branchReference.TryAdd(rootBuild1);
-        _branchReference.TryAdd(rootBuild2);
+        _baselineBranch.TryAdd(rootBuild1);
+        _baselineBranch.TryAdd(rootBuild2);
         var testBuild1 = new TestBuild(_testJob1, "id1", testBuildRef1.BuildNumber, DateTime.UtcNow.AddMinutes(-20), DateTime.UtcNow.AddMinutes(-10), true, [rootBuild1.Reference], []);
         var testBuild2 = new TestBuild(_testJob1, "id2", testBuildRef2.BuildNumber, DateTime.UtcNow.AddMinutes(-10), DateTime.UtcNow, true, [rootBuild2.Reference], []);
-        _branchReference.TestBuilds.GetOrAdd(_testJob1).TryAdd(testBuild1);
-        _branchReference.TestBuilds.GetOrAdd(_testJob1).TryAdd(testBuild2);
+        _baselineBranch.TestBuilds.GetOrAdd(_testJob1).TryAdd(testBuild1);
+        _baselineBranch.TestBuilds.GetOrAdd(_testJob1).TryAdd(testBuild2);
 
-        var report = ReferenceReportBuilder.Build([tracking1, tracking2], "TestChain", _branchReference, _flakyTests);
+        var report = BaselineReportBuilder.Build([tracking1, tracking2], "TestChain", _baselineBranch, _flakyTests);
 
         Assert.That(report, Is.Not.Null);
         Assert.That(report!.RootBuilds, Has.Length.EqualTo(2));
@@ -106,14 +106,14 @@ internal sealed class ReferenceReportBuilderTests
     public void Build_WithQueuedTestBuild_SkipsTest()
     {
         var rootBuild = RandomData.NextRootBuild(jobName: _rootJob.Value, commits: 1, testJobNames: [_testJob1.Value]);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1)
         };
-        var tracking = new ReferenceChain(rootBuild.Reference, rootBuild.IsSuccessful, testBuilds, false);
+        var tracking = new BaselineChain(rootBuild.Reference, rootBuild.IsSuccessful, testBuilds, false);
 
-        _branchReference.TryAdd(rootBuild);
-        var report = ReferenceReportBuilder.Build([tracking], "TestChain", _branchReference, _flakyTests);
+        _baselineBranch.TryAdd(rootBuild);
+        var report = BaselineReportBuilder.Build([tracking], "TestChain", _baselineBranch, _flakyTests);
 
         Assert.That(report, Is.Not.Null);
         Assert.That(report!.TestDiffs, Is.Empty);
@@ -124,21 +124,21 @@ internal sealed class ReferenceReportBuilderTests
     {
         var rootBuild = RandomData.NextRootBuild(jobName: _rootJob.Value, commits: 1, testJobNames: [_testJob1.Value]);
         var testBuildRef = new BuildReference(_testJob1, RandomData.NextBuildNumber);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1).DoneReference(testBuildRef.BuildNumber)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1).DoneBaseline(testBuildRef.BuildNumber)
         };
-        var tracking = new ReferenceChain(rootBuild.Reference, rootBuild.IsSuccessful, testBuilds, false);
+        var tracking = new BaselineChain(rootBuild.Reference, rootBuild.IsSuccessful, testBuilds, false);
 
         var failedTests = new[]
         {
             new FailedTest("TestClass", "TestMethod", "Error details")
         };
-        _branchReference.TryAdd(rootBuild);
+        _baselineBranch.TryAdd(rootBuild);
         var testBuild = new TestBuild(_testJob1, "id", testBuildRef.BuildNumber, DateTime.UtcNow.AddMinutes(-10), DateTime.UtcNow, false, [rootBuild.Reference], failedTests);
-        _branchReference.TestBuilds.GetOrAdd(_testJob1).TryAdd(testBuild);
+        _baselineBranch.TestBuilds.GetOrAdd(_testJob1).TryAdd(testBuild);
 
-        var report = ReferenceReportBuilder.Build([tracking], "TestChain", _branchReference, _flakyTests);
+        var report = BaselineReportBuilder.Build([tracking], "TestChain", _baselineBranch, _flakyTests);
 
         Assert.That(report, Is.Not.Null);
         Assert.That(report!.TestDiffs, Has.Count.EqualTo(1));
@@ -151,22 +151,22 @@ internal sealed class ReferenceReportBuilderTests
     {
         var rootBuild = RandomData.NextRootBuild(jobName: _rootJob.Value, commits: 1, testJobNames: [_testJob1.Value]);
         var testBuildRef = new BuildReference(_testJob1, RandomData.NextBuildNumber);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1).DoneReference(testBuildRef.BuildNumber)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1).DoneBaseline(testBuildRef.BuildNumber)
         };
-        var tracking = new ReferenceChain(rootBuild.Reference, rootBuild.IsSuccessful, testBuilds, false);
+        var tracking = new BaselineChain(rootBuild.Reference, rootBuild.IsSuccessful, testBuilds, false);
 
         var failedTests = new[]
         {
             new FailedTest("TestClass", "TestMethod1", "Error 1"),
             new FailedTest("TestClass", "TestMethod2", "Error 2")
         };
-        _branchReference.TryAdd(rootBuild);
+        _baselineBranch.TryAdd(rootBuild);
         var testBuild = new TestBuild(_testJob1, "id", testBuildRef.BuildNumber, DateTime.UtcNow.AddMinutes(-10), DateTime.UtcNow, false, [rootBuild.Reference], failedTests);
-        _branchReference.TestBuilds.GetOrAdd(_testJob1).TryAdd(testBuild);
+        _baselineBranch.TestBuilds.GetOrAdd(_testJob1).TryAdd(testBuild);
 
-        var report = ReferenceReportBuilder.Build([tracking], "TestChain", _branchReference, _flakyTests);
+        var report = BaselineReportBuilder.Build([tracking], "TestChain", _baselineBranch, _flakyTests);
 
         Assert.That(report, Is.Not.Null);
         Assert.That(report!.TestDiffs[_testJob1].FailedTests, Has.Length.EqualTo(2));
@@ -187,16 +187,16 @@ internal sealed class ReferenceReportBuilderTests
             [baselineRootBuild.Reference],
             []
         );
-        _branchReference.TryAdd(baselineRootBuild);
-        _branchReference.TestBuilds.GetOrAdd(_testJob1).TryAdd(baselineTestBuild);
+        _baselineBranch.TryAdd(baselineRootBuild);
+        _baselineBranch.TestBuilds.GetOrAdd(_testJob1).TryAdd(baselineTestBuild);
 
         var currentRootBuild = RandomData.NextRootBuild(jobName: _rootJob.Value, buildNumber: 100, commits: 1, testJobNames: [_testJob1.Value]);
         var currentTestBuildRef = new BuildReference(_testJob1, 200);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1).DoneReference(currentTestBuildRef.BuildNumber)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1).DoneBaseline(currentTestBuildRef.BuildNumber)
         };
-        var tracking = new ReferenceChain(currentRootBuild.Reference, currentRootBuild.IsSuccessful, testBuilds, false);
+        var tracking = new BaselineChain(currentRootBuild.Reference, currentRootBuild.IsSuccessful, testBuilds, false);
 
         var currentFailedTests = new[]
         {
@@ -212,10 +212,10 @@ internal sealed class ReferenceReportBuilderTests
             [currentRootBuild.Reference],
             currentFailedTests
         );
-        _branchReference.TryAdd(currentRootBuild);
-        _branchReference.TestBuilds.GetOrAdd(_testJob1).TryAdd(currentTestBuild);
+        _baselineBranch.TryAdd(currentRootBuild);
+        _baselineBranch.TestBuilds.GetOrAdd(_testJob1).TryAdd(currentTestBuild);
 
-        var report = ReferenceReportBuilder.Build([tracking], "TestChain", _branchReference, _flakyTests);
+        var report = BaselineReportBuilder.Build([tracking], "TestChain", _baselineBranch, _flakyTests);
 
         Assert.That(report, Is.Not.Null);
         var diff = report!.TestDiffs[_testJob1];
@@ -228,20 +228,20 @@ internal sealed class ReferenceReportBuilderTests
         var rootBuild = RandomData.NextRootBuild(jobName: _rootJob.Value, commits: 1, testJobNames: [_testJob1.Value, _testJob2.Value]);
         var testBuildRef1 = new BuildReference(_testJob1, RandomData.NextBuildNumber);
         var testBuildRef2 = new BuildReference(_testJob2, RandomData.NextBuildNumber);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1).DoneReference(testBuildRef1.BuildNumber),
-            [_testJob2] = RefTestBuildReference.Create(_testJob2).DoneReference(testBuildRef2.BuildNumber)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1).DoneBaseline(testBuildRef1.BuildNumber),
+            [_testJob2] = BaseTestBuildReference.Create(_testJob2).DoneBaseline(testBuildRef2.BuildNumber)
         };
-        var tracking = new ReferenceChain(rootBuild.Reference, rootBuild.IsSuccessful, testBuilds, false);
+        var tracking = new BaselineChain(rootBuild.Reference, rootBuild.IsSuccessful, testBuilds, false);
 
-        _branchReference.TryAdd(rootBuild);
+        _baselineBranch.TryAdd(rootBuild);
         var testBuild1 = new TestBuild(_testJob1, "id1", testBuildRef1.BuildNumber, DateTime.UtcNow.AddMinutes(-10), DateTime.UtcNow, true, [rootBuild.Reference], []);
         var testBuild2 = new TestBuild(_testJob2, "id2", testBuildRef2.BuildNumber, DateTime.UtcNow.AddMinutes(-10), DateTime.UtcNow, true, [rootBuild.Reference], []);
-        _branchReference.TestBuilds.GetOrAdd(_testJob1).TryAdd(testBuild1);
-        _branchReference.TestBuilds.GetOrAdd(_testJob2).TryAdd(testBuild2);
+        _baselineBranch.TestBuilds.GetOrAdd(_testJob1).TryAdd(testBuild1);
+        _baselineBranch.TestBuilds.GetOrAdd(_testJob2).TryAdd(testBuild2);
 
-        var report = ReferenceReportBuilder.Build([tracking], "TestChain", _branchReference, _flakyTests);
+        var report = BaselineReportBuilder.Build([tracking], "TestChain", _baselineBranch, _flakyTests);
 
         Assert.That(report, Is.Not.Null);
         Assert.That(report!.TestDiffs, Has.Count.EqualTo(2));

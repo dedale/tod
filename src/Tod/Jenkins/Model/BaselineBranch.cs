@@ -4,21 +4,21 @@ using Tod.Git;
 
 namespace Tod.Jenkins;
 
-internal sealed class BranchReference : IBuildChains
+internal sealed class BaselineBranch : IBuildChains
 {
     private readonly ChainReportTrackers _chainReportTrackers;
 
-    public BranchReference(IReferenceStore referenceStore)
-        : this(referenceStore.Branch, referenceStore.RootStore, referenceStore.TestStore, referenceStore.ChainStore)
+    public BaselineBranch(IBaselineStore baselineStore)
+        : this(baselineStore.Branch, baselineStore.RootStore, baselineStore.TestStore, baselineStore.ChainStore)
     {
     }
 
-    private BranchReference(BranchName branchName, IByJobNameStore rootStore, IByJobNameStore testStore, IByChainStore chainStore)
+    private BaselineBranch(BranchName branchName, IByJobNameStore rootStore, IByJobNameStore testStore, IByChainStore chainStore)
         : this(branchName, new BuildCollections<RootBuild>(rootStore), new BuildCollections<TestBuild>(testStore), new ChainReportTrackers(chainStore))
     {
     }
 
-    private BranchReference(BranchName branchName, BuildCollections<RootBuild> rootBuilds, BuildCollections<TestBuild> testBuilds, ChainReportTrackers chainReportTrackers)
+    private BaselineBranch(BranchName branchName, BuildCollections<RootBuild> rootBuilds, BuildCollections<TestBuild> testBuilds, ChainReportTrackers chainReportTrackers)
     {
         BranchName = branchName;
         RootBuilds = rootBuilds;
@@ -97,22 +97,22 @@ internal sealed class BranchReference : IBuildChains
     }
 }
 
-internal static class BranchReferenceExtensions
+internal static class BaselineBranchExtensions
 {
-    private static bool TryFindRefCommit(Sha1[] commits, JobName[] jobNames, BranchReference branchReference, [NotNullWhen(true)] out Sha1? refCommit)
+    private static bool TryFindBaseCommit(Sha1[] commits, JobName[] jobNames, BaselineBranch baselineBranch, [NotNullWhen(true)] out Sha1? refCommit)
     {
         if (commits.Length > 0)
         {
             var candidates = new List<IEnumerable<Sha1>>();
             foreach (var jobName in jobNames)
             {
-                if (branchReference.TryFindRootBuildByCommit(commits.First(), jobName, out _))
+                if (baselineBranch.TryFindRootBuildByCommit(commits.First(), jobName, out _))
                 {
                     throw new NotSupportedException($"No local commits to test for job {jobName}");
                 }
                 for (var i = 1; i < commits.Length; i++)
                 {
-                    if (branchReference.TryFindRootBuildByCommit(commits[i], jobName, out _))
+                    if (baselineBranch.TryFindRootBuildByCommit(commits[i], jobName, out _))
                     {
                         if (jobNames.Length > 1)
                         {
@@ -137,20 +137,20 @@ internal static class BranchReferenceExtensions
     }
 
     public static bool TryFindRefCommit(
-        this IEnumerable<BranchReference> branchReferences,
+        this IEnumerable<BaselineBranch> baselineBranches,
         Sha1[] commits,
         JobName[] jobNames,
         BranchName wantedBranch,
         [NotNullWhen(true)] out Sha1? refCommit)
     {
         refCommit = null;
-        var branchReference = branchReferences.FirstOrDefault(br => br.BranchName == wantedBranch);
-        if (branchReference == null)
+        var baselineBranch = baselineBranches.FirstOrDefault(br => br.BranchName == wantedBranch);
+        if (baselineBranch == null)
         {
             Log.Error("Branch {BranchName} not found in workspace", wantedBranch);
             return false;
         }
-        if (!TryFindRefCommit(commits, jobNames, branchReference, out refCommit))
+        if (!TryFindBaseCommit(commits, jobNames, baselineBranch, out refCommit))
         {
             Log.Error("Cannot find reference commit in {BranchName} branch history", wantedBranch);
             return false;
@@ -160,30 +160,30 @@ internal static class BranchReferenceExtensions
     }
 
     public static bool TryGuessBranch(
-        this IEnumerable<BranchReference> branchReferences,
+        this IEnumerable<BaselineBranch> baselineBranches,
         Sha1[] commits,
         string[] rootFilters,
         IFilterManager filterManager,
         [NotNullWhen(true)] out JobDiff[] rootDiffs,
         [NotNullWhen(true)] out BranchName? branchName,
-        [NotNullWhen(true)] out Sha1? refCommit)
+        [NotNullWhen(true)] out Sha1? baseCommit)
     {
         Log.Information("No branch specified, guessing...");
-        foreach (var branchReference in branchReferences)
+        foreach (var baselineBranch in baselineBranches)
         {
-            rootDiffs = filterManager.GetRootDiffs(rootFilters, branchReference.BranchName);
-            var jobNames = rootDiffs.Select(d => d.ReferenceJob).ToArray();
-            if (TryFindRefCommit(commits, jobNames, branchReference, out refCommit))
+            rootDiffs = filterManager.GetRootDiffs(rootFilters, baselineBranch.BranchName);
+            var jobNames = rootDiffs.Select(d => d.BaselineJob).ToArray();
+            if (TryFindBaseCommit(commits, jobNames, baselineBranch, out baseCommit))
             {
-                branchName = branchReference.BranchName;
-                Log.Information("Using reference commit {RefCommit} in {BranchName} branch", refCommit, branchReference.BranchName);
+                branchName = baselineBranch.BranchName;
+                Log.Information("Using baseline commit {BaseCommit} in {BranchName} branch", baseCommit, baselineBranch.BranchName);
                 return true;
             }
         }
-        Log.Error("Failed to guess reference branch");
+        Log.Error("Failed to guess baseline branch");
         rootDiffs = null!;
         branchName = null;
-        refCommit = null;
+        baseCommit = null;
         return false;
     }
 }

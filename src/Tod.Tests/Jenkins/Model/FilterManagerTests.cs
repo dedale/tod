@@ -107,7 +107,7 @@ internal sealed class FilterManagerTests
 
         // Assert
         Assert.That(rootDiffs, Has.Length.EqualTo(1));
-        Assert.That(rootDiffs[0].ReferenceJob.Value, Is.EqualTo("MAIN-build"));
+        Assert.That(rootDiffs[0].BaselineJob.Value, Is.EqualTo("MAIN-build"));
         Assert.That(rootDiffs[0].OnDemandJob.Value, Is.EqualTo("CUSTOM-build"));
     }
 
@@ -175,7 +175,7 @@ internal sealed class FilterManagerTests
 
         // Assert
         Assert.That(rootDiffs, Has.Length.EqualTo(3));
-        Assert.That(rootDiffs.Select(d => d.ReferenceJob.Value), Is.EquivalentTo(new[] { "MAIN-build", "MAIN-deploy", "MAIN-package" }));
+        Assert.That(rootDiffs.Select(d => d.BaselineJob.Value), Is.EquivalentTo(new[] { "MAIN-build", "MAIN-deploy", "MAIN-package" }));
         Assert.That(rootDiffs.Select(d => d.OnDemandJob.Value), Is.EquivalentTo(new[] { "CUSTOM-build", "CUSTOM-deploy", "CUSTOM-package" }));
     }
 
@@ -230,7 +230,7 @@ internal sealed class FilterManagerTests
 
         // Assert
         Assert.That(mainRootDiffs, Has.Length.EqualTo(1));
-        Assert.That(mainRootDiffs[0].ReferenceJob.Value, Is.EqualTo("MAIN-build"));
+        Assert.That(mainRootDiffs[0].BaselineJob.Value, Is.EqualTo("MAIN-build"));
         Assert.That(mainRootDiffs[0].OnDemandJob.Value, Is.EqualTo("CUSTOM-build"));
 
         // Act - Test with prod branch
@@ -238,7 +238,7 @@ internal sealed class FilterManagerTests
 
         // Assert
         Assert.That(prodRootDiffs, Has.Length.EqualTo(1));
-        Assert.That(prodRootDiffs[0].ReferenceJob.Value, Is.EqualTo("PROD-build"));
+        Assert.That(prodRootDiffs[0].BaselineJob.Value, Is.EqualTo("PROD-build"));
         Assert.That(prodRootDiffs[0].OnDemandJob.Value, Is.EqualTo("CUSTOM-build"));
     }
 
@@ -303,7 +303,7 @@ internal sealed class FilterManagerTests
             new("CUSTOM-BackEnd-integration-tests-net6"),
             new("CUSTOM-BackEnd-integration-tests-net8"),
         };
-        var referenceJobs = new ReferenceJobConfig[]
+        var baselineJobs = new BaselineJobConfig[]
         {
             new("MAIN-(?<root>.*build)", _mainBranch, true),
             new("MAIN-(?<test>.*-tests-.*)", _mainBranch, false),
@@ -333,7 +333,7 @@ internal sealed class FilterManagerTests
             new("net6", "net6", "framework"),
             new("net8", "net8", "framework"),
         };
-        var config = JenkinsConfig.New("http://localhost:8080", referenceJobs: referenceJobs, onDemandJobs: onDemandJobs, rootFilters: rootFilters, chainTestGroup: "team", testFilters: testFilters);
+        var config = JenkinsConfig.New("http://localhost:8080", baselineJobs: baselineJobs, onDemandJobs: onDemandJobs, rootFilters: rootFilters, chainTestGroup: "team", testFilters: testFilters);
         var jobGroups = JobManager.TryLoad(config, jobs);
         Debug.Assert(jobGroups is not null);
         return new FilterManager(config, jobGroups);
@@ -348,7 +348,7 @@ internal sealed class FilterManagerTests
 
         Assert.That(rootDiffs, Has.Length.EqualTo(1));
         Assert.That(rootDiffs[0].Chain, Is.EqualTo("FrontEnd"));
-        Assert.That(rootDiffs[0].ReferenceJob.Value, Is.EqualTo("MAIN-FrontEnd-build"));
+        Assert.That(rootDiffs[0].BaselineJob.Value, Is.EqualTo("MAIN-FrontEnd-build"));
         Assert.That(rootDiffs[0].OnDemandJob.Value, Is.EqualTo("CUSTOM-FrontEnd-build"));
     }
 
@@ -361,7 +361,7 @@ internal sealed class FilterManagerTests
 
         Assert.That(rootDiffs, Has.Length.EqualTo(1));
         Assert.That(rootDiffs[0].Chain, Is.EqualTo(RootFilter.DefaultChain));
-        Assert.That(rootDiffs[0].ReferenceJob.Value, Is.EqualTo("MAIN-Core-build"));
+        Assert.That(rootDiffs[0].BaselineJob.Value, Is.EqualTo("MAIN-Core-build"));
         Assert.That(rootDiffs[0].OnDemandJob.Value, Is.EqualTo("CUSTOM-Core-build"));
     }
 
@@ -374,7 +374,7 @@ internal sealed class FilterManagerTests
 
         Assert.That(rootDiffs, Has.Length.EqualTo(1));
         Assert.That(rootDiffs[0].Chain, Is.EqualTo(RootFilter.DefaultChain));
-        Assert.That(rootDiffs[0].ReferenceJob.Value, Is.EqualTo("PROD-Core-build"));
+        Assert.That(rootDiffs[0].BaselineJob.Value, Is.EqualTo("PROD-Core-build"));
         Assert.That(rootDiffs[0].OnDemandJob.Value, Is.EqualTo("CUSTOM-Core-build"));
     }
 

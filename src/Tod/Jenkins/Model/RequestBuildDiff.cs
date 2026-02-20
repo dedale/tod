@@ -3,51 +3,51 @@ using System.Text.Json.Serialization;
 
 namespace Tod.Jenkins;
 
-internal sealed class JobDiff(string chain, JobName referenceJob, JobName onDemandJob)
+internal sealed class JobDiff(string chain, JobName baselineJob, JobName onDemandJob)
 {
     public string Chain { get; } = chain;
-    public JobName ReferenceJob { get; } = referenceJob;
+    public JobName BaselineJob { get; } = baselineJob;
     public JobName OnDemandJob { get; } = onDemandJob;
 }
 
 internal sealed class RequestBuildDiff : IWithCustomSerialization<RequestBuildDiff.Serializable>
 {
-    public RequestBuildDiff(JobName referenceJobName, JobName onDemandJobName)
-        : this(referenceJobName, onDemandJobName, TimeSpan.Zero)
+    public RequestBuildDiff(JobName baselineJobName, JobName onDemandJobName)
+        : this(baselineJobName, onDemandJobName, TimeSpan.Zero)
     {
     }
 
-    public RequestBuildDiff(JobName referenceJobName, JobName onDemandJobName, TimeSpan testDuration)
-        : this(RefTestBuildReference.Create(referenceJobName), RequestTestBuildReference.Create(onDemandJobName), testDuration)
+    public RequestBuildDiff(JobName baselineJobName, JobName onDemandJobName, TimeSpan testDuration)
+        : this(BaseTestBuildReference.Create(baselineJobName), RequestTestBuildReference.Create(onDemandJobName), testDuration)
     {
     }
 
-    private RequestBuildDiff(RefTestBuildReference referenceBuild, RequestTestBuildReference onDemandBuild, TimeSpan testDuration)
+    private RequestBuildDiff(BaseTestBuildReference baselineBuild, RequestTestBuildReference onDemandBuild, TimeSpan testDuration)
     {
-        ReferenceBuild = referenceBuild;
+        BaselineBuild = baselineBuild;
         OnDemandBuild = onDemandBuild;
         TestDuration = testDuration;
     }
 
-    public RefTestBuildReference ReferenceBuild { get; }
+    public BaseTestBuildReference BaselineBuild { get; }
     public RequestTestBuildReference OnDemandBuild { get; }
     public TimeSpan TestDuration { get; }
 
-    public bool IsDone => ReferenceBuild.IsDone && OnDemandBuild.IsDone;
+    public bool IsDone => BaselineBuild.IsDone && OnDemandBuild.IsDone;
 
     public bool TryGetPendingReference([NotNullWhen(true)] out JobName? jobName)
     {
-        return ReferenceBuild.TryGetPendingReference(out jobName);
+        return BaselineBuild.TryGetPendingReference(out jobName);
     }
 
-    public RequestBuildDiff DoneReference(int buildNumber)
+    public RequestBuildDiff DoneBaseline(int buildNumber)
     {
-        return new RequestBuildDiff(ReferenceBuild.DoneReference(buildNumber), OnDemandBuild, TestDuration);
+        return new RequestBuildDiff(BaselineBuild.DoneBaseline(buildNumber), OnDemandBuild, TestDuration);
     }
 
     public RequestBuildDiff QueueOnDemand()
     {
-        return new RequestBuildDiff(ReferenceBuild, OnDemandBuild.Queue(), TestDuration);
+        return new RequestBuildDiff(BaselineBuild, OnDemandBuild.Queue(), TestDuration);
     }
 
     public bool TryGetQueued([NotNullWhen(true)] out JobName? testJob)
@@ -57,39 +57,39 @@ internal sealed class RequestBuildDiff : IWithCustomSerialization<RequestBuildDi
 
     public RequestBuildDiff DoneOnDemand(int buildNumber)
     {
-        return new RequestBuildDiff(ReferenceBuild, OnDemandBuild.DoneQueued(buildNumber), TestDuration);
+        return new RequestBuildDiff(BaselineBuild, OnDemandBuild.DoneQueued(buildNumber), TestDuration);
     }
 
     public RequestBuildDiff RecycleOnDemand(int buildNumber)
     {
-        return new RequestBuildDiff(ReferenceBuild, OnDemandBuild.Queue().DoneQueued(buildNumber), TestDuration);
+        return new RequestBuildDiff(BaselineBuild, OnDemandBuild.Queue().DoneQueued(buildNumber), TestDuration);
 
     }
 
     internal sealed class Serializable : ICustomSerializable<RequestBuildDiff>
     {
         [JsonConstructor]
-        private Serializable(RefTestBuildReference.Serializable referenceBuild, RequestTestBuildReference.Serializable onDemandBuild, TimeSpan testDuration)
+        private Serializable(BaseTestBuildReference.Serializable baselineBuild, RequestTestBuildReference.Serializable onDemandBuild, TimeSpan testDuration)
         {
-            ReferenceBuild = referenceBuild;
+            BaselineBuild = baselineBuild;
             OnDemandBuild = onDemandBuild;
             TestDuration = testDuration;
         }
         public Serializable(RequestBuildDiff buildDiff)
         {
-            ReferenceBuild = buildDiff.ReferenceBuild.ToSerializable();
+            BaselineBuild = buildDiff.BaselineBuild.ToSerializable();
             OnDemandBuild = buildDiff.OnDemandBuild.ToSerializable();
             TestDuration = buildDiff.TestDuration;
         }
-        public RefTestBuildReference.Serializable ReferenceBuild { get; set; }
+        public BaseTestBuildReference.Serializable BaselineBuild { get; set; }
         public RequestTestBuildReference.Serializable OnDemandBuild { get; set; }
         public TimeSpan TestDuration { get; set; }
 
         public RequestBuildDiff FromSerializable()
         {
-            var referenceBuild = ReferenceBuild.FromSerializable();
+            var baselineBuild = BaselineBuild.FromSerializable();
             var onDemandBuild = OnDemandBuild.FromSerializable();
-            return new RequestBuildDiff(referenceBuild, onDemandBuild, TestDuration);
+            return new RequestBuildDiff(baselineBuild, onDemandBuild, TestDuration);
         }
     }
 

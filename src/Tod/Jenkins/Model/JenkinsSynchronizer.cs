@@ -5,7 +5,7 @@ namespace Tod.Jenkins;
 
 internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IEnumerable<IPostBuildHandler> postBuildHandlers)
 {
-    private async Task UpdateReferenceRootBuilds(BuildCollections<RootBuild> allRootBuilds)
+    private async Task UpdateBaselineRootBuilds(BuildCollections<RootBuild> allRootBuilds)
     {
         foreach (var rootBuilds in allRootBuilds)
         {
@@ -38,20 +38,20 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IEnumera
 
                 foreach (var handler in postBuildHandlers)
                 {
-                    await handler.PostReferenceRootBuild(rootBuild, scheduled).ConfigureAwait(false);
+                    await handler.PostBaselineRootBuild(rootBuild, scheduled).ConfigureAwait(false);
                 }
             }
         }
     }
 
-    private async Task<bool> Update(BranchReference branchReference)
+    private async Task<bool> Update(BaselineBranch baselineBranch)
     {
-        Log.Information("Updating builds for reference branch {BranchName}", branchReference.BranchName);
+        Log.Information("Updating builds for baseline branch {BranchName}", baselineBranch.BranchName);
 
-        await UpdateReferenceRootBuilds(branchReference.RootBuilds).ConfigureAwait(false);
+        await UpdateBaselineRootBuilds(baselineBranch.RootBuilds).ConfigureAwait(false);
 
         var newTestBuilds = false;
-        foreach (var testBuilds in branchReference.TestBuilds)
+        foreach (var testBuilds in baselineBranch.TestBuilds)
         {
             Log.Debug("Fetching test builds for {@JobName}", testBuilds.JobName);
             var builds = await jenkinsClient.GetLastBuilds(testBuilds.JobName).ConfigureAwait(false);
@@ -100,7 +100,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IEnumera
                 {
                     foreach (var handler in postBuildHandlers)
                     {
-                        await handler.PostReferenceTestBuild(rootBuild, testBuild.Reference).ConfigureAwait(false);
+                        await handler.PostBaselineTestBuild(rootBuild, testBuild.Reference).ConfigureAwait(false);
                     }
                 }
             }
@@ -236,9 +236,9 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IEnumera
     {
         Log.Information("Workspace synchronization started");
         var updateFlakies = false;
-        foreach (var branchReference in workspace.BranchReferences)
+        foreach (var baselineBranch in workspace.BaselineBranches)
         {
-            updateFlakies |= await Update(branchReference).ConfigureAwait(false);
+            updateFlakies |= await Update(baselineBranch).ConfigureAwait(false);
         }
         await Update(workspace.OnDemandBuilds).ConfigureAwait(false);
         Log.Information("Workspace synchronization done");
@@ -246,7 +246,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IEnumera
         if (updateFlakies)
         {
             Log.Information("Flaky tests analysis started");
-            workspace.FlakyTests.Update(workspace.BranchReferences);
+            workspace.FlakyTests.Update(workspace.BaselineBranches);
             Log.Information("Flaky tests analysis done");
         }
     }

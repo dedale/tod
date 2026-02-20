@@ -22,29 +22,29 @@ internal class StoreMocks : IDisposable
         return new StoreMocks();
     }
 
-    public BuildStoreMocks WithReferenceStore(BranchName branch, JobName rootJob, out IReferenceStore referenceStore)
+    public BuildStoreMocks WithBaselineStore(BranchName branch, JobName rootJob, out IBaselineStore baselineStore)
     {
-        return WithReferenceStore(branch, [rootJob], out referenceStore);
+        return WithBaselineStore(branch, [rootJob], out baselineStore);
     }
 
-    public BuildStoreMocks WithReferenceStore(BranchName branch, JobName[] rootJobs, out IReferenceStore referenceStore)
+    public BuildStoreMocks WithBaselineStore(BranchName branch, JobName[] rootJobs, out IBaselineStore baselineStore)
     {
-        var mockReferenceStore = new Mock<IReferenceStore>(MockBehavior.Strict);
+        var mockBaselineStore = new Mock<IBaselineStore>(MockBehavior.Strict);
         var rootStore = new Mock<IByJobNameStore>(MockBehavior.Strict);
         var testStore = new Mock<IByJobNameStore>(MockBehavior.Strict);
         var chainStore = new Mock<IByChainStore>(MockBehavior.Strict);
-        mockReferenceStore.Setup(x => x.Branch).Returns(branch);
-        mockReferenceStore.Setup(x => x.RootStore).Returns(rootStore.Object);
-        mockReferenceStore.Setup(x => x.TestStore).Returns(testStore.Object);
-        mockReferenceStore.Setup(x => x.ChainStore).Returns(chainStore.Object);
+        mockBaselineStore.Setup(x => x.Branch).Returns(branch);
+        mockBaselineStore.Setup(x => x.RootStore).Returns(rootStore.Object);
+        mockBaselineStore.Setup(x => x.TestStore).Returns(testStore.Object);
+        mockBaselineStore.Setup(x => x.ChainStore).Returns(chainStore.Object);
         rootStore.Setup(x => x.JobNames).Returns(rootJobs);
         testStore.Setup(x => x.JobNames).Returns([]);
         chainStore.Setup(x => x.ChainNames).Returns([]);
-        _mocks.Add(mockReferenceStore);
+        _mocks.Add(mockBaselineStore);
         _mocks.Add(rootStore);
         _mocks.Add(testStore);
         _mocks.Add(chainStore);
-        referenceStore = mockReferenceStore.Object;
+        baselineStore = mockBaselineStore.Object;
         return new BuildStoreMocks(BuildBranch.Create(branch), rootStore, testStore);
     }
 

@@ -48,7 +48,7 @@ internal sealed class OnDemandRequestsTests : IDisposable
         var chainDiff = request.ChainDiffs[0];
         request = await request.TriggerTests(new(s_onDemandRootJob, rootBuildNumber), job => Task.FromResult(testBuildNumber)).ConfigureAwait(false);
         request = request
-            .DoneReferenceTestBuild(chainDiff.ReferenceRoot, new BuildReference(s_referenceTestJob, RandomData.NextBuildNumber))
+            .DoneBaselineTestBuild(chainDiff.BaselineRoot, new BuildReference(s_referenceTestJob, RandomData.NextBuildNumber))
             .DoneOnDemandTestBuild(new(s_onDemandRootJob, rootBuildNumber), new BuildReference(s_onDemandTestJob, testBuildNumber));
         Assert.That(request.IsDone, Is.True);
         return request;
@@ -325,7 +325,7 @@ internal sealed class OnDemandRequestsTests : IDisposable
     {
         var rootBuild = new BuildReference("MainBuild", 42);
         var testJob = new JobName("TestJob");
-        using var result = _requests.GetPendingReferenceTest(rootBuild, testJob);
+        using var result = _requests.GetPendingBaselineTest(rootBuild, testJob);
         Assert.That(result, Is.Empty);
     }
 
@@ -337,7 +337,7 @@ internal sealed class OnDemandRequestsTests : IDisposable
         _requests.Add(requestState);
         var rootBuild = new BuildReference("OtherBuild", 42);
         var testJob = new JobName("TestJob");
-        using var result = _requests.GetPendingReferenceTest(rootBuild, testJob);
+        using var result = _requests.GetPendingBaselineTest(rootBuild, testJob);
         Assert.That(result, Is.Empty);
     }
 
@@ -347,9 +347,9 @@ internal sealed class OnDemandRequestsTests : IDisposable
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
         _requests.Add(requestState);
-        var rootBuild = requestState.ChainDiffs[0].ReferenceRoot;
+        var rootBuild = requestState.ChainDiffs[0].BaselineRoot;
         var testJob = new JobName("ReferenceTest");
-        using var result = _requests.GetPendingReferenceTest(rootBuild, testJob);
+        using var result = _requests.GetPendingBaselineTest(rootBuild, testJob);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(result, Has.Count.EqualTo(1));
@@ -364,10 +364,10 @@ internal sealed class OnDemandRequestsTests : IDisposable
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
         requestState = requestState
-            .DoneReferenceTestBuild(requestState.ChainDiffs[0].ReferenceRoot, new BuildReference("ReferenceTest", RandomData.NextBuildNumber));
+            .DoneBaselineTestBuild(requestState.ChainDiffs[0].BaselineRoot, new BuildReference("ReferenceTest", RandomData.NextBuildNumber));
         _requests.Add(requestState);
         var testJob = new JobName("ReferenceTest");
-        using var result = _requests.GetPendingReferenceTest(rootBuild, testJob);
+        using var result = _requests.GetPendingBaselineTest(rootBuild, testJob);
         Assert.That(result, Is.Empty);
     }
 
@@ -385,7 +385,7 @@ internal sealed class OnDemandRequestsTests : IDisposable
         _requests.Add(requestState3);
         _requests.Add(requestState4);
         var testJob = new JobName("ReferenceTest");
-        using var result = _requests.GetPendingReferenceTest(rootBuild, testJob);
+        using var result = _requests.GetPendingBaselineTest(rootBuild, testJob);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(result, Has.Count.EqualTo(2));
@@ -418,7 +418,7 @@ internal sealed class OnDemandRequestsTests : IDisposable
         var otherRequestState = RequestState.New(request, chains, onDemandBuilds, triggerBuild);
 
         var testJob = new JobName("ReferenceTest");
-        using var result = _requests.GetPendingReferenceTest(referenceRoot, testJob);
+        using var result = _requests.GetPendingBaselineTest(referenceRoot, testJob);
         Assert.That(result, Is.Empty);
     }
 
@@ -457,7 +457,7 @@ internal sealed class OnDemandRequestsTests : IDisposable
             {
                 var chainClone = requestClone.ChainDiffs[i];
                 var chainOriginal = requestState.ChainDiffs[i];
-                Assert.That(chainClone.ReferenceRoot, Is.EqualTo(chainOriginal.ReferenceRoot));
+                Assert.That(chainClone.BaselineRoot, Is.EqualTo(chainOriginal.BaselineRoot));
                 Assert.That(chainClone.OnDemandRoot, Is.EqualTo(chainOriginal.OnDemandRoot));
                 Assert.That(chainClone.Status, Is.EqualTo(chainOriginal.Status));
                 var chainDiffCount = chainOriginal.TestBuildDiffs.Count();

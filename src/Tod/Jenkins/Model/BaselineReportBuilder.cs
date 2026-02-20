@@ -1,30 +1,30 @@
 namespace Tod.Jenkins;
 
-internal sealed record ReferenceChainReport(
+internal sealed record BaselineChainReport(
     BranchName BranchName,
     string ChainName,
     RootBuild[] RootBuilds,
     Dictionary<JobName, FailedTestDiff> TestDiffs
 );
 
-internal sealed class ReferenceReportBuilder
+internal sealed class BaselineReportBuilder
 {
-    public static ReferenceChainReport? Build(
-        ReferenceChain[] referenceChains,
+    public static BaselineChainReport? Build(
+        BaselineChain[] baselineChains,
         string chainName,
-        BranchReference branchReference,
+        BaselineBranch baselineBranch,
         IFlakyTests flakyTests)
     {
-        if (referenceChains.Length == 0)
+        if (baselineChains.Length == 0)
         {
             return null;
         }
 
         var testDiffs = new Dictionary<JobName, FailedTestDiff>();
-        var currentRootRef = referenceChains[^1].RootBuild;
-        var currentRoot = branchReference.GetRootBuild(currentRootRef);
+        var currentRootRef = baselineChains[^1].RootBuild;
+        var currentRoot = baselineBranch.GetRootBuild(currentRootRef);
 
-        foreach (var (testJob, testBuildRef) in referenceChains[^1].TestBuilds)
+        foreach (var (testJob, testBuildRef) in baselineChains[^1].TestBuilds)
         {
             var currentTestBuildRef = testBuildRef.Match(
                 onPending: _ => (BuildReference?)null,
@@ -36,9 +36,9 @@ internal sealed class ReferenceReportBuilder
                 continue;
             }
 
-            var currentTest = branchReference.GetTestBuild(currentTestBuildRef);
+            var currentTest = baselineBranch.GetTestBuild(currentTestBuildRef);
 
-            var baseline = GetBaselineTestBuild(currentRoot.Reference, testJob, branchReference);
+            var baseline = GetBaselineTestBuild(currentRoot.Reference, testJob, baselineBranch);
 
             if (baseline == null)
             {
@@ -60,10 +60,10 @@ internal sealed class ReferenceReportBuilder
             }
         }
 
-        return new ReferenceChainReport(
-            branchReference.BranchName,
+        return new BaselineChainReport(
+            baselineBranch.BranchName,
             chainName,
-            [.. referenceChains.Select(rc => branchReference.GetRootBuild(rc.RootBuild))],
+            [.. baselineChains.Select(rc => baselineBranch.GetRootBuild(rc.RootBuild))],
             testDiffs
         );
     }
@@ -71,9 +71,9 @@ internal sealed class ReferenceReportBuilder
     private static TestBuild? GetBaselineTestBuild(
         BuildReference rootBuild,
         JobName testJob,
-        BranchReference branchReference)
+        BaselineBranch baselineBranch)
     {
-        var allTestBuilds = branchReference.TestBuilds.FirstOrDefault(x => x.JobName == testJob);
+        var allTestBuilds = baselineBranch.TestBuilds.FirstOrDefault(x => x.JobName == testJob);
         if (allTestBuilds != null)
         {
             for (var i = allTestBuilds.Count - 1; i >= 0; i--)

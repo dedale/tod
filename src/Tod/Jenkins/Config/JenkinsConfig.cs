@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 namespace Tod.Jenkins;
 
 /// For test jobs, Pattern must contain a group named 'test'
-internal sealed record ReferenceJobConfig(string Pattern, BranchName BranchName, bool IsRoot);
+internal sealed record BaselineJobConfig(string Pattern, BranchName BranchName, bool IsRoot);
 
 /// For test jobs, Pattern must contain a group named 'test'
 internal sealed record OnDemandJobConfig(string Pattern, bool IsRoot);
@@ -127,7 +127,7 @@ internal sealed record LoadThreshold(int QueueSize, TimeSpan MaxRequestDuration)
 
 internal sealed record JobMapping(string OldName, string NewName);
 
-internal sealed record ReferenceReportConfig(
+internal sealed record BaselineReportConfig(
     bool Enabled
 );
 
@@ -148,7 +148,7 @@ internal sealed class JenkinsConfig
         string url,
         string[] multiBranchFolders,
         JobName[] jobNames,
-        ReferenceJobConfig[] referenceJobs,
+        BaselineJobConfig[] baselineJobs,
         OnDemandJobConfig[] onDemandJobs,
         TriggerConfig[] triggerConfigs,
         RootFilter[] rootFilters,
@@ -160,12 +160,12 @@ internal sealed class JenkinsConfig
         JobMapping[] jobMappings,
         int? maxUserActiveRequests,
         string? gerritReviewServer,
-        ReferenceReportConfig? referenceReportConfig)
+        BaselineReportConfig? baselineReportConfig)
     {
         Url = url;
         MultiBranchFolders = multiBranchFolders;
         JobNames = jobNames;
-        ReferenceJobs = referenceJobs;
+        BaselineJobs = baselineJobs;
         OnDemandJobs = onDemandJobs;
         TriggerConfigs = triggerConfigs;
         RootFilters = rootFilters;
@@ -179,14 +179,14 @@ internal sealed class JenkinsConfig
         JobMappings = jobMappings;
         MaxUserActiveRequests = maxUserActiveRequests;
         GerritReviewServer = gerritReviewServer;
-        ReferenceReportConfig = referenceReportConfig;
+        BaselineReportConfig = baselineReportConfig;
     }
 
     public static JenkinsConfig New(
         string url,
         string[]? multiBranchFolders = null,
         JobName[]? jobNames = null,
-        ReferenceJobConfig[]? referenceJobs = null,
+        BaselineJobConfig[]? baselineJobs = null,
         OnDemandJobConfig[]? onDemandJobs = null,
         TriggerConfig[]? triggerConfigs = null,
         RootFilter[]? rootFilters = null,
@@ -198,14 +198,14 @@ internal sealed class JenkinsConfig
         JobMapping[]? jobMappings = null,
         int? maxUserActiveRequests = null,
         string? gerritReviewServer = null,
-        ReferenceReportConfig? referenceReportConfig = null
+        BaselineReportConfig? baselineReportConfig = null
     )
     {
         return new JenkinsConfig(
             url,
             multiBranchFolders ?? [],
             jobNames ?? [],
-            referenceJobs ?? [],
+            baselineJobs ?? [],
             onDemandJobs ?? [],
             triggerConfigs ?? [],
             rootFilters ?? [],
@@ -217,14 +217,14 @@ internal sealed class JenkinsConfig
             jobMappings ?? [],
             maxUserActiveRequests ?? null,
             gerritReviewServer ?? null,
-            referenceReportConfig ?? null
+            baselineReportConfig ?? null
         );
     }
 
     public string Url { get; }
     public string[] MultiBranchFolders { get; }
     public JobName[] JobNames { get; }
-    public ReferenceJobConfig[] ReferenceJobs { get; }
+    public BaselineJobConfig[] BaselineJobs { get; }
     public OnDemandJobConfig[] OnDemandJobs { get; }
     public TriggerConfig[] TriggerConfigs { get; }
     public RootFilter[] RootFilters { get; }
@@ -236,7 +236,7 @@ internal sealed class JenkinsConfig
     public JobMapping[] JobMappings { get; }
     public int? MaxUserActiveRequests { get; }
     public string? GerritReviewServer { get; }
-    public ReferenceReportConfig? ReferenceReportConfig { get; }
+    public BaselineReportConfig? BaselineReportConfig { get; }
 
     public bool TryGetRootFilter(string name, [NotNullWhen(true)] out RootFilter? filter)
     {
@@ -286,7 +286,7 @@ internal sealed class JenkinsConfig
             url: Url,
             multiBranchFolders: MultiBranchFolders,
             jobNames: jobNames,
-            referenceJobs: ReferenceJobs,
+            baselineJobs: BaselineJobs,
             onDemandJobs: OnDemandJobs,
             triggerConfigs: TriggerConfigs,
             rootFilters: RootFilters,
@@ -298,7 +298,7 @@ internal sealed class JenkinsConfig
             jobMappings: JobMappings,
             maxUserActiveRequests: MaxUserActiveRequests,
             gerritReviewServer: GerritReviewServer,
-            referenceReportConfig: ReferenceReportConfig
+            baselineReportConfig: BaselineReportConfig
         );
         newConfig.Save(configPath);
     }

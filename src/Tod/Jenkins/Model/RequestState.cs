@@ -35,13 +35,13 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
         }
     }
 
-    public bool TryGetChainReference(BuildReference referenceRoot, [NotNullWhen(true)] out ChainDiff? chainDiff)
+    public bool TryGetBaselineChain(BuildReference baselineRoot, [NotNullWhen(true)] out ChainDiff? chainDiff)
     {
-        chainDiff = ChainDiffs.FirstOrDefault(c => c.ReferenceRoot.Equals(referenceRoot));
+        chainDiff = ChainDiffs.FirstOrDefault(c => c.BaselineRoot.Equals(baselineRoot));
         return chainDiff != null;
     }
 
-    public bool TryGetChainOnDemand(JobName onDemandRootJob, Sha1 commit, [NotNullWhen(true)] out ChainDiff? chainDiff)
+    public bool TryGetOnDemandChain(JobName onDemandRootJob, Sha1 commit, [NotNullWhen(true)] out ChainDiff? chainDiff)
     {
         chainDiff = ChainDiffs.FirstOrDefault(c => c.OnDemandRoot.Match(
             onQueued: (j, c) => j.Equals(onDemandRootJob) && c.Equals(commit),
@@ -99,19 +99,19 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
                 }
                 status = buildDiffs.All(d => d.IsDone) ? ChainStatus.Done : ChainStatus.TestsTriggered;
             }
-            chainDiffs.Add(new ChainDiff(status, requestChain.ReferenceRoot, onDemandRoot, buildDiffs));
+            chainDiffs.Add(new ChainDiff(status, requestChain.BaselineRoot, onDemandRoot, buildDiffs));
         }
         return new RequestState(request, [.. chainDiffs]);
     }
 
-    public RequestState DoneReferenceTestBuild(BuildReference rootBuild, BuildReference testBuild)
+    public RequestState DoneBaselineTestBuild(BuildReference rootBuild, BuildReference testBuild)
     {
         var newChains = new List<ChainDiff>();
         foreach (var chainDiff in ChainDiffs)
         {
-            if (chainDiff.ReferenceRoot.Equals(rootBuild))
+            if (chainDiff.BaselineRoot.Equals(rootBuild))
             {
-                newChains.Add(chainDiff.DoneReferenceTestBuild(testBuild));
+                newChains.Add(chainDiff.DoneBaselineTestBuild(testBuild));
             }
             else
             {

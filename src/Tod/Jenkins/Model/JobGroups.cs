@@ -4,7 +4,7 @@ namespace Tod.Jenkins;
 
 internal sealed class JobGroup(Dictionary<BranchName, JobName> referenceJobByBranch, JobName onDemandJob)
 {
-    public Dictionary<BranchName, JobName> ReferenceJobByBranch { get; } = referenceJobByBranch;
+    public Dictionary<BranchName, JobName> BaselineJobByBranch { get; } = referenceJobByBranch;
     public JobName OnDemandJob { get; } = onDemandJob;
 }
 
@@ -18,16 +18,16 @@ internal sealed class JobGroupsBuilder
 {
     private sealed class JobGroupBuilder
     {
-        private readonly Dictionary<BranchName, JobName> _refJobByBranch = [];
+        private readonly Dictionary<BranchName, JobName> _baseJobByBranch = [];
         private JobName? _ondemandJob;
 
-        public void AddReference(JobName job, BranchName branch)
+        public void AddBaseline(JobName job, BranchName branch)
         {
-            if (_refJobByBranch.TryGetValue(branch, out var current))
+            if (_baseJobByBranch.TryGetValue(branch, out var current))
             {
                 throw new ArgumentException($"Job must be unique, cannot add '{job}' job for '{branch}' branch after '{current}'");
             }
-            _refJobByBranch.Add(branch, job);
+            _baseJobByBranch.Add(branch, job);
         }
 
         public void AddOnDemand(JobName job)
@@ -43,17 +43,17 @@ internal sealed class JobGroupsBuilder
         {
             jobGroup = null;
             // Both _refJobByBranch and _ondemandJob cannot be empty and null by design
-            if (_refJobByBranch.Count == 0)
+            if (_baseJobByBranch.Count == 0)
             {
                 addError("No reference job for '{@Job}' job", [_ondemandJob]);
             }
             else if (_ondemandJob == null)
             {
-                addError($"No ondemand job for {string.Join(", ", _refJobByBranch.Values.Select(j => "'{@Job}'"))} job{(_refJobByBranch.Count > 1 ? "s" : "")}", [.. _refJobByBranch.Values]);
+                addError($"No ondemand job for {string.Join(", ", _baseJobByBranch.Values.Select(j => "'{@Job}'"))} job{(_baseJobByBranch.Count > 1 ? "s" : "")}", [.. _baseJobByBranch.Values]);
             }
             else
             {
-                jobGroup = new JobGroup(_refJobByBranch, _ondemandJob);
+                jobGroup = new JobGroup(_baseJobByBranch, _ondemandJob);
                 return true;
             }
             return false;
@@ -63,17 +63,17 @@ internal sealed class JobGroupsBuilder
     private readonly Dictionary<RootName, JobGroupBuilder> _rootBuilderByName = [];
     private readonly Dictionary<TestName, JobGroupBuilder> _testBuilderByName = [];
 
-    public void AddReferenceRoot(JobName job, BranchName branch, RootName root)
+    public void AddBaselineRoot(JobName job, BranchName branch, RootName root)
     {
-        _rootBuilderByName.GetOrAdd(root, new JobGroupBuilder()).AddReference(job, branch);
+        _rootBuilderByName.GetOrAdd(root, new JobGroupBuilder()).AddBaseline(job, branch);
     }
     public void AddOnDemandRoot(JobName job, RootName root)
     {
         _rootBuilderByName.GetOrAdd(root, new JobGroupBuilder()).AddOnDemand(job);
     }
-    public void AddReferenceTest(JobName job, BranchName branch, TestName test)
+    public void AddBaselineTest(JobName job, BranchName branch, TestName test)
     {
-        _testBuilderByName.GetOrAdd(test, new JobGroupBuilder()).AddReference(job, branch);
+        _testBuilderByName.GetOrAdd(test, new JobGroupBuilder()).AddBaseline(job, branch);
     }
     public void AddOnDemandTest(JobName job, TestName test)
     {

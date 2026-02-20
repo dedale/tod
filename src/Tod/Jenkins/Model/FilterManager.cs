@@ -2,13 +2,13 @@
 
 internal interface IFilterManager
 {
-    JobDiff[] GetRootDiffs(string[] requestFilters, BranchName referenceBranch);
-    JobDiff[] GetTestBuildDiffs(string rootChain, string[] requestFilters, BranchName referenceBranch);
+    JobDiff[] GetRootDiffs(string[] requestFilters, BranchName baselineBranch);
+    JobDiff[] GetTestBuildDiffs(string rootChain, string[] requestFilters, BranchName baselineBranch);
 }
 
 internal sealed class FilterManager(JenkinsConfig config, JobGroups jobGroups) : IFilterManager
 {
-    public JobDiff[] GetRootDiffs(string[] requestFilters, BranchName referenceBranch)
+    public JobDiff[] GetRootDiffs(string[] requestFilters, BranchName baselineBranch)
     {
         var filters = new List<RootFilter>();
         var unknownFilters = new List<string>();
@@ -47,16 +47,16 @@ internal sealed class FilterManager(JenkinsConfig config, JobGroups jobGroups) :
             {
                 throw new InvalidOperationException($"Multiple matching root filters for root '{name}': {string.Join(", ", chains.Select(c => $"chain '{c}'"))}");
             }
-            if (!group.ReferenceJobByBranch.TryGetValue(referenceBranch, out var referenceJob))
+            if (!group.BaselineJobByBranch.TryGetValue(baselineBranch, out var referenceJob))
             {
-                throw new InvalidOperationException($"No reference job for '{referenceBranch}' branch in test group");
+                throw new InvalidOperationException($"No reference job for '{baselineBranch}' branch in test group");
             }
             rootDiffs.Add(new JobDiff(chains[0], referenceJob, group.OnDemandJob));
         }
         return [.. rootDiffs];
     }
 
-    public JobDiff[] GetTestBuildDiffs(string rootChain, string[] requestFilters, BranchName referenceBranch)
+    public JobDiff[] GetTestBuildDiffs(string rootChain, string[] requestFilters, BranchName baselineBranch)
     {
         var filters = new List<TestFilter>();
         var unknownFilters = new List<string>();
@@ -115,9 +115,9 @@ internal sealed class FilterManager(JenkinsConfig config, JobGroups jobGroups) :
         var testDiffs = new List<JobDiff>();
         foreach (var group in testGroups)
         {
-            if (!group.ReferenceJobByBranch.TryGetValue(referenceBranch, out var referenceJob))
+            if (!group.BaselineJobByBranch.TryGetValue(baselineBranch, out var referenceJob))
             {
-                throw new InvalidOperationException($"No reference job for '{referenceBranch}' branch in test group");
+                throw new InvalidOperationException($"No reference job for '{baselineBranch}' branch in test group");
             }
             testDiffs.Add(new JobDiff(rootChain, referenceJob, group.OnDemandJob));
         }

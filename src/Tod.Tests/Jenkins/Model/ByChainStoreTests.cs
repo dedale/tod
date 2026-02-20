@@ -9,7 +9,7 @@ internal static class ChainReportTrackerTestExtensions
 {
     public static bool ContainsBuild(this ChainReportTracker.Serializable tracker, RootBuild rootBuild)
     {
-        return tracker.ReferenceChains.Any(b => b.RootBuild == rootBuild.Reference);
+        return tracker.BaselineChains.Any(b => b.RootBuild == rootBuild.Reference);
     }
 }
 
@@ -143,7 +143,7 @@ internal sealed class ByChainStoreTests
         var tracker = _store.Load("nonexistent", () => new ChainReportTracker.Serializable("nonexistent", []));
 
         Assert.That(tracker, Is.Not.Null);
-        Assert.That(tracker.ReferenceChains.Count, Is.EqualTo(0));
+        Assert.That(tracker.BaselineChains.Count, Is.EqualTo(0));
     }
 
     [Test]
@@ -158,7 +158,7 @@ internal sealed class ByChainStoreTests
         var loaded = LoadChain("chain1");
 
         Assert.That(loaded, Is.Not.Null);
-        Assert.That(loaded.ReferenceChains.Count, Is.EqualTo(1));
+        Assert.That(loaded.BaselineChains.Count, Is.EqualTo(1));
         Assert.That(loaded.ContainsBuild(rootBuild), Is.True);
     }
 
@@ -175,7 +175,7 @@ internal sealed class ByChainStoreTests
 
         var loaded = _store.Load("chain1", CreateNotNeeded);
 
-        Assert.That(loaded.ReferenceChains.Count, Is.EqualTo(1));
+        Assert.That(loaded.BaselineChains.Count, Is.EqualTo(1));
         Assert.That(loaded.ContainsBuild(rootBuild), Is.True);
     }
 
@@ -193,7 +193,7 @@ internal sealed class ByChainStoreTests
 
         var loaded = LoadChain("chain1");
 
-        Assert.That(loaded.ReferenceChains.Count, Is.EqualTo(2));
+        Assert.That(loaded.BaselineChains.Count, Is.EqualTo(2));
         Assert.That(loaded.ContainsBuild(rootBuild1), Is.True);
         Assert.That(loaded.ContainsBuild(rootBuild2), Is.True);
     }
@@ -238,7 +238,7 @@ internal sealed class ByChainStoreTests
         tracker.AddRootBuild(rootBuild, [_testJob1]);
 
         loaded = LoadChain("newchain");
-        Assert.That(loaded.ReferenceChains.Count, Is.EqualTo(1));
+        Assert.That(loaded.BaselineChains.Count, Is.EqualTo(1));
     }
 
     [Test]

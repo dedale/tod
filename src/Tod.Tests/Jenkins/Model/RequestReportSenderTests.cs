@@ -11,8 +11,8 @@ namespace Tod.Tests.Jenkins;
 internal sealed class RequestReportSenderTests
 {
     private readonly BranchName _mainBranch = new("main");
-    private readonly JobName _referenceRootJob = new("MAIN-build");
-    private readonly JobName _referenceTestJob = new("MAIN-test");
+    private readonly JobName _baselineRootJob = new("MAIN-build");
+    private readonly JobName _baselineTestJob = new("MAIN-test");
     private readonly JobName _onDemandRootJob = new("CUSTOM-build");
     private readonly JobName _onDemandTestJob = new("CUSTOM-test");
 
@@ -47,9 +47,9 @@ internal sealed class RequestReportSenderTests
         var onDemandRoot = RequestRootBuildReference.Queue(_onDemandRootJob, request.Commit);
         var chains = new RequestChain[] {
             new(
-                new BuildReference(_referenceRootJob, RandomData.NextBuildNumber),
+                new BuildReference(_baselineRootJob, RandomData.NextBuildNumber),
                 onDemandRoot,
-                [ new RequestBuildDiff(_referenceTestJob, _onDemandTestJob) ]
+                [ new RequestBuildDiff(_baselineTestJob, _onDemandTestJob) ]
             )
         };
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
@@ -57,28 +57,28 @@ internal sealed class RequestReportSenderTests
         return RequestState.New(request, chains, onDemandBuilds, triggerBuild);
     }
 
-    private Workspace GetWorkspace(IReferenceStore referenceStore, IOnDemandStore onDemandStore, IFlakyStore flakyStore)
+    private Workspace GetWorkspace(IBaselineStore baselineStore, IOnDemandStore onDemandStore, IFlakyStore flakyStore)
     {
-        var branchReference = new BranchReference(referenceStore);
-        branchReference.TryAddRoot(_referenceRootJob);
+        var baselineBranch = new BaselineBranch(baselineStore);
+        baselineBranch.TryAddRoot(_baselineRootJob);
 
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandRootJob);
 
-        return new Workspace([branchReference], onDemandBuilds, new OnDemandRequests(_temp.Path), new FlakyTests(flakyStore));
+        return new Workspace([baselineBranch], onDemandBuilds, new OnDemandRequests(_temp.Path), new FlakyTests(flakyStore));
     }
 
     [Test]
     public async Task Send_ValidRequest_CallsBuilderWithCorrectParameters()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _baselineRootJob, out var baselineStore)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithRootJobs(_onDemandRootJob)
             .WithFlakies(out var flakyStore);
 
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        var workspace = GetWorkspace(referenceStore, onDemandStore, flakyStore);
+        var workspace = GetWorkspace(baselineStore, onDemandStore, flakyStore);
 
         var report = new RequestReport([new ChainReport(
             BuildReferenceResult.Pending(_onDemandRootJob),
@@ -102,18 +102,18 @@ internal sealed class RequestReportSenderTests
         var mainBuildJob = new JobName("MAIN-build");
 
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(featureBranch, featureBuildJob, out var featureReferenceStore)
-            .WithReferenceStore(_mainBranch, mainBuildJob, out var mainReferenceStore)
+            .WithBaselineStore(featureBranch, featureBuildJob, out var featureBaselineStore)
+            .WithBaselineStore(_mainBranch, mainBuildJob, out var mainBaselineStore)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithRootJobs(_onDemandRootJob)
             .WithFlakies(out var flakyStore);
 
         var requestState = await CreateRequestState(onDemandStore, refBranch: featureBranch).ConfigureAwait(false);
 
-        var featureBranchRef = new BranchReference(featureReferenceStore);
+        var featureBranchRef = new BaselineBranch(featureBaselineStore);
         featureBranchRef.TryAddRoot(featureBuildJob);
 
-        var mainBranchRef = new BranchReference(mainReferenceStore);
+        var mainBranchRef = new BaselineBranch(mainBaselineStore);
         mainBranchRef.TryAddRoot(mainBuildJob);
 
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
@@ -142,16 +142,16 @@ internal sealed class RequestReportSenderTests
     public async Task Send_BuilderReturnsReport_CompletesSuccessfully()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _baselineRootJob, out var baselineStore)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithRootJobs(_onDemandRootJob)
             .WithFlakies(out var flakyStore);
 
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        var workspace = GetWorkspace(referenceStore, onDemandStore, flakyStore);
+        var workspace = GetWorkspace(baselineStore, onDemandStore, flakyStore);
 
         var buildDiffResult = new BuildDiffResult(
-            BuildReferenceResult.Done(new(_referenceTestJob, RandomData.NextBuildNumber), true),
+            BuildReferenceResult.Done(new(_baselineTestJob, RandomData.NextBuildNumber), true),
             BuildReferenceResult.Queued(_onDemandTestJob),
             BuildDiff.OnDemandTriggered(_onDemandTestJob));
 
@@ -174,13 +174,13 @@ internal sealed class RequestReportSenderTests
     public async Task Send_WithWorkspace_CompletesSuccessfully()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _baselineRootJob, out var baselineStore)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithRootJobs(_onDemandRootJob)
             .WithFlakies(out var flakyStore);
 
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        var workspace = GetWorkspace(referenceStore, onDemandStore, flakyStore);
+        var workspace = GetWorkspace(baselineStore, onDemandStore, flakyStore);
 
         _mockJobLinker.Setup(j => j.GetUrl(It.IsAny<JobName>()))
             .Returns("http://example.org/job-link");
@@ -195,14 +195,14 @@ internal sealed class RequestReportSenderTests
     public async Task Send_DoneWithWorkspace_CompletesSuccessfully()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _baselineRootJob, out var baselineStore)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandRootJob)
             .WithNewTestBuilds(_onDemandTestJob)
             .WithFlakies(out var flakyStore);
 
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        var workspace = GetWorkspace(referenceStore, onDemandStore, flakyStore);
+        var workspace = GetWorkspace(baselineStore, onDemandStore, flakyStore);
         workspace.OnDemandRequests.Add(requestState);
 
         var chainDiff = requestState.ChainDiffs[0];
@@ -222,13 +222,13 @@ internal sealed class RequestReportSenderTests
             lockedRequest.Dispose();
         }
 
-        using (var lockedRequests = workspace.OnDemandRequests.GetPendingReferenceTest(chainDiff.ReferenceRoot, _referenceTestJob))
+        using (var lockedRequests = workspace.OnDemandRequests.GetPendingBaselineTest(chainDiff.BaselineRoot, _baselineTestJob))
         {
             Assert.That(lockedRequests, Has.Count.EqualTo(1));
             lockedRequest = lockedRequests[0];
-            var testBuild = new BuildReference(_referenceTestJob, RandomData.NextBuildNumber);
+            var testBuild = new BuildReference(_baselineTestJob, RandomData.NextBuildNumber);
             {
-                await lockedRequest.Update(r => Task.FromResult(r.DoneReferenceTestBuild(rootBuildRef, testBuild))).ConfigureAwait(false);
+                await lockedRequest.Update(r => Task.FromResult(r.DoneBaselineTestBuild(rootBuildRef, testBuild))).ConfigureAwait(false);
             }
         }
 
@@ -263,7 +263,7 @@ internal sealed class RequestReportSenderTests
     private async Task Send_FailedTestDiff(FailedTestDiff failedTestDiff, string inMail)
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _baselineRootJob, out var baselineStore)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithRootJobs(_onDemandRootJob)
             .WithFlakies(out var flakyStore);
@@ -273,10 +273,10 @@ internal sealed class RequestReportSenderTests
 
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
         await requestState.TriggerTests(onDemandRoot, _ => Task.CompletedTask).ConfigureAwait(false);
-        var workspace = GetWorkspace(referenceStore, onDemandStore, flakyStore);
+        var workspace = GetWorkspace(baselineStore, onDemandStore, flakyStore);
 
         var buildDiffResult = new BuildDiffResult(
-            BuildReferenceResult.Done(new(_referenceTestJob, RandomData.NextBuildNumber), true),
+            BuildReferenceResult.Done(new(_baselineTestJob, RandomData.NextBuildNumber), true),
             BuildReferenceResult.Done(onDemandTest, true),
             BuildDiff.Diff(failedTestDiff));
 

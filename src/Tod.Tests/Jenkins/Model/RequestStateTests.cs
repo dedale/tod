@@ -59,7 +59,7 @@ internal sealed class RequestStateTests
     }
 
     [Test]
-    public async Task DoneReferenceTestBuild_WithMatchingBuild_IsDone()
+    public async Task DoneBaselineTestBuild_WithMatchingBuild_IsDone()
     {
         var diffs = new List<RequestBuildDiff>
         {
@@ -68,14 +68,14 @@ internal sealed class RequestStateTests
         };
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
-        Assert.That(requestState.ChainDiffs[0].TestBuildDiffs.First().ReferenceBuild.IsDone, Is.False);
+        Assert.That(requestState.ChainDiffs[0].TestBuildDiffs.First().BaselineBuild.IsDone, Is.False);
         var testBuild = new BuildReference("MainTest1", RandomData.NextBuildNumber);
-        var update = requestState.DoneReferenceTestBuild(_referenceRoot, testBuild);
-        Assert.That(update.ChainDiffs[0].TestBuildDiffs.First().ReferenceBuild.IsDone, Is.True);
+        var update = requestState.DoneBaselineTestBuild(_referenceRoot, testBuild);
+        Assert.That(update.ChainDiffs[0].TestBuildDiffs.First().BaselineBuild.IsDone, Is.True);
     }
 
     [Test]
-    public async Task DoneReferenceTestBuild_WithNoMatchingBuildJob_IsNotDone()
+    public async Task DoneBaselineTestBuild_WithNoMatchingBuildJob_IsNotDone()
     {
         var diffs = new List<RequestBuildDiff>
         {
@@ -85,12 +85,12 @@ internal sealed class RequestStateTests
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
         var testBuild = new BuildReference("OtherTest", RandomData.NextBuildNumber);
-        var update = requestState.DoneReferenceTestBuild(_referenceRoot, testBuild);
-        Assert.That(update.ChainDiffs[0].TestBuildDiffs.First().ReferenceBuild.IsDone, Is.False);
+        var update = requestState.DoneBaselineTestBuild(_referenceRoot, testBuild);
+        Assert.That(update.ChainDiffs[0].TestBuildDiffs.First().BaselineBuild.IsDone, Is.False);
     }
 
     [Test]
-    public async Task DoneReferenceTestBuild_WithNoMatchingBuildNumber_IsNotDone()
+    public async Task DoneBaselineTestBuild_WithNoMatchingBuildNumber_IsNotDone()
     {
         var diffs = new List<RequestBuildDiff>
         {
@@ -100,8 +100,8 @@ internal sealed class RequestStateTests
         using var mocks = OnDemandStoreMocks(out var onDemandStore);
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
         var testBuild = new BuildReference("MainTest1", RandomData.NextBuildNumber);
-        var update = requestState.DoneReferenceTestBuild(new BuildReference(_referenceRoot.JobName, RandomData.NextBuildNumber), testBuild);
-        Assert.That(update.ChainDiffs[0].TestBuildDiffs.First().ReferenceBuild.IsDone, Is.False);
+        var update = requestState.DoneBaselineTestBuild(new BuildReference(_referenceRoot.JobName, RandomData.NextBuildNumber), testBuild);
+        Assert.That(update.ChainDiffs[0].TestBuildDiffs.First().BaselineBuild.IsDone, Is.False);
     }
 
     [Test]
@@ -300,7 +300,7 @@ internal sealed class RequestStateTests
                     var testBuild = new BuildReference(jobName, buildNumberByJob[jobName]);
                     if (jobName.StartsWith("Main"))
                     {
-                        update = update.DoneReferenceTestBuild(_referenceRoot, testBuild);
+                        update = update.DoneBaselineTestBuild(_referenceRoot, testBuild);
                     }
                     else
                     {
@@ -411,12 +411,12 @@ internal sealed class RequestStateTests
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
 
         // Act
-        var result = requestState.TryGetChainReference(_referenceRoot, out var chainDiff);
+        var result = requestState.TryGetBaselineChain(_referenceRoot, out var chainDiff);
 
         // Assert
         Assert.That(result, Is.True);
         Assert.That(chainDiff, Is.Not.Null);
-        Assert.That(chainDiff!.ReferenceRoot, Is.EqualTo(_referenceRoot));
+        Assert.That(chainDiff!.BaselineRoot, Is.EqualTo(_referenceRoot));
     }
 
     [Test]
@@ -433,7 +433,7 @@ internal sealed class RequestStateTests
         var otherReferenceRoot = new BuildReference("OtherBuild", RandomData.NextBuildNumber);
 
         // Act
-        var result = requestState.TryGetChainReference(otherReferenceRoot, out var chainDiff);
+        var result = requestState.TryGetBaselineChain(otherReferenceRoot, out var chainDiff);
 
         // Assert
         Assert.That(result, Is.False);
@@ -470,17 +470,17 @@ internal sealed class RequestStateTests
         var requestState = await RequestState.New(_request, chains, onDemandBuilds, triggerBuild).ConfigureAwait(false);
 
         // Act
-        var result1 = requestState.TryGetChainReference(referenceRoot1, out var foundChain1);
-        var result2 = requestState.TryGetChainReference(referenceRoot2, out var foundChain2);
+        var result1 = requestState.TryGetBaselineChain(referenceRoot1, out var foundChain1);
+        var result2 = requestState.TryGetBaselineChain(referenceRoot2, out var foundChain2);
 
         // Assert
         Assert.That(result1, Is.True);
         Assert.That(foundChain1, Is.Not.Null);
-        Assert.That(foundChain1!.ReferenceRoot, Is.EqualTo(referenceRoot1));
+        Assert.That(foundChain1!.BaselineRoot, Is.EqualTo(referenceRoot1));
 
         Assert.That(result2, Is.True);
         Assert.That(foundChain2, Is.Not.Null);
-        Assert.That(foundChain2!.ReferenceRoot, Is.EqualTo(referenceRoot2));
+        Assert.That(foundChain2!.BaselineRoot, Is.EqualTo(referenceRoot2));
     }
 
     [Test]
@@ -496,7 +496,7 @@ internal sealed class RequestStateTests
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
 
         // Act
-        var result = requestState.TryGetChainOnDemand(_onDemandRootJob, _request.Commit, out var chainDiff);
+        var result = requestState.TryGetOnDemandChain(_onDemandRootJob, _request.Commit, out var chainDiff);
 
         // Assert
         Assert.That(result, Is.True);
@@ -523,7 +523,7 @@ internal sealed class RequestStateTests
         var requestState = await NewState(diffs, onDemandStore).ConfigureAwait(false);
 
         // Act
-        var result = requestState.TryGetChainOnDemand(_onDemandRootJob, _request.Commit, out var chainDiff);
+        var result = requestState.TryGetOnDemandChain(_onDemandRootJob, _request.Commit, out var chainDiff);
 
         // Assert
         Assert.That(result, Is.True);
@@ -551,7 +551,7 @@ internal sealed class RequestStateTests
         requestState = await requestState.TriggerTests(_onDemandRoot, job => Task.CompletedTask).ConfigureAwait(false);
 
         // Act
-        var result = requestState.TryGetChainOnDemand(_onDemandRootJob, _request.Commit, out var chainDiff);
+        var result = requestState.TryGetOnDemandChain(_onDemandRootJob, _request.Commit, out var chainDiff);
 
         // Assert
         Assert.That(result, Is.False);
@@ -572,7 +572,7 @@ internal sealed class RequestStateTests
         var otherOnDemandRoot = new BuildReference("OtherOnDemandBuild", RandomData.NextBuildNumber);
 
         // Act
-        var result = requestState.TryGetChainOnDemand(otherOnDemandRoot.JobName, _request.Commit, out var chainDiff);
+        var result = requestState.TryGetOnDemandChain(otherOnDemandRoot.JobName, _request.Commit, out var chainDiff);
 
         // Assert
         Assert.That(result, Is.False);
@@ -609,8 +609,8 @@ internal sealed class RequestStateTests
         var requestState = await RequestState.New(_request, chains, onDemandBuilds, triggerBuild).ConfigureAwait(false);
 
         // Act
-        var result1 = requestState.TryGetChainOnDemand(onDemandRoot1.JobName, _request.Commit, out var foundChain1);
-        var result2 = requestState.TryGetChainOnDemand(onDemandRoot2.JobName, _request.Commit, out var foundChain2);
+        var result1 = requestState.TryGetOnDemandChain(onDemandRoot1.JobName, _request.Commit, out var foundChain1);
+        var result2 = requestState.TryGetOnDemandChain(onDemandRoot2.JobName, _request.Commit, out var foundChain2);
 
         // Assert
         Assert.That(result1, Is.True);
@@ -655,7 +655,7 @@ internal sealed class RequestStateTests
                 var clonedChainDiff = clone.ChainDiffs[i];
 
                 Assert.That(clonedChainDiff.Status, Is.EqualTo(originalChainDiff.Status));
-                Assert.That(clonedChainDiff.ReferenceRoot, Is.EqualTo(originalChainDiff.ReferenceRoot));
+                Assert.That(clonedChainDiff.BaselineRoot, Is.EqualTo(originalChainDiff.BaselineRoot));
                 Assert.That(clonedChainDiff.OnDemandRoot, Is.EqualTo(originalChainDiff.OnDemandRoot));
                 Assert.That(clonedChainDiff.TestBuildDiffs.Count, Is.EqualTo(originalChainDiff.TestBuildDiffs.Count()));
             }

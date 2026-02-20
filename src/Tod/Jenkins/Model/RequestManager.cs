@@ -20,7 +20,7 @@ internal sealed class RequestManager(Workspace workspace, IJenkinsClient jenkins
         }
     }
 
-    public Task PostReferenceRootBuild(RootBuild rootBuild, JobName[] scheduled)
+    public Task PostBaselineRootBuild(RootBuild rootBuild, JobName[] scheduled)
     {
         return Task.CompletedTask;
     }
@@ -64,9 +64,9 @@ internal sealed class RequestManager(Workspace workspace, IJenkinsClient jenkins
         }
     }
 
-    public async Task PostReferenceTestBuild(BuildReference rootBuild, BuildReference testBuild)
+    public async Task PostBaselineTestBuild(BuildReference rootBuild, BuildReference testBuild)
     {
-        using var lockedRequests = workspace.OnDemandRequests.GetPendingReferenceTest(rootBuild, testBuild.JobName);
+        using var lockedRequests = workspace.OnDemandRequests.GetPendingBaselineTest(rootBuild, testBuild.JobName);
 
         if (lockedRequests.Count > 0)
         {
@@ -76,7 +76,7 @@ internal sealed class RequestManager(Workspace workspace, IJenkinsClient jenkins
 
         foreach (var lockedRequest in lockedRequests)
         {
-            var update = await lockedRequest.Update(r => Task.FromResult(r.DoneReferenceTestBuild(rootBuild, testBuild))).ConfigureAwait(false);
+            var update = await lockedRequest.Update(r => Task.FromResult(r.DoneBaselineTestBuild(rootBuild, testBuild))).ConfigureAwait(false);
 
             Log.Debug("Updated request {RequestId} with reference test build {@TestBuild}", update.Request.Id, testBuild);
 

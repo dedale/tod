@@ -1,4 +1,4 @@
-﻿using Moq;
+using Moq;
 using NUnit.Framework;
 using System.Diagnostics;
 using Tod.Git;
@@ -44,12 +44,12 @@ internal sealed class WorkspaceTests
             );
 
             var workspaceStore = new WorkspaceStore(temp.Path);
-            var referenceStore = workspaceStore.GetReferenceStore(new BranchName("main"));
+            var baselineStore = workspaceStore.GetBaselineStore(new BranchName("main"));
 
-            var branchReference = new BranchReference(referenceStore);
-            branchReference.TryAddRoot(new JobName("MAIN-build"));
-            Assert.That(branchReference.TryAdd(rootBuild), Is.True);
-            Assert.That(branchReference.TryAdd(testBuild), Is.True);
+            var baselineBranch = new BaselineBranch(baselineStore);
+            baselineBranch.TryAddRoot(new JobName("MAIN-build"));
+            Assert.That(baselineBranch.TryAdd(rootBuild), Is.True);
+            Assert.That(baselineBranch.TryAdd(testBuild), Is.True);
 
             var onDemandStore = workspaceStore.OnDemandStore;
             var onDemandBuilds = new OnDemandBuilds(onDemandStore);
@@ -59,7 +59,7 @@ internal sealed class WorkspaceTests
             var flakyTests = new FlakyTests(flakyStore);
 
             var workspace = new Workspace(
-                [branchReference],
+                [baselineBranch],
                 onDemandBuilds,
                 new OnDemandRequests(Path.Combine(temp.Path, "requests")),
                 flakyTests
@@ -93,12 +93,12 @@ internal sealed class WorkspaceTests
             workspace.OnDemandBuilds.TryAdd(onDemandRootBuild);
             workspaceStore.FlakyStore.Save(workspace.FlakyTests);
             var clone = Workspace.Load(temp.Path, new WorkspaceStore(temp.Path));
-            var branchReferences = clone.BranchReferences.ToList();
-            Assert.That(branchReferences, Has.Count.EqualTo(1));
-            Assert.That(branchReferences[0].RootBuilds, Has.Count.EqualTo(1));
-            Assert.That(branchReferences[0].TestBuilds, Has.Count.EqualTo(2));
-            Assert.That(branchReferences[0].TestBuilds[0], Has.Count.EqualTo(1)); // MAIN-test
-            Assert.That(branchReferences[0].TestBuilds[1], Has.Count.EqualTo(0)); // MAIN-test2
+            var baselineBranches = clone.BaselineBranches.ToList();
+            Assert.That(baselineBranches, Has.Count.EqualTo(1));
+            Assert.That(baselineBranches[0].RootBuilds, Has.Count.EqualTo(1));
+            Assert.That(baselineBranches[0].TestBuilds, Has.Count.EqualTo(2));
+            Assert.That(baselineBranches[0].TestBuilds[0], Has.Count.EqualTo(1)); // MAIN-test
+            Assert.That(baselineBranches[0].TestBuilds[1], Has.Count.EqualTo(0)); // MAIN-test2
             Assert.That(clone.OnDemandBuilds.RootBuilds, Has.Count.EqualTo(1));
             Assert.That(clone.OnDemandRequests.ActiveRequests.Single().Value.Request.Id, Is.EqualTo(request.Id));
             // TODO Assert flaky tests loaded
@@ -109,11 +109,11 @@ internal sealed class WorkspaceTests
     {
         var refJobConfigs = new[]
         {
-            new ReferenceJobConfig("MAIN-(?<root>.*build)", new("main"), true),
-            new ReferenceJobConfig("MAIN-(?<test>.*)", new("main"), false),
+            new BaselineJobConfig("MAIN-(?<root>.*build)", new("main"), true),
+            new BaselineJobConfig("MAIN-(?<test>.*)", new("main"), false),
 
-            new ReferenceJobConfig("PROD-(?<root>.*build)", new("PROD"), true),
-            new ReferenceJobConfig("PROD-(?<test>.*)", new("PROD"), false),
+            new BaselineJobConfig("PROD-(?<root>.*build)", new("PROD"), true),
+            new BaselineJobConfig("PROD-(?<test>.*)", new("PROD"), false),
         };
         var onDemandJobConfigs = new[]
         {
@@ -124,7 +124,7 @@ internal sealed class WorkspaceTests
         {
             new TestFilter("tests", "^tests$", "tests"),
         };
-        var config = JenkinsConfig.New("http://localhost:8080", referenceJobs: refJobConfigs, onDemandJobs: onDemandJobConfigs, testFilters: testFilters);
+        var config = JenkinsConfig.New("http://localhost:8080", baselineJobs: refJobConfigs, onDemandJobs: onDemandJobConfigs, testFilters: testFilters);
         var jenkinsClient = new Mock<IJenkinsClient>(MockBehavior.Strict);
         var allJobs = new List<JobName> {
             new("MAIN-build"),
@@ -146,10 +146,10 @@ internal sealed class WorkspaceTests
         var jobGroups = await GetJobGroups().ConfigureAwait(false);
         using var temp = new TempDirectory();
         var workspace = Workspace.New(temp.Path, jobGroups);
-        var branchReferences = workspace.BranchReferences.ToList();
-        Assert.That(branchReferences, Has.Count.EqualTo(1));
-        Assert.That(branchReferences[0].TestBuilds, Has.Count.EqualTo(1));
-        Assert.That(branchReferences[0].TestBuilds[0].JobName.Value, Is.EqualTo("MAIN-tests"));
+        var baselineBranches = workspace.BaselineBranches.ToList();
+        Assert.That(baselineBranches, Has.Count.EqualTo(1));
+        Assert.That(baselineBranches[0].TestBuilds, Has.Count.EqualTo(1));
+        Assert.That(baselineBranches[0].TestBuilds[0].JobName.Value, Is.EqualTo("MAIN-tests"));
         Assert.That(workspace.OnDemandBuilds.TestBuilds, Has.Count.EqualTo(1));
         Assert.That(workspace.OnDemandBuilds.TestBuilds[0].JobName.Value, Is.EqualTo("CUSTOM-tests"));
     }
@@ -163,10 +163,10 @@ internal sealed class WorkspaceTests
 
         var workspaceStore = new WorkspaceStore(temp.Path);
         var workspace = Workspace.Load(temp.Path, workspaceStore);
-        var branchReferences = workspace.BranchReferences.ToList();
-        Assert.That(branchReferences, Has.Count.EqualTo(1));
-        Assert.That(branchReferences[0].TestBuilds, Has.Count.EqualTo(1));
-        Assert.That(branchReferences[0].TestBuilds[0].JobName.Value, Is.EqualTo("MAIN-tests"));
+        var baselineBranches = workspace.BaselineBranches.ToList();
+        Assert.That(baselineBranches, Has.Count.EqualTo(1));
+        Assert.That(baselineBranches[0].TestBuilds, Has.Count.EqualTo(1));
+        Assert.That(baselineBranches[0].TestBuilds[0].JobName.Value, Is.EqualTo("MAIN-tests"));
         Assert.That(workspace.OnDemandBuilds.TestBuilds, Has.Count.EqualTo(1));
         Assert.That(workspace.OnDemandBuilds.TestBuilds[0].JobName.Value, Is.EqualTo("CUSTOM-tests"));
     }
@@ -189,13 +189,13 @@ internal sealed class WorkspaceTests
             commits: 1
         );
         rootBuild.Commits[0] = commits[1];
-        workspace.BranchReferences.First().TryAdd(rootBuild);
+        workspace.BaselineBranches.First().TryAdd(rootBuild);
         var gitReference = workspace.GetGitReference(filterManager, wantedBranch, rootFilters, commits, out var rootDiffs);
         Assert.That(gitReference, Is.Not.Null);
         Debug.Assert(gitReference is not null);
         Assert.That(gitReference.Branch, Is.EqualTo(wantedBranch));
         Assert.That(rootDiffs, Has.Length.EqualTo(1));
-        Assert.That(rootDiffs[0].ReferenceJob.Value, Is.EqualTo("MAIN-build"));
+        Assert.That(rootDiffs[0].BaselineJob.Value, Is.EqualTo("MAIN-build"));
     }
 
     [Test]
@@ -215,7 +215,7 @@ internal sealed class WorkspaceTests
             isSuccessful: true,
             commits: 1
         );
-        workspace.BranchReferences.First().TryAdd(rootBuild);
+        workspace.BaselineBranches.First().TryAdd(rootBuild);
         var gitReference = workspace.GetGitReference(filterManager, wantedBranch, rootFilters, commits, out var rootDiffs);
         Assert.That(gitReference, Is.Null);
     }
@@ -237,13 +237,13 @@ internal sealed class WorkspaceTests
             commits: 1
         );
         rootBuild.Commits[0] = commits[1];
-        workspace.BranchReferences.First().TryAdd(rootBuild);
+        workspace.BaselineBranches.First().TryAdd(rootBuild);
         var gitReference = workspace.GetGitReference(filterManager, null, rootFilters, commits, out var rootDiffs);
         Assert.That(gitReference, Is.Not.Null);
         Debug.Assert(gitReference is not null);
         Assert.That(gitReference.Branch.Value, Is.EqualTo("main"));
         Assert.That(rootDiffs, Has.Length.EqualTo(1));
-        Assert.That(rootDiffs[0].ReferenceJob.Value, Is.EqualTo("MAIN-build"));
+        Assert.That(rootDiffs[0].BaselineJob.Value, Is.EqualTo("MAIN-build"));
     }
 
     [Test]
@@ -262,7 +262,7 @@ internal sealed class WorkspaceTests
             isSuccessful: true,
             commits: 1
         );
-        workspace.BranchReferences.First().TryAdd(rootBuild);
+        workspace.BaselineBranches.First().TryAdd(rootBuild);
         var gitReference = workspace.GetGitReference(filterManager, null, rootFilters, commits, out var rootDiffs);
         Assert.That(gitReference, Is.Null);
     }
@@ -289,11 +289,11 @@ internal sealed class WorkspaceTests
         {
             for (var i = 0; i < 2; i++)
             {
-                Assert.That(workspace.BranchReferences.Count(), Is.EqualTo(1));
-                var branchReference = workspace.BranchReferences.First();
-                var rootJobNames = branchReference.RootBuilds.Select(b => b.JobName.Value).ToList();
+                Assert.That(workspace.BaselineBranches.Count(), Is.EqualTo(1));
+                var baselineBranch = workspace.BaselineBranches.First();
+                var rootJobNames = baselineBranch.RootBuilds.Select(b => b.JobName.Value).ToList();
                 Assert.That(rootJobNames, Is.EquivalentTo(["MAIN-build", "MAIN-Domain-build"]));
-                var testJobNames = branchReference.TestBuilds.Select(b => b.JobName.Value).ToList();
+                var testJobNames = baselineBranch.TestBuilds.Select(b => b.JobName.Value).ToList();
                 Assert.That(testJobNames, Is.EquivalentTo(["MAIN-tests", "MAIN-Domain-tests"]));
                 rootJobNames = [.. workspace.OnDemandBuilds.RootBuilds.Select(b => b.JobName.Value)];
                 Assert.That(rootJobNames, Is.EquivalentTo(["CUSTOM-build", "CUSTOM-Domain-build"]));
@@ -328,8 +328,8 @@ internal sealed class WorkspaceTests
         {
             for (var i = 0; i < 2; i++)
             {
-                Assert.That(workspace.BranchReferences.Count(), Is.EqualTo(2));
-                var branchReferenceByBranch = workspace.BranchReferences.ToDictionary(b => b.BranchName.Value);
+                Assert.That(workspace.BaselineBranches.Count(), Is.EqualTo(2));
+                var branchReferenceByBranch = workspace.BaselineBranches.ToDictionary(b => b.BranchName.Value);
 
                 var mainReference = branchReferenceByBranch["main"];
                 var rootJobNames = mainReference.RootBuilds.Select(b => b.JobName.Value).ToList();
@@ -380,11 +380,11 @@ internal sealed class WorkspaceTests
         {
             for (var i = 0; i < 2; i++)
             {
-                Assert.That(workspace.BranchReferences.Count(), Is.EqualTo(1));
-                var branchReference = workspace.BranchReferences.First();
-                var rootJobNames = branchReference.RootBuilds.Select(b => b.JobName.Value).ToList();
+                Assert.That(workspace.BaselineBranches.Count(), Is.EqualTo(1));
+                var baselineBranch = workspace.BaselineBranches.First();
+                var rootJobNames = baselineBranch.RootBuilds.Select(b => b.JobName.Value).ToList();
                 Assert.That(rootJobNames, Is.EqualTo(["MAIN-build"]));
-                var testJobNames = branchReference.TestBuilds.Select(b => b.JobName.Value).ToList();
+                var testJobNames = baselineBranch.TestBuilds.Select(b => b.JobName.Value).ToList();
                 Assert.That(testJobNames, Is.EqualTo(["MAIN-tests"]));
                 rootJobNames = [.. workspace.OnDemandBuilds.RootBuilds.Select(b => b.JobName.Value)];
                 Assert.That(rootJobNames, Is.EqualTo(["CUSTOM-build"]));
@@ -405,7 +405,7 @@ internal sealed class WorkspaceTests
         using var temp = new TempDirectory();
         var jobGroups = await GetJobGroups().ConfigureAwait(false);
         var workspace = Workspace.New(temp.Path, jobGroups);
-        var branchReference = workspace.BranchReferences.First();
+        var baselineBranch = workspace.BaselineBranches.First();
         var oldBuild = RandomData.NextRootBuild(
             jobName: "MAIN-build",
             buildNumber: 1,
@@ -422,19 +422,19 @@ internal sealed class WorkspaceTests
             startUtc: DateTime.UtcNow.AddDays(-2),
             endUtc: DateTime.UtcNow.AddDays(-1)
         );
-        branchReference.TryAdd(oldBuild);
-        branchReference.TryAdd(recentBuild);
+        baselineBranch.TryAdd(oldBuild);
+        baselineBranch.TryAdd(recentBuild);
         var removed = workspace.RemoveBuildsOlderThan(DateTime.UtcNow.AddDays(-5));
         Assert.That(removed, Is.EqualTo(1));
-        var buildCollections = branchReference.RootBuilds.ToList();
+        var buildCollections = baselineBranch.RootBuilds.ToList();
         Assert.That(buildCollections, Has.Count.EqualTo(1));
         var builds = buildCollections[0].ToList();
         Assert.That(builds, Has.Count.EqualTo(1));
         Assert.That(builds[0].BuildNumber, Is.EqualTo(2));
 
         var reloaded = Workspace.Load(temp.Path, new WorkspaceStore(temp.Path));
-        branchReference = reloaded.BranchReferences.First();
-        buildCollections = [.. branchReference.RootBuilds];
+        baselineBranch = reloaded.BaselineBranches.First();
+        buildCollections = [.. baselineBranch.RootBuilds];
         Assert.That(buildCollections, Has.Count.EqualTo(1));
         builds = [.. buildCollections[0]];
         Assert.That(builds, Has.Count.EqualTo(1));

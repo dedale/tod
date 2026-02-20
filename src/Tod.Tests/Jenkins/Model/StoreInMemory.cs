@@ -71,14 +71,14 @@ internal sealed class InMemoryByChainStore : IByChainStore
     }
 }
 
-internal sealed class InMemoryReferenceStore : IReferenceStore
+internal sealed class InMemoryBaselineStore : IBaselineStore
 {
     private readonly BranchName _branch;
     private readonly InMemoryByJobNameStore _rootStore;
     private readonly InMemoryByJobNameStore _testStore;
     private readonly InMemoryByChainStore _chainStore;
 
-    public InMemoryReferenceStore(BranchName branch)
+    public InMemoryBaselineStore(BranchName branch)
     {
         _branch = branch;
         var buildBranch = BuildBranch.Create(branch);
@@ -131,20 +131,20 @@ internal sealed class InMemoryFlakyStore : IFlakyStore
 
 internal sealed class InMemoryWorkspaceStore : IWorkspaceStore
 {
-    private readonly Dictionary<BranchName, InMemoryReferenceStore> _referenceByBranch = [];
+    private readonly Dictionary<BranchName, InMemoryBaselineStore> _baselineByBranch = [];
     private readonly InMemoryOnDemandStore _onDemandStore = new();
 
-    public IEnumerable<BranchName> Branches => _referenceByBranch.Keys;
+    public IEnumerable<BranchName> Branches => _baselineByBranch.Keys;
 
-    public IReferenceStore GetReferenceStore(BranchName branch)
+    public IBaselineStore GetBaselineStore(BranchName branch)
     {
-        if (_referenceByBranch.TryGetValue(branch, out var referenceStore))
+        if (_baselineByBranch.TryGetValue(branch, out var baselineStore))
         {
-            return referenceStore;
+            return baselineStore;
         }
-        referenceStore = new InMemoryReferenceStore(branch);
-        _referenceByBranch.Add(branch, referenceStore);
-        return referenceStore;
+        baselineStore = new InMemoryBaselineStore(branch);
+        _baselineByBranch.Add(branch, baselineStore);
+        return baselineStore;
     }
 
     public IOnDemandStore OnDemandStore => _onDemandStore;

@@ -4,9 +4,9 @@ using Tod.Net;
 
 namespace Tod.Jenkins;
 
-internal sealed class ReferenceReportSender(IMailSender mailSender)
+internal sealed class BaselineReportSender(IMailSender mailSender)
 {
-    public async Task SendReport(ReferenceChainReport report)
+    public async Task SendReport(BaselineChainReport report)
     {
         var chainName = report.ChainName == RootFilter.DefaultChain ? "(default)" : report.ChainName;
 
@@ -57,7 +57,7 @@ internal sealed class ReferenceReportSender(IMailSender mailSender)
             report.BranchName, chainName, authors.Length);
     }
 
-    private string BuildEmailBody(ReferenceChainReport report, bool full)
+    private string BuildEmailBody(BaselineChainReport report, bool full)
     {
         var newFailures = report.TestDiffs.Values
             .SelectMany(diff => diff.FailedTests.Where(t => t.Newness == Newness.New))

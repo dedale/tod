@@ -68,11 +68,11 @@ internal static class ChainReportTrackerExtensions
 {
     public static bool ContainsBuild(this ChainReportTracker.Serializable serializable, RootBuild rootBuild)
     {
-        return serializable.ReferenceChains.Any(rc => rc.RootBuild.BuildNumber == rootBuild.BuildNumber);
+        return serializable.BaselineChains.Any(rc => rc.RootBuild.BuildNumber == rootBuild.BuildNumber);
     }
 
     public static bool ContainsBuild(this ChainReportTracker.Serializable serializable, int buildNumber)
     {
-        return serializable.ReferenceChains.Any(rc => rc.RootBuild.BuildNumber == buildNumber);
+        return serializable.BaselineChains.Any(rc => rc.RootBuild.BuildNumber == buildNumber);
     }
 }

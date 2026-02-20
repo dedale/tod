@@ -76,7 +76,7 @@ internal sealed class ChainReportTrackersTests
         trackers.Save("chain1");
 
         var loaded = store.Load("chain1", CreateNotNeeded);
-        Assert.That(loaded.ReferenceChains.Count, Is.EqualTo(1));
+        Assert.That(loaded.BaselineChains.Count, Is.EqualTo(1));
         Assert.That(loaded.ContainsBuild(rootBuild), Is.True);
     }
 

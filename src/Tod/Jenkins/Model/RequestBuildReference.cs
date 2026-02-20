@@ -4,19 +4,19 @@ using Tod.Git;
 
 namespace Tod.Jenkins;
 
-// Ref Root Build Reference : always Done = BuildReference
-// Ref Test Build Reference : Pending -> Done
+// Baseline Root Build Reference : always Done = BuildReference
+// Baseline Test Build Reference : Pending -> Done
 // OnDemand/Request Root Build Reference : Queued -> Done or Done (if reused)
 // OnDemand/Request Test Build Reference : Pending -> Queued -> Done or Done (if reused)
 
-internal abstract class RefTestBuildReference : IWithCustomSerialization<RefTestBuildReference.Serializable>, IEquatable<RefTestBuildReference>
+internal abstract class BaseTestBuildReference : IWithCustomSerialization<BaseTestBuildReference.Serializable>, IEquatable<BaseTestBuildReference>
 {
     public abstract void Match(Action<JobName> onPending, Action<BuildReference> onDone);
     public abstract T Match<T>(Func<JobName, T> onPending, Func<BuildReference, T> onDone);
 
     public abstract JobName JobName { get; }
 
-    private sealed class Pending(JobName jobName) : RefTestBuildReference
+    private sealed class Pending(JobName jobName) : BaseTestBuildReference
     {
         public override void Match(Action<JobName> onPending, Action<BuildReference> _) => onPending(jobName);
         public override T Match<T>(Func<JobName, T> onPending, Func<BuildReference, T> _) => onPending(jobName);
@@ -24,7 +24,7 @@ internal abstract class RefTestBuildReference : IWithCustomSerialization<RefTest
         public override JobName JobName => jobName;
     }
 
-    private sealed class Done(BuildReference reference) : RefTestBuildReference
+    private sealed class Done(BuildReference reference) : BaseTestBuildReference
     {
         public override void Match(Action<JobName> _, Action<BuildReference> onDone) => onDone(reference);
         public override T Match<T>(Func<JobName, T> _, Func<BuildReference, T> onDone) => onDone(reference);
@@ -32,14 +32,14 @@ internal abstract class RefTestBuildReference : IWithCustomSerialization<RefTest
         public override JobName JobName => reference.JobName;
     }
 
-    public static RefTestBuildReference Create(JobName jobName) => new Pending(jobName);
+    public static BaseTestBuildReference Create(JobName jobName) => new Pending(jobName);
 
     public bool IsDone => Match(
         onPending: _ => false,
         onDone: _ => true
     );
 
-    internal sealed class Serializable : ICustomSerializable<RefTestBuildReference>
+    internal sealed class Serializable : ICustomSerializable<BaseTestBuildReference>
     {
         [JsonConstructor]
         private Serializable(JobName? pending, BuildReference? done)
@@ -47,7 +47,7 @@ internal abstract class RefTestBuildReference : IWithCustomSerialization<RefTest
             Pending = pending;
             Done = done;
         }
-        public Serializable(RefTestBuildReference reference)
+        public Serializable(BaseTestBuildReference reference)
         {
             reference.Match(
                 onPending: job => Pending = job,
@@ -56,7 +56,7 @@ internal abstract class RefTestBuildReference : IWithCustomSerialization<RefTest
         }
         public JobName? Pending { get; set; }
         public BuildReference? Done { get; set; }
-        public RefTestBuildReference FromSerializable()
+        public BaseTestBuildReference FromSerializable()
         {
             if (Pending is not null)
             {
@@ -86,12 +86,12 @@ internal abstract class RefTestBuildReference : IWithCustomSerialization<RefTest
         return isPending;
     }
 
-    public RefTestBuildReference DoneReference(int buildNumber) => Match(
+    public BaseTestBuildReference DoneBaseline(int buildNumber) => Match(
         onPending: jobName => new Done(new BuildReference(jobName, buildNumber)),
         onDone: _ => throw new InvalidOperationException("Already done")
     );
 
-    public bool Equals(RefTestBuildReference? other)
+    public bool Equals(BaseTestBuildReference? other)
     {
         return Match(
             onPending: jobName =>

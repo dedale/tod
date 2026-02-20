@@ -8,40 +8,40 @@ internal interface IJobPattern<TMatch> where TMatch : class
     bool IsMatch(JobName jobName, [NotNullWhen(true)] out TMatch? jobMatch);
 }
 
-internal abstract class ReferenceJobMatch
+internal abstract class BaselineJobMatch
 {
     public abstract void Match(Action<BranchName, RootName> onRoot, Action<BranchName, TestName> onTest);
     public abstract T Match<T>(Func<BranchName, RootName, T> onRoot, Func<BranchName, TestName, T> onTest);
 
-    private sealed class Root(BranchName branchName, RootName rootName) : ReferenceJobMatch
+    private sealed class Root(BranchName branchName, RootName rootName) : BaselineJobMatch
     {
         public override void Match(Action<BranchName, RootName> onRoot, Action<BranchName, TestName> _) => onRoot(branchName, rootName);
         public override T Match<T>(Func<BranchName, RootName, T> onRoot, Func<BranchName, TestName, T> _) => onRoot(branchName, rootName);
     }
 
-    private sealed class Test(BranchName branchName, TestName testName) : ReferenceJobMatch
+    private sealed class Test(BranchName branchName, TestName testName) : BaselineJobMatch
     {
         public override void Match(Action<BranchName, RootName> onRoot, Action<BranchName, TestName> onTest) => onTest(branchName, testName);
         public override T Match<T>(Func<BranchName, RootName, T> onRoot, Func<BranchName, TestName, T> onTest) => onTest(branchName, testName);
     }
 
-    public static ReferenceJobMatch NewRoot(BranchName branch, RootName rootName) => new Root(branch, rootName);
+    public static BaselineJobMatch NewRoot(BranchName branch, RootName rootName) => new Root(branch, rootName);
 
-    public static ReferenceJobMatch NewTest(BranchName branch, TestName testName) => new Test(branch, testName);
+    public static BaselineJobMatch NewTest(BranchName branch, TestName testName) => new Test(branch, testName);
 }
 
-internal sealed class ReferenceJobPattern(ReferenceJobConfig config) : IJobPattern<ReferenceJobMatch>
+internal sealed class BaselineJobPattern(BaselineJobConfig config) : IJobPattern<BaselineJobMatch>
 {
     private readonly Regex _regex = new(config.Pattern, RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
-    public bool IsMatch(JobName jobName, [NotNullWhen(true)] out ReferenceJobMatch? jobMatch)
+    public bool IsMatch(JobName jobName, [NotNullWhen(true)] out BaselineJobMatch? jobMatch)
     {
         var match = _regex.Match(jobName.Value);
         if (match.Success)
         {
             jobMatch = config.IsRoot ?
-                ReferenceJobMatch.NewRoot(config.BranchName, new(match.Groups["root"].Value)) :
-                ReferenceJobMatch.NewTest(config.BranchName, new(match.Groups["test"].Value));
+                BaselineJobMatch.NewRoot(config.BranchName, new(match.Groups["root"].Value)) :
+                BaselineJobMatch.NewTest(config.BranchName, new(match.Groups["test"].Value));
             return true;
         }
         jobMatch = null;

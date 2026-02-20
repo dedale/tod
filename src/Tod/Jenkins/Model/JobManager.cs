@@ -19,16 +19,16 @@ internal sealed class JobManager(JenkinsConfig config, IJenkinsClient client)
 
     public static JobGroups? TryLoad(JenkinsConfig config, JobName[] jobNames)
     {
-        var refJobMatches = new JobMatchCollection<ReferenceJobMatch, ReferenceJobPattern>(config.ReferenceJobs.Select(j => new ReferenceJobPattern(j)));
+        var baselineJobMatches = new JobMatchCollection<BaselineJobMatch, BaselineJobPattern>(config.BaselineJobs.Select(j => new BaselineJobPattern(j)));
         var ondemandJobMatches = new JobMatchCollection<OnDemandJobMatch, OnDemandJobPattern>(config.OnDemandJobs.Select(j => new OnDemandJobPattern(j)));
         var jobGroupsBuilder = new JobGroupsBuilder();
         foreach (var jobName in jobNames)
         {
-            if (refJobMatches.FindFirst(jobName, out var refJobMatch))
+            if (baselineJobMatches.FindFirst(jobName, out var baselineJobMatch))
             {
-                refJobMatch.Match(
-                    (branch, root) => jobGroupsBuilder.AddReferenceRoot(jobName, branch, root),
-                    (branch, test) => jobGroupsBuilder.AddReferenceTest(jobName, branch, test)
+                baselineJobMatch.Match(
+                    (branch, root) => jobGroupsBuilder.AddBaselineRoot(jobName, branch, root),
+                    (branch, test) => jobGroupsBuilder.AddBaselineTest(jobName, branch, test)
                 );
             }
             else if (ondemandJobMatches.FindFirst(jobName, out var onDemandJobMatch))

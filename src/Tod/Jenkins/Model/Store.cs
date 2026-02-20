@@ -25,7 +25,7 @@ internal interface IByJobNameStoreFactory
     IByJobNameStore New();
 }
 
-internal interface IReferenceStore
+internal interface IBaselineStore
 {
     BranchName Branch { get; }
     IByJobNameStore RootStore { get; }
@@ -48,7 +48,7 @@ internal interface IFlakyStore
 internal interface IWorkspaceStore
 {
     IEnumerable<BranchName> Branches { get; }
-    IReferenceStore GetReferenceStore(BranchName branch);
+    IBaselineStore GetBaselineStore(BranchName branch);
     IOnDemandStore OnDemandStore { get; }
     IFlakyStore FlakyStore { get; }
 }
@@ -209,9 +209,9 @@ internal sealed class ByChainStore : IByChainStore
     }
 }
 
-internal sealed class ReferenceStore : IReferenceStore
+internal sealed class BaselineStore : IBaselineStore
 {
-    public ReferenceStore(BranchName branch, string dir)
+    public BaselineStore(BranchName branch, string dir)
     {
         var buildBranch = BuildBranch.Create(branch);
         Branch = branch;
@@ -257,7 +257,7 @@ internal sealed class WorkspaceStore : IWorkspaceStore
     private readonly string _dir;
     private readonly string _branchJson;
     private readonly HashSet<BranchName> _branches;
-    private readonly Dictionary<BranchName, IReferenceStore> _referenceByBranch = new();
+    private readonly Dictionary<BranchName, IBaselineStore> _baselineByBranch = new();
 
     public WorkspaceStore(string dir)
     {
@@ -280,19 +280,19 @@ internal sealed class WorkspaceStore : IWorkspaceStore
 
     public IEnumerable<BranchName> Branches => _branches;
 
-    public IReferenceStore GetReferenceStore(BranchName branch)
+    public IBaselineStore GetBaselineStore(BranchName branch)
     {
         if (_branches.Add(branch))
         {
             Save();
         }
-        if (_referenceByBranch.TryGetValue(branch, out var referenceStore))
+        if (_baselineByBranch.TryGetValue(branch, out var baselineStore))
         {
-            return referenceStore;
+            return baselineStore;
         }
-        referenceStore = new ReferenceStore(branch, Path.Combine(_dir, branch.Value));
-        _referenceByBranch.Add(branch, referenceStore);
-        return referenceStore;
+        baselineStore = new BaselineStore(branch, Path.Combine(_dir, branch.Value));
+        _baselineByBranch.Add(branch, baselineStore);
+        return baselineStore;
     }
 
     public IOnDemandStore OnDemandStore { get; }

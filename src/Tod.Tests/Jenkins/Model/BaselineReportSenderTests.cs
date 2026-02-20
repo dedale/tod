@@ -6,14 +6,14 @@ using Tod.Net;
 namespace Tod.Tests.Jenkins.Model;
 
 [TestFixture]
-internal sealed class ReferenceReportSenderTests
+internal sealed class BaselineReportSenderTests
 {
     private readonly BranchName _branch = new("master");
     private readonly JobName _testJob1 = new("TestJob1");
     private readonly JobName _testJob2 = new("TestJob2");
 
     private Mock<IMailSender> _mockMailSender;
-    private ReferenceReportSender _sender;
+    private BaselineReportSender _sender;
     private JenkinsConfig _config;
     private IFlakyTests _flakyTests;
 
@@ -21,7 +21,7 @@ internal sealed class ReferenceReportSenderTests
     public void SetUp()
     {
         _mockMailSender = new Mock<IMailSender>(MockBehavior.Strict);
-        _sender = new ReferenceReportSender(_mockMailSender.Object);
+        _sender = new BaselineReportSender(_mockMailSender.Object);
         _config = JenkinsConfig.New("https://jenkins.example.com");
         var flakyStore = InMemoryFlakyStore.Default;
         _flakyTests = new FlakyTests(flakyStore);
@@ -37,7 +37,7 @@ internal sealed class ReferenceReportSenderTests
     public async Task SendReport_WithNoAuthors_LogsWarningAndDoesNotSend()
     {
         var rootBuild = RandomData.NextRootBuild(commits: 0);
-        var report = new ReferenceChainReport(_branch, "TestChain", [rootBuild], []);
+        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], []);
 
         await _sender.SendReport(report);
     }
@@ -47,7 +47,7 @@ internal sealed class ReferenceReportSenderTests
     {
         var rootBuild = RandomData.NextRootBuild(commits: 1);
         var diff = FailedTestDiffer.Diff(_testJob1, [], [], _flakyTests);
-        var report = new ReferenceChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
+        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
 
         await _sender.SendReport(report);
     }
@@ -61,7 +61,7 @@ internal sealed class ReferenceReportSenderTests
         var failedTest = new FailedTest("TestClass", "TestMethod", "Error");
         var diff = FailedTestDiffer.Diff(_testJob1, [], [failedTest], _flakyTests);
 
-        var report = new ReferenceChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
+        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
 
         _mockMailSender.Setup(m => m.Send(
             authors[0].Email!,
@@ -89,7 +89,7 @@ internal sealed class ReferenceReportSenderTests
         var failedTest = new FailedTest("TestClass", "TestMethod", "Error");
         var diff = FailedTestDiffer.Diff(_testJob1, [], [failedTest], _flakyTests);
 
-        var report = new ReferenceChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
+        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
 
         _mockMailSender.Setup(m => m.Send(
             author.Email!,
@@ -114,7 +114,7 @@ internal sealed class ReferenceReportSenderTests
         var failedTest = new FailedTest("TestClass", "TestMethod", "Error");
         var diff = FailedTestDiffer.Diff(_testJob1, [], [failedTest], _flakyTests);
 
-        var report = new ReferenceChainReport(_branch, "TestChain", [rootBuild1, rootBuild2], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
+        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild1, rootBuild2], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
 
         foreach (var email in uniqueAuthors)
         {
@@ -138,7 +138,7 @@ internal sealed class ReferenceReportSenderTests
         var failedTest = new FailedTest("TestClass", "TestMethod", "Error");
         var diff = FailedTestDiffer.Diff(_testJob1, [], [failedTest], _flakyTests);
 
-        var report = new ReferenceChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
+        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
 
         _mockMailSender.Setup(m => m.Send(
             authors[0].Email!,
@@ -177,7 +177,7 @@ internal sealed class ReferenceReportSenderTests
         var failedTest = new FailedTest("TestClass", "TestMethod", "Error");
         var diff = FailedTestDiffer.Diff(_testJob1, [], [failedTest], _flakyTests);
 
-        var report = new ReferenceChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
+        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
 
         await _sender.SendReport(report);
     }
@@ -193,7 +193,7 @@ internal sealed class ReferenceReportSenderTests
         var diff1 = FailedTestDiffer.Diff(_testJob1, [], [failedTest1], _flakyTests);
         var diff2 = FailedTestDiffer.Diff(_testJob2, [], [failedTest2], _flakyTests);
 
-        var report = new ReferenceChainReport(
+        var report = new BaselineChainReport(
             _branch,
             "TestChain",
             [rootBuild],
@@ -223,7 +223,7 @@ internal sealed class ReferenceReportSenderTests
         var failedTest = new FailedTest("TestClass", "TestMethod", "Error");
         var diff = FailedTestDiffer.Diff(_testJob1, [], [failedTest], _flakyTests);
 
-        var report = new ReferenceChainReport(_branch, "MyCustomChain", [rootBuild], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
+        var report = new BaselineChainReport(_branch, "MyCustomChain", [rootBuild], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
 
         _mockMailSender.Setup(m => m.Send(
             author.Email!,

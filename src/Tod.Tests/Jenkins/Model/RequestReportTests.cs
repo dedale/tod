@@ -1,4 +1,4 @@
-﻿using NUnit.Framework;
+using NUnit.Framework;
 using System.Diagnostics;
 using Tod.Jenkins;
 
@@ -38,7 +38,7 @@ internal sealed class RequestReportBuilderTests
     public async Task New_OnDemandRootDone_ReturnsRootResultWithDoneStatus(bool success, BuildStatus status)
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _mainBuildJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _mainBuildJob, out var baselineStore)
             .WithOnDemandStore(_onDemandBuildJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandBuildJob)
             .WithNewTestBuilds(_onDemandTestJob)
@@ -49,8 +49,8 @@ internal sealed class RequestReportBuilderTests
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
         requestState = await requestState.TriggerTests(onDemandRoot, job => Task.FromResult(RandomData.NextBuildNumber)).ConfigureAwait(false);
 
-        var branchReference = new BranchReference(referenceStore);
-        branchReference.TryAddRoot(_mainBuildJob);
+        var baselineBranch = new BaselineBranch(baselineStore);
+        baselineBranch.TryAddRoot(_mainBuildJob);
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandBuildJob);
 
@@ -60,7 +60,7 @@ internal sealed class RequestReportBuilderTests
         var flakyTests = new FlakyTests(flakyStore);
 
         // Act
-        var report = RequestReportBuilder.Instance.Build(requestState, [branchReference], onDemandBuilds, flakyTests);
+        var report = RequestReportBuilder.Instance.Build(requestState, [baselineBranch], onDemandBuilds, flakyTests);
 
         // Assert
         Assert.That(report.ChainReports[0].RootResult.JobName.Value, Is.EqualTo(_onDemandBuildJob.Value));
@@ -72,7 +72,7 @@ internal sealed class RequestReportBuilderTests
     public async Task New_OnDemandRootTriggered_ReturnsRootResultWithTriggeredStatus()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _mainBuildJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _mainBuildJob, out var baselineStore)
             .WithOnDemandStore(_onDemandBuildJob, out var onDemandStore)
             .WithRootJobs(_onDemandBuildJob)
             .WithFlakies(out var flakyStore);
@@ -80,14 +80,14 @@ internal sealed class RequestReportBuilderTests
         // Arrange
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
 
-        var branchReference = new BranchReference(referenceStore);
-        branchReference.TryAddRoot(_mainBuildJob);
+        var baselineBranch = new BaselineBranch(baselineStore);
+        baselineBranch.TryAddRoot(_mainBuildJob);
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandBuildJob);
         var flakyTests = new FlakyTests(flakyStore);
 
         // Act
-        var report = RequestReportBuilder.Instance.Build(requestState, [branchReference], onDemandBuilds, flakyTests);
+        var report = RequestReportBuilder.Instance.Build(requestState, [baselineBranch], onDemandBuilds, flakyTests);
 
         // Assert
         Assert.That(report.ChainReports[0].RootResult.JobName.Value, Is.EqualTo(_onDemandBuildJob.Value));
@@ -99,21 +99,21 @@ internal sealed class RequestReportBuilderTests
     public async Task New_OnDemandTestBuildPending_ReturnsOnDemandPendingDiff()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _mainBuildJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _mainBuildJob, out var baselineStore)
             .WithOnDemandStore(_onDemandBuildJob, out var onDemandStore)
             .WithRootJobs(_onDemandBuildJob)
             .WithFlakies(out var flakyStore);
 
         // Arrange
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
-        var branchReference = new BranchReference(referenceStore);
-        branchReference.TryAddRoot(_mainBuildJob);
+        var baselineBranch = new BaselineBranch(baselineStore);
+        baselineBranch.TryAddRoot(_mainBuildJob);
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandBuildJob);
         var flakyTests = new FlakyTests(flakyStore);
 
         // Act
-        var report = RequestReportBuilder.Instance.Build(requestState, [branchReference], onDemandBuilds, flakyTests);
+        var report = RequestReportBuilder.Instance.Build(requestState, [baselineBranch], onDemandBuilds, flakyTests);
 
         // Assert
         var chainReport = report.ChainReports[0];
@@ -130,7 +130,7 @@ internal sealed class RequestReportBuilderTests
     public async Task New_OnDemandTestBuildTriggered_ReturnsOnDemandTriggeredDiff()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _mainBuildJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _mainBuildJob, out var baselineStore)
             .WithOnDemandStore(_onDemandBuildJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandBuildJob)
             .WithTestobs(_onDemandTestJob)
@@ -141,8 +141,8 @@ internal sealed class RequestReportBuilderTests
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
         requestState = await requestState.TriggerTests(new(_onDemandBuildJob, rootBuildNumber), job => Task.CompletedTask).ConfigureAwait(false);
 
-        var branchReference = new BranchReference(referenceStore);
-        branchReference.TryAddRoot(_mainBuildJob);
+        var baselineBranch = new BaselineBranch(baselineStore);
+        baselineBranch.TryAddRoot(_mainBuildJob);
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandBuildJob);
         var onDemandRootBuild = RandomData.NextRootBuild(_onDemandBuildJob.Value, rootBuildNumber, testJobNames: [_onDemandTestJob.Value]);
@@ -150,7 +150,7 @@ internal sealed class RequestReportBuilderTests
         var flakyTests = new FlakyTests(flakyStore);
 
         // Act
-        var report = RequestReportBuilder.Instance.Build(requestState, [branchReference], onDemandBuilds, flakyTests);
+        var report = RequestReportBuilder.Instance.Build(requestState, [baselineBranch], onDemandBuilds, flakyTests);
 
         // Assert
         var chainReport = report.ChainReports[0];
@@ -165,10 +165,10 @@ internal sealed class RequestReportBuilderTests
     }
 
     [Test]
-    public async Task New_ReferenceTestBuildPending_ReturnsReferencePendingDiff()
+    public async Task New_BaselineTestBuildPending_ReturnsBaselinePendingDiff()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _mainBuildJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _mainBuildJob, out var baselineStore)
             .WithNewTestBuilds(_mainTestJob)
             .WithOnDemandStore(_onDemandBuildJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandBuildJob)
@@ -183,9 +183,9 @@ internal sealed class RequestReportBuilderTests
         requestState = await requestState.TriggerTests(onDemandRoot, job => Task.CompletedTask).ConfigureAwait(false);
         requestState = requestState.DoneOnDemandTestBuild(onDemandRoot, onDemandTest);
 
-        var branchReference = new BranchReference(referenceStore);
-        branchReference.TryAddRoot(_mainBuildJob);
-        branchReference.TryAddTest(_mainTestJob);
+        var baselineBranch = new BaselineBranch(baselineStore);
+        baselineBranch.TryAddRoot(_mainBuildJob);
+        baselineBranch.TryAddTest(_mainTestJob);
 
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandBuildJob);
@@ -197,7 +197,7 @@ internal sealed class RequestReportBuilderTests
         var flakyTests = new FlakyTests(flakyStore);
 
         // Act
-        var report = RequestReportBuilder.Instance.Build(requestState, [branchReference], onDemandBuilds, flakyTests);
+        var report = RequestReportBuilder.Instance.Build(requestState, [baselineBranch], onDemandBuilds, flakyTests);
 
         // Assert
         var chainReport = report.ChainReports[0];
@@ -207,14 +207,14 @@ internal sealed class RequestReportBuilderTests
         var message = chainReport.BuildDiffs[0].Diff.Match(
             onNotComparable: msg => msg,
             onComparable: _ => "");
-        Assert.That(message, Is.EqualTo("No reference build"));
+        Assert.That(message, Is.EqualTo("No baseline build"));
     }
 
     [Test]
     public async Task New_BothTestBuildsDone_ReturnsComparableDiff()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _mainBuildJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _mainBuildJob, out var baselineStore)
             .WithNewTestBuilds(_mainTestJob)
             .WithOnDemandStore(_onDemandBuildJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandBuildJob)
@@ -228,15 +228,15 @@ internal sealed class RequestReportBuilderTests
         var onDemandTest = new BuildReference(_onDemandTestJob, RandomData.NextBuildNumber);
 
         var requestState = await CreateRequestState(onDemandStore, referenceRoot: referenceRoot).ConfigureAwait(false);
-        requestState = requestState.DoneReferenceTestBuild(referenceRoot, referenceTest);
+        requestState = requestState.DoneBaselineTestBuild(referenceRoot, referenceTest);
         requestState = await requestState.TriggerTests(onDemandRoot, job => Task.CompletedTask).ConfigureAwait(false);
         requestState = requestState.DoneOnDemandTestBuild(onDemandRoot, onDemandTest);
 
-        var branchReference = new BranchReference(referenceStore);
-        branchReference.TryAddRoot(_mainBuildJob);
-        branchReference.TryAddTest(_mainTestJob);
+        var baselineBranch = new BaselineBranch(baselineStore);
+        baselineBranch.TryAddRoot(_mainBuildJob);
+        baselineBranch.TryAddTest(_mainTestJob);
         var refTestBuild = RandomData.NextTestBuild(_mainTestJob.Value, referenceTest.BuildNumber);
-        branchReference.TryAdd(refTestBuild);
+        baselineBranch.TryAdd(refTestBuild);
 
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandBuildJob);
@@ -249,7 +249,7 @@ internal sealed class RequestReportBuilderTests
         var flakyTests = new FlakyTests(flakyStore);
 
         // Act
-        var report = RequestReportBuilder.Instance.Build(requestState, [branchReference], onDemandBuilds, flakyTests);
+        var report = RequestReportBuilder.Instance.Build(requestState, [baselineBranch], onDemandBuilds, flakyTests);
 
         // Assert
         var chainReport = report.ChainReports[0];
@@ -266,7 +266,7 @@ internal sealed class RequestReportBuilderTests
     public async Task New_BothTestBuildsDoneWithNewFailures_ReturnsDiffWithAddedTests()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _mainBuildJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _mainBuildJob, out var baselineStore)
             .WithNewTestBuilds(_mainTestJob)
             .WithOnDemandStore(_onDemandBuildJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandBuildJob)
@@ -280,13 +280,13 @@ internal sealed class RequestReportBuilderTests
         var onDemandTest = new BuildReference(_onDemandTestJob, RandomData.NextBuildNumber);
 
         var requestState = await CreateRequestState(onDemandStore, referenceRoot: referenceRoot).ConfigureAwait(false);
-        requestState = requestState.DoneReferenceTestBuild(referenceRoot, referenceTest);
+        requestState = requestState.DoneBaselineTestBuild(referenceRoot, referenceTest);
         requestState = await requestState.TriggerTests(onDemandRoot, job => Task.CompletedTask).ConfigureAwait(false);
         requestState = requestState.DoneOnDemandTestBuild(onDemandRoot, onDemandTest);
 
-        var branchReference = new BranchReference(referenceStore);
-        branchReference.TryAddRoot(_mainBuildJob);
-        branchReference.TryAddTest(_mainTestJob);
+        var baselineBranch = new BaselineBranch(baselineStore);
+        baselineBranch.TryAddRoot(_mainBuildJob);
+        baselineBranch.TryAddTest(_mainTestJob);
         var refTestBuild = new TestBuild(
             _mainTestJob,
             "ref-id",
@@ -296,7 +296,7 @@ internal sealed class RequestReportBuilderTests
             false,
             referenceRoot,
             [new FailedTest("ClassA", "Test1", "Old error")]);
-        branchReference.TryAdd(refTestBuild);
+        baselineBranch.TryAdd(refTestBuild);
 
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandBuildJob);
@@ -320,7 +320,7 @@ internal sealed class RequestReportBuilderTests
         var flakyTests = new FlakyTests(flakyStore);
 
         // Act
-        var report = RequestReportBuilder.Instance.Build(requestState, [branchReference], onDemandBuilds, flakyTests);
+        var report = RequestReportBuilder.Instance.Build(requestState, [baselineBranch], onDemandBuilds, flakyTests);
 
         // Assert
         var chainReport = report.ChainReports[0];
@@ -343,15 +343,15 @@ internal sealed class RequestReportBuilderTests
     public async Task New_MultipleTestBuilds_ReturnsMultipleBuildDiffs()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _mainBuildJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _mainBuildJob, out var baselineStore)
             .WithOnDemandStore(_onDemandBuildJob, out var onDemandStore)
             .WithRootJobs(_onDemandBuildJob)
             .WithNewTestBuilds(_onDemandTestJob)
             .WithFlakies(out var flakyStore);
 
         // Arrange
-        var branchReference = new BranchReference(referenceStore);
-        branchReference.TryAddRoot(_mainBuildJob);
+        var baselineBranch = new BaselineBranch(baselineStore);
+        baselineBranch.TryAddRoot(_mainBuildJob);
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(_onDemandBuildJob);
 
@@ -373,7 +373,7 @@ internal sealed class RequestReportBuilderTests
         var flakyTests = new FlakyTests(flakyStore);
 
         // Act
-        var report = RequestReportBuilder.Instance.Build(requestState, [branchReference], onDemandBuilds, flakyTests);
+        var report = RequestReportBuilder.Instance.Build(requestState, [baselineBranch], onDemandBuilds, flakyTests);
 
         // Assert
         var chainReport = report.ChainReports[0];
@@ -388,7 +388,7 @@ internal sealed class RequestReportBuilderTests
         var requestBranch = new BranchName("feature");
 
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _mainBuildJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _mainBuildJob, out var baselineStore)
             .WithOnDemandStore(_onDemandBuildJob, out var onDemandStore)
             .WithRootJobs(_onDemandBuildJob)
             .WithTestobs(_onDemandTestJob)

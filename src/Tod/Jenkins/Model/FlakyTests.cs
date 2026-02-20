@@ -27,7 +27,7 @@ internal sealed record TestId(string ClassName, string TestName) : IComparable<T
 
 internal interface IFlakyTests
 {
-    void Update(IEnumerable<BranchReference> branchReferences);
+    void Update(IEnumerable<BaselineBranch> baselineBranches);
     bool IsFlaky(JobName jobName, TestId testId);
 }
 
@@ -96,12 +96,12 @@ internal sealed class FlakyTests : IFlakyTests
         }
     }
 
-    public void Update(IEnumerable<BranchReference> branchReferences)
+    public void Update(IEnumerable<BaselineBranch> baselineBranches)
     {
         _flakiesByJob.Clear();
-        foreach (var branchReference in branchReferences)
+        foreach (var baselineBranch in baselineBranches)
         {
-            foreach (var collection in branchReference.TestBuilds)
+            foreach (var collection in baselineBranch.TestBuilds)
             {
                 if (collection.Count == 0)
                 {

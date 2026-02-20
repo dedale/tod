@@ -69,12 +69,12 @@ internal static class Program
 
         var postBuildHandlers = new List<IPostBuildHandler> { requestManager };
 
-        if (config.ReferenceReportConfig?.Enabled == true)
+        if (config.BaselineReportConfig?.Enabled == true)
         {
-            foreach (var branchReference in workSpace.BranchReferences)
+            foreach (var baselineBranch in workSpace.BaselineBranches)
             {
-                var referenceReportHandler = new ReferenceReportHandler(branchReference, config, workSpace.FlakyTests);
-                postBuildHandlers.Add(referenceReportHandler);
+                var baselineReportHandler = new BaselineReportHandler(baselineBranch, config, workSpace.FlakyTests);
+                postBuildHandlers.Add(baselineReportHandler);
             }
         }
 
@@ -321,7 +321,7 @@ internal static class Program
         // Implicit constraint: all jobs exist for (at least) one reference branch
         var testGroups = jobGroups.ByTest.Select(g => g.Value).ToList();
         var refBranch = testGroups
-            .SelectMany(g => g.ReferenceJobByBranch)
+            .SelectMany(g => g.BaselineJobByBranch)
             .GroupBy(g => g.Key)
             .ToDictionary(g => g.Key, g => g.Select(x => x.Value).ToArray())
             .MaxBy(kvp => kvp.Value.Length)
@@ -329,9 +329,9 @@ internal static class Program
 
         // No need for job mappings when analyzing filters
         var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
-        var referenceBranch = workspace.BranchReferences.Single(b => b.BranchName == refBranch);
-        var durationByRefJob = referenceBranch.TestBuilds.ToDictionary(x => x.JobName, x => x.AverageDuration);
-        var durationByOnDemandJob = testGroups.ToDictionary(g => g.OnDemandJob, g => durationByRefJob[g.ReferenceJobByBranch[refBranch]]);
+        var baselineBranch = workspace.BaselineBranches.Single(b => b.BranchName == refBranch);
+        var durationByRefJob = baselineBranch.TestBuilds.ToDictionary(x => x.JobName, x => x.AverageDuration);
+        var durationByOnDemandJob = testGroups.ToDictionary(g => g.OnDemandJob, g => durationByRefJob[g.BaselineJobByBranch[refBranch]]);
 
         FilterAnalyzer.LogFilters(config, jobGroups, durationByOnDemandJob);
 

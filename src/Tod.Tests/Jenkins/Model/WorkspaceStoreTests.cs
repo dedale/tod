@@ -1,4 +1,4 @@
-﻿using NUnit.Framework;
+using NUnit.Framework;
 using System.Diagnostics.Metrics;
 using Tod.Jenkins;
 using Tod.Tests.IO;
@@ -25,21 +25,21 @@ internal sealed class WorkspaceStoreTests
     }
 
     [Test]
-    public void GetReferenceStore_ManyTimes_ReturnsSameInstance()
+    public void GetBaselineStore_ManyTimes_ReturnsSameInstance()
     {
         using var temp = new TempDirectory();
         var store = new WorkspaceStore(temp.Path);
-        var referenceStore1 = store.GetReferenceStore(_mainBranch);
-        var referenceStore2 = store.GetReferenceStore(_mainBranch);
-        Assert.That(referenceStore1, Is.SameAs(referenceStore2));
-        var referenceStore3 = store.GetReferenceStore(_prodBranch);
-        Assert.That(referenceStore1, Is.Not.SameAs(referenceStore3));
+        var baselineStore1 = store.GetBaselineStore(_mainBranch);
+        var baselineStore2 = store.GetBaselineStore(_mainBranch);
+        Assert.That(baselineStore1, Is.SameAs(baselineStore2));
+        var baselineStore3 = store.GetBaselineStore(_prodBranch);
+        Assert.That(baselineStore1, Is.Not.SameAs(baselineStore3));
     }
 
-    private sealed class SampleStore(IReferenceStore mainReferenceStore, IReferenceStore prodReferenceStore, IOnDemandStore onDemandStore, IFlakyStore flakyStore)
+    private sealed class SampleStore(IBaselineStore mainBaselineStore, IBaselineStore prodBaselineStore, IOnDemandStore onDemandStore, IFlakyStore flakyStore)
     {
-        public IReferenceStore MainReferenceStore { get; } = mainReferenceStore;
-        public IReferenceStore ProdReferenceStore { get; } = prodReferenceStore;
+        public IBaselineStore MainBaselineStore { get; } = mainBaselineStore;
+        public IBaselineStore ProdBaselineStore { get; } = prodBaselineStore;
         public IOnDemandStore OnDemandStore { get; } = onDemandStore;
         public IFlakyStore FlakyStore { get; } = flakyStore;
     }
@@ -67,18 +67,18 @@ internal sealed class WorkspaceStoreTests
 
         public Sample(SampleStore sampleStore, int domainCount, int rootBuilds, List<JobName> mainTestJobs, List<JobName> prodTestJobs)
         {
-            MainBranchReference = new BranchReference(sampleStore.MainReferenceStore);
-            ProdBranchReference = new BranchReference(sampleStore.ProdReferenceStore);
-            var branchReferences = new List<BranchReference> { MainBranchReference, ProdBranchReference };
+            MainBranchReference = new BaselineBranch(sampleStore.MainBaselineStore);
+            ProdBranchReference = new BaselineBranch(sampleStore.ProdBaselineStore);
+            var baselineBranches = new List<BaselineBranch> { MainBranchReference, ProdBranchReference };
             var onDemandBuilds = new OnDemandBuilds(sampleStore.OnDemandStore);
             var onDemandRequests = new OnDemandRequests(_temp.Path);
             var flakyTests = new FlakyTests(sampleStore.FlakyStore);
-            var workspace = new Workspace(branchReferences, onDemandBuilds, onDemandRequests, flakyTests);
+            var workspace = new Workspace(baselineBranches, onDemandBuilds, onDemandRequests, flakyTests);
 
-            foreach (var branchReference in branchReferences)
+            foreach (var baselineBranch in baselineBranches)
             {
-                var rootJob = branchReference.BranchName == _mainBranch ? _mainRootJob : _prodRootJob;
-                var testJobs = branchReference.BranchName == _mainBranch ? mainTestJobs : prodTestJobs;
+                var rootJob = baselineBranch.BranchName == _mainBranch ? _mainRootJob : _prodRootJob;
+                var testJobs = baselineBranch.BranchName == _mainBranch ? mainTestJobs : prodTestJobs;
 
                 var testFirstNumbers = testJobs.ToDictionary(job => job, _ => RandomData.NextBuildNumber);
 
@@ -95,7 +95,7 @@ internal sealed class WorkspaceStoreTests
                         [RandomData.NextSha1()],
                         [.. testJobs]
                     );
-                    branchReference.TryAdd(rootBuild);
+                    baselineBranch.TryAdd(rootBuild);
 
                     foreach (var job in testJobs)
                     {
@@ -109,14 +109,14 @@ internal sealed class WorkspaceStoreTests
                             rootBuild.Reference,
                             []
                         );
-                        branchReference.TryAdd(testBuild);
+                        baselineBranch.TryAdd(testBuild);
                     }
                 });
             }
         }
 
-        public BranchReference MainBranchReference { get; }
-        public BranchReference ProdBranchReference { get; }
+        public BaselineBranch MainBranchReference { get; }
+        public BaselineBranch ProdBranchReference { get; }
 
         public void Dispose()
         {
@@ -178,16 +178,16 @@ internal sealed class WorkspaceStoreTests
         var prodTestJobs = Sample.GetTestJobs(domainCount, "PROD");
 
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _mainRootJob, out var mainReferenceStore)
+            .WithBaselineStore(_mainBranch, _mainRootJob, out var mainBaselineStore)
             .WithNewRootBuilds(_mainRootJob)
             .WithNewTestBuilds([.. mainTestJobs])
-            .WithReferenceStore(_prodBranch, _prodRootJob, out var prodReferenceStore)
+            .WithBaselineStore(_prodBranch, _prodRootJob, out var prodBaselineStore)
             .WithNewRootBuilds(_prodRootJob)
             .WithNewTestBuilds([.. prodTestJobs])
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithFlakies(out var flakyStore);
 
-        var sampleStore = new SampleStore(mainReferenceStore, prodReferenceStore, onDemandStore, flakyStore);
+        var sampleStore = new SampleStore(mainBaselineStore, prodBaselineStore, onDemandStore, flakyStore);
 
         using var sample = Listen(() => new Sample(sampleStore, domainCount, rootBuilds, mainTestJobs, prodTestJobs), out var metrics);
 
@@ -227,12 +227,12 @@ internal sealed class WorkspaceStoreTests
         var mainTestJobs = Sample.GetTestJobs(domainCount, "MAIN");
         var prodTestJobs = Sample.GetTestJobs(domainCount, "PROD");
 
-        var mainReferenceStore = new InMemoryReferenceStore(_mainBranch);
-        var prodReferenceStore = new InMemoryReferenceStore(_prodBranch);
+        var mainBaselineStore = new InMemoryBaselineStore(_mainBranch);
+        var prodBaselineStore = new InMemoryBaselineStore(_prodBranch);
         var onDemandStore = new InMemoryOnDemandStore();
         var flakyStore = InMemoryFlakyStore.Default;
 
-        var sampleStore = new SampleStore(mainReferenceStore, prodReferenceStore, onDemandStore, flakyStore);
+        var sampleStore = new SampleStore(mainBaselineStore, prodBaselineStore, onDemandStore, flakyStore);
 
         using var sample = new Sample(sampleStore, domainCount, rootBuilds, mainTestJobs, prodTestJobs);
 
@@ -240,13 +240,13 @@ internal sealed class WorkspaceStoreTests
         {
             using var temp = new TempDirectory();
 
-            var mainBranchReference = new BranchReference(mainReferenceStore);
-            var prodBranchReference = new BranchReference(prodReferenceStore);
-            var branchReferences = new List<BranchReference> { mainBranchReference, prodBranchReference };
+            var mainBranchReference = new BaselineBranch(mainBaselineStore);
+            var prodBranchReference = new BaselineBranch(prodBaselineStore);
+            var baselineBranches = new List<BaselineBranch> { mainBranchReference, prodBranchReference };
             var onDemandBuilds = new OnDemandBuilds(onDemandStore);
             var onDemandRequests = new OnDemandRequests(temp.Path);
             var flakyTests = new FlakyTests(flakyStore);
-            var workspace = new Workspace(branchReferences, onDemandBuilds, onDemandRequests, flakyTests);
+            var workspace = new Workspace(baselineBranches, onDemandBuilds, onDemandRequests, flakyTests);
 
             var refRootBuilds = mainBranchReference.RootBuilds.GetOrAdd(_mainRootJob);
             var refRootBuild = refRootBuilds.Skip(10).First();

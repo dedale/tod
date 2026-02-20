@@ -5,7 +5,7 @@ using Tod.Tests.Jenkins;
 namespace Tod.Tests.Jenkins.Model;
 
 [TestFixture]
-internal sealed class ReferenceChainTests
+internal sealed class BaselineChainTests
 {
     private readonly JobName _testJob1 = new("TestJob1");
     private readonly JobName _testJob2 = new("TestJob2");
@@ -15,13 +15,13 @@ internal sealed class ReferenceChainTests
     public void Constructor_InitializesPropertiesCorrectly()
     {
         var rootBuild = new BuildReference(_rootJob, 100);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1),
-            [_testJob2] = RefTestBuildReference.Create(_testJob2)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1),
+            [_testJob2] = BaseTestBuildReference.Create(_testJob2)
         };
 
-        var chain = new ReferenceChain(rootBuild, true, testBuilds);
+        var chain = new BaselineChain(rootBuild, true, testBuilds);
 
         Assert.That(chain.RootBuild, Is.EqualTo(rootBuild));
         Assert.That(chain.RootBuildSucceeded, Is.True);
@@ -33,9 +33,9 @@ internal sealed class ReferenceChainTests
     public void Constructor_WithReportSent_SetsReportSentFlag()
     {
         var rootBuild = new BuildReference(_rootJob, 100);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>();
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>();
 
-        var chain = new ReferenceChain(rootBuild, true, testBuilds, ReportSent: true);
+        var chain = new BaselineChain(rootBuild, true, testBuilds, ReportSent: true);
 
         Assert.That(chain.ReportSent, Is.True);
     }
@@ -44,13 +44,13 @@ internal sealed class ReferenceChainTests
     public void AllTestsDone_ReturnsFalse_WhenTestsArePending()
     {
         var rootBuild = new BuildReference(_rootJob, 100);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1),
-            [_testJob2] = RefTestBuildReference.Create(_testJob2)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1),
+            [_testJob2] = BaseTestBuildReference.Create(_testJob2)
         };
 
-        var chain = new ReferenceChain(rootBuild, true, testBuilds);
+        var chain = new BaselineChain(rootBuild, true, testBuilds);
 
         Assert.That(chain.AllTestsDone, Is.False);
     }
@@ -61,13 +61,13 @@ internal sealed class ReferenceChainTests
         var rootBuild = new BuildReference(_rootJob, 100);
         var testBuild1 = new BuildReference(_testJob1, 50);
         var testBuild2 = new BuildReference(_testJob2, 51);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1).DoneReference(testBuild1.BuildNumber),
-            [_testJob2] = RefTestBuildReference.Create(_testJob2).DoneReference(testBuild2.BuildNumber)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1).DoneBaseline(testBuild1.BuildNumber),
+            [_testJob2] = BaseTestBuildReference.Create(_testJob2).DoneBaseline(testBuild2.BuildNumber)
         };
 
-        var chain = new ReferenceChain(rootBuild, true, testBuilds);
+        var chain = new BaselineChain(rootBuild, true, testBuilds);
 
         Assert.That(chain.AllTestsDone, Is.True);
     }
@@ -76,9 +76,9 @@ internal sealed class ReferenceChainTests
     public void AllTestsDone_ReturnsTrue_WhenNoTestBuilds()
     {
         var rootBuild = new BuildReference(_rootJob, 100);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>();
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>();
 
-        var chain = new ReferenceChain(rootBuild, true, testBuilds);
+        var chain = new BaselineChain(rootBuild, true, testBuilds);
 
         Assert.That(chain.AllTestsDone, Is.True);
     }
@@ -87,12 +87,12 @@ internal sealed class ReferenceChainTests
     public void MarkTestDone_UpdatesTestBuildReference()
     {
         var rootBuild = new BuildReference(_rootJob, 100);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1),
-            [_testJob2] = RefTestBuildReference.Create(_testJob2)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1),
+            [_testJob2] = BaseTestBuildReference.Create(_testJob2)
         };
-        var chain = new ReferenceChain(rootBuild, true, testBuilds);
+        var chain = new BaselineChain(rootBuild, true, testBuilds);
         var testBuild = new BuildReference(_testJob1, 50);
 
         var updated = chain.MarkTestDone(_testJob1, testBuild);
@@ -105,11 +105,11 @@ internal sealed class ReferenceChainTests
     public void MarkTestDone_ReturnsNewInstance()
     {
         var rootBuild = new BuildReference(_rootJob, 100);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1)
         };
-        var chain = new ReferenceChain(rootBuild, true, testBuilds);
+        var chain = new BaselineChain(rootBuild, true, testBuilds);
         var testBuild = new BuildReference(_testJob1, 50);
 
         var updated = chain.MarkTestDone(_testJob1, testBuild);
@@ -123,11 +123,11 @@ internal sealed class ReferenceChainTests
     public void MarkTestDone_ReturnsSameInstance_WhenTestJobNotFound()
     {
         var rootBuild = new BuildReference(_rootJob, 100);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1)
         };
-        var chain = new ReferenceChain(rootBuild, true, testBuilds);
+        var chain = new BaselineChain(rootBuild, true, testBuilds);
         var nonExistentJob = new JobName("NonExistent");
         var testBuild = new BuildReference(nonExistentJob, 50);
 
@@ -140,12 +140,12 @@ internal sealed class ReferenceChainTests
     public void MarkTestDone_DoesNotModifyOriginalDictionary()
     {
         var rootBuild = new BuildReference(_rootJob, 100);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1),
-            [_testJob2] = RefTestBuildReference.Create(_testJob2)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1),
+            [_testJob2] = BaseTestBuildReference.Create(_testJob2)
         };
-        var chain = new ReferenceChain(rootBuild, true, testBuilds);
+        var chain = new BaselineChain(rootBuild, true, testBuilds);
         var testBuild = new BuildReference(_testJob1, 50);
 
         var updated = chain.MarkTestDone(_testJob1, testBuild);
@@ -159,8 +159,8 @@ internal sealed class ReferenceChainTests
     public void MarkReportSent_SetsReportSentFlag()
     {
         var rootBuild = new BuildReference(_rootJob, 100);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>();
-        var chain = new ReferenceChain(rootBuild, true, testBuilds);
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>();
+        var chain = new BaselineChain(rootBuild, true, testBuilds);
 
         var updated = chain.MarkReportSent();
 
@@ -172,8 +172,8 @@ internal sealed class ReferenceChainTests
     public void MarkReportSent_ReturnsNewInstance()
     {
         var rootBuild = new BuildReference(_rootJob, 100);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>();
-        var chain = new ReferenceChain(rootBuild, true, testBuilds);
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>();
+        var chain = new BaselineChain(rootBuild, true, testBuilds);
 
         var updated = chain.MarkReportSent();
 
@@ -185,12 +185,12 @@ internal sealed class ReferenceChainTests
     {
         var rootBuild = new BuildReference(_rootJob, 100);
         var testBuild = new BuildReference(_testJob1, 50);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1).DoneReference(testBuild.BuildNumber),
-            [_testJob2] = RefTestBuildReference.Create(_testJob2)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1).DoneBaseline(testBuild.BuildNumber),
+            [_testJob2] = BaseTestBuildReference.Create(_testJob2)
         };
-        var chain = new ReferenceChain(rootBuild, false, testBuilds, ReportSent: true);
+        var chain = new BaselineChain(rootBuild, false, testBuilds, ReportSent: true);
 
         var serializable = chain.ToSerializable();
         var restored = serializable.FromSerializable();
@@ -209,12 +209,12 @@ internal sealed class ReferenceChainTests
         var rootBuild = new BuildReference(_rootJob, 100);
         var testBuild1 = new BuildReference(_testJob1, 50);
         var testBuild2 = new BuildReference(_testJob2, 51);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1).DoneReference(testBuild1.BuildNumber),
-            [_testJob2] = RefTestBuildReference.Create(_testJob2).DoneReference(testBuild2.BuildNumber)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1).DoneBaseline(testBuild1.BuildNumber),
+            [_testJob2] = BaseTestBuildReference.Create(_testJob2).DoneBaseline(testBuild2.BuildNumber)
         };
-        var chain = new ReferenceChain(rootBuild, true, testBuilds);
+        var chain = new BaselineChain(rootBuild, true, testBuilds);
 
         var serializable = chain.ToSerializable();
         var restored = serializable.FromSerializable();
@@ -234,12 +234,12 @@ internal sealed class ReferenceChainTests
     public void Serialization_PreservesPendingTestBuilds()
     {
         var rootBuild = new BuildReference(_rootJob, 100);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1),
-            [_testJob2] = RefTestBuildReference.Create(_testJob2)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1),
+            [_testJob2] = BaseTestBuildReference.Create(_testJob2)
         };
-        var chain = new ReferenceChain(rootBuild, true, testBuilds);
+        var chain = new BaselineChain(rootBuild, true, testBuilds);
 
         var serializable = chain.ToSerializable();
         var restored = serializable.FromSerializable();
@@ -259,8 +259,8 @@ internal sealed class ReferenceChainTests
     public void Serialization_WithEmptyTestBuilds_Works()
     {
         var rootBuild = new BuildReference(_rootJob, 100);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>();
-        var chain = new ReferenceChain(rootBuild, true, testBuilds);
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>();
+        var chain = new BaselineChain(rootBuild, true, testBuilds);
 
         var serializable = chain.ToSerializable();
         var restored = serializable.FromSerializable();
@@ -274,12 +274,12 @@ internal sealed class ReferenceChainTests
     public void RecordEquality_SameInstance_IsEqual()
     {
         var rootBuild = new BuildReference(_rootJob, 100);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1)
         };
 
-        var chain1 = new ReferenceChain(rootBuild, true, testBuilds);
+        var chain1 = new BaselineChain(rootBuild, true, testBuilds);
         var chain2 = chain1;
 
         Assert.That(chain1, Is.EqualTo(chain2));
@@ -289,12 +289,12 @@ internal sealed class ReferenceChainTests
     public void RecordEquality_WithExpression_SharesTestBuildsDictionary()
     {
         var rootBuild = new BuildReference(_rootJob, 100);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1)
         };
 
-        var chain1 = new ReferenceChain(rootBuild, true, testBuilds);
+        var chain1 = new BaselineChain(rootBuild, true, testBuilds);
         var chain2 = chain1 with { RootBuildSucceeded = false };
 
         Assert.That(chain1.TestBuilds, Is.SameAs(chain2.TestBuilds));
@@ -306,10 +306,10 @@ internal sealed class ReferenceChainTests
     public void RecordEquality_DifferentWhenReportSentDiffers()
     {
         var rootBuild = new BuildReference(_rootJob, 100);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>();
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>();
 
-        var chain1 = new ReferenceChain(rootBuild, true, testBuilds, ReportSent: false);
-        var chain2 = new ReferenceChain(rootBuild, true, testBuilds, ReportSent: true);
+        var chain1 = new BaselineChain(rootBuild, true, testBuilds, ReportSent: false);
+        var chain2 = new BaselineChain(rootBuild, true, testBuilds, ReportSent: true);
 
         Assert.That(chain1, Is.Not.EqualTo(chain2));
     }
@@ -318,8 +318,8 @@ internal sealed class ReferenceChainTests
     public void WithExpression_CreatesNewInstanceWithChanges()
     {
         var rootBuild = new BuildReference(_rootJob, 100);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>();
-        var chain = new ReferenceChain(rootBuild, true, testBuilds);
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>();
+        var chain = new BaselineChain(rootBuild, true, testBuilds);
 
         var modified = chain with { ReportSent = true };
 
@@ -332,12 +332,12 @@ internal sealed class ReferenceChainTests
     public void MarkTestDone_MultipleCalls_UpdatesCorrectly()
     {
         var rootBuild = new BuildReference(_rootJob, 100);
-        var testBuilds = new Dictionary<JobName, RefTestBuildReference>
+        var testBuilds = new Dictionary<JobName, BaseTestBuildReference>
         {
-            [_testJob1] = RefTestBuildReference.Create(_testJob1),
-            [_testJob2] = RefTestBuildReference.Create(_testJob2)
+            [_testJob1] = BaseTestBuildReference.Create(_testJob1),
+            [_testJob2] = BaseTestBuildReference.Create(_testJob2)
         };
-        var chain = new ReferenceChain(rootBuild, true, testBuilds);
+        var chain = new BaselineChain(rootBuild, true, testBuilds);
         var testBuild1 = new BuildReference(_testJob1, 50);
         var testBuild2 = new BuildReference(_testJob2, 51);
 

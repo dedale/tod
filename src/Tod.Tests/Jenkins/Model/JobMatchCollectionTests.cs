@@ -7,15 +7,15 @@ namespace Tod.Tests.Jenkins;
 [TestFixture]
 internal sealed class JobMatchCollectionTests
 {
-    private static readonly ReferenceJobConfig[] s_configs =
+    private static readonly BaselineJobConfig[] s_configs =
     [
         new("MAIN-build", new("main"), true),
         new("MAIN-(?<test>.*)", new("main"), false),
         new("PROD-build", new("prod"), true),
         new("PROD-(?<test>.*)", new("prod"), false),
     ];
-    private static readonly JobMatchCollection<ReferenceJobMatch, ReferenceJobPattern> s_jobMatchCollection =
-        new(s_configs.Select(c => new ReferenceJobPattern(c)));
+    private static readonly JobMatchCollection<BaselineJobMatch, BaselineJobPattern> s_jobMatchCollection =
+        new(s_configs.Select(c => new BaselineJobPattern(c)));
 
     [Test]
     public void FindFirst_RefRootJob()

@@ -19,8 +19,8 @@ internal sealed class JobGroupsBuilderTests
         using (Assert.EnterMultipleScope())
         {
             var builder = new JobGroupsBuilder();
-            builder.AddReferenceRoot(new("MAIN-build"), new("main"), new("build"));
-            builder.AddReferenceTest(new("MAIN-tests"), new("main"), new("tests"));
+            builder.AddBaselineRoot(new("MAIN-build"), new("main"), new("build"));
+            builder.AddBaselineTest(new("MAIN-tests"), new("main"), new("tests"));
             builder.AddOnDemandRoot(new("CUSTOM-build"), new("build"));
             builder.AddOnDemandTest(new("CUSTOM-tests"), new("tests"));
             (addMore ?? (x => { }))(builder);
@@ -30,12 +30,12 @@ internal sealed class JobGroupsBuilderTests
             Assert.That(jobGroups, Is.Not.Null);
             Debug.Assert(jobGroups is not null);
             Assert.That(jobGroups.ByRoot, Has.Count.EqualTo(1));
-            Assert.That(jobGroups.ByRoot[new("build")].ReferenceJobByBranch, Has.Count.EqualTo(1));
-            Assert.That(jobGroups.ByRoot[new("build")].ReferenceJobByBranch[new("main")].Value, Is.EqualTo("MAIN-build"));
+            Assert.That(jobGroups.ByRoot[new("build")].BaselineJobByBranch, Has.Count.EqualTo(1));
+            Assert.That(jobGroups.ByRoot[new("build")].BaselineJobByBranch[new("main")].Value, Is.EqualTo("MAIN-build"));
             Assert.That(jobGroups.ByRoot[new("build")].OnDemandJob.Value, Is.EqualTo("CUSTOM-build"));
             Assert.That(jobGroups.ByTest, Has.Count.EqualTo(1));
-            Assert.That(jobGroups.ByTest[new("tests")].ReferenceJobByBranch, Has.Count.EqualTo(1));
-            Assert.That(jobGroups.ByTest[new("tests")].ReferenceJobByBranch[new("main")].Value, Is.EqualTo("MAIN-tests"));
+            Assert.That(jobGroups.ByTest[new("tests")].BaselineJobByBranch, Has.Count.EqualTo(1));
+            Assert.That(jobGroups.ByTest[new("tests")].BaselineJobByBranch[new("main")].Value, Is.EqualTo("MAIN-tests"));
             Assert.That(jobGroups.ByTest[new("tests")].OnDemandJob.Value, Is.EqualTo("CUSTOM-tests"));
         }
     }
@@ -50,7 +50,7 @@ internal sealed class JobGroupsBuilderTests
     public void TryBuild_MissingOnDemandTestJob_AddError()
     {
         Test(
-            builder => builder.AddReferenceTest(new("MAIN-integration-tests"), new("main"), new("integration-tests")),
+            builder => builder.AddBaselineTest(new("MAIN-integration-tests"), new("main"), new("integration-tests")),
             errors => Assert.That(errors, Does.Contain("No ondemand job for 'MAIN-integration-tests' job"))
         );
     }
@@ -77,7 +77,7 @@ internal sealed class JobGroupsBuilderTests
     public void TryBuild_MissingOndemandRoot_AddError()
     {
         var builder = new JobGroupsBuilder();
-        builder.AddReferenceRoot(new("MAIN-build"), new("main"), new("build"));
+        builder.AddBaselineRoot(new("MAIN-build"), new("main"), new("build"));
         var errors = new List<string>();
         Assert.That(() => builder.TryBuild(out var jobGroups, (m, xs) => errors.Add(Format(m, xs))), Is.False);
         Assert.That(errors, Does.Contain("No ondemand job for 'MAIN-build' job"));
@@ -87,8 +87,8 @@ internal sealed class JobGroupsBuilderTests
     public void TryBuild_MissingOndemandRootWithManyRefs_AddError()
     {
         var builder = new JobGroupsBuilder();
-        builder.AddReferenceRoot(new("MAIN-build"), new("main"), new("build"));
-        builder.AddReferenceRoot(new("PROD-build"), new("prod"), new("build"));
+        builder.AddBaselineRoot(new("MAIN-build"), new("main"), new("build"));
+        builder.AddBaselineRoot(new("PROD-build"), new("prod"), new("build"));
         var errors = new List<string>();
         Assert.That(() => builder.TryBuild(out var jobGroups, (m, xs) => errors.Add(Format(m, xs))), Is.False);
         Assert.That(errors, Does.Contain("No ondemand job for 'MAIN-build', 'PROD-build' jobs"));
@@ -108,7 +108,7 @@ internal sealed class JobGroupsBuilderTests
     public void TryBuild_NoTestJobs_AddError()
     {
         var builder = new JobGroupsBuilder();
-        builder.AddReferenceRoot(new("MAIN-build"), new("main"), new("build"));
+        builder.AddBaselineRoot(new("MAIN-build"), new("main"), new("build"));
         builder.AddOnDemandRoot(new("CUSTOM-build"), new("build"));
         var errors = new List<string>();
         Assert.That(() => builder.TryBuild(out var jobGroups, (m, xs) => errors.Add(Format(m, xs))), Is.False);
@@ -119,8 +119,8 @@ internal sealed class JobGroupsBuilderTests
     public void TryBuild_AddTwoRefRoots_Throws()
     {
         var builder = new JobGroupsBuilder();
-        builder.AddReferenceRoot(new("MAIN-build"), new("main"), new("build"));
-        Assert.That(() => builder.AddReferenceRoot(new("MAIN-build2"), new("main"), new("build")),
+        builder.AddBaselineRoot(new("MAIN-build"), new("main"), new("build"));
+        Assert.That(() => builder.AddBaselineRoot(new("MAIN-build2"), new("main"), new("build")),
             Throws.ArgumentException.And.Message.EqualTo("Job must be unique, cannot add 'MAIN-build2' job for 'main' branch after 'MAIN-build'"));
     }
 
@@ -137,8 +137,8 @@ internal sealed class JobGroupsBuilderTests
     public void TryBuild_AddTwoRefTests_Throws()
     {
         var builder = new JobGroupsBuilder();
-        builder.AddReferenceTest(new("MAIN-tests"), new("main"), new("tests"));
-        Assert.That(() => builder.AddReferenceTest(new("MAIN-tests2"), new("main"), new("tests")),
+        builder.AddBaselineTest(new("MAIN-tests"), new("main"), new("tests"));
+        Assert.That(() => builder.AddBaselineTest(new("MAIN-tests2"), new("main"), new("tests")),
             Throws.ArgumentException.And.Message.EqualTo("Job must be unique, cannot add 'MAIN-tests2' job for 'main' branch after 'MAIN-tests'"));
     }
 

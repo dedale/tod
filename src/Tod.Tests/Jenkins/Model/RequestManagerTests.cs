@@ -1,4 +1,4 @@
-﻿using Moq;
+using Moq;
 using NUnit.Framework;
 using Tod.Git;
 using Tod.Jenkins;
@@ -37,33 +37,33 @@ internal sealed class RequestManagerTests
         _reportSender.VerifyAll();
     }
 
-    private BranchReference AddBranchReference(BranchName branchName, IReferenceStore referenceStore, out Sha1 sha1, out RootBuild rootBuild)
+    private BaselineBranch AddBaselineBranch(BranchName branchName, IBaselineStore baselineStore, out Sha1 sha1, out RootBuild rootBuild)
     {
         var jobName = $"{branchName.Value.ToUpperInvariant()}-build";
-        var branchReference = new BranchReference(referenceStore);
-        branchReference.TryAddRoot(new(jobName));
+        var baselineBranch = new BaselineBranch(baselineStore);
+        baselineBranch.TryAddRoot(new(jobName));
         rootBuild = RandomData.NextRootBuild(jobName: jobName, testJobNames: [_referenceTestJob.Value]);
-        branchReference.TryAdd(rootBuild);
+        baselineBranch.TryAdd(rootBuild);
         sha1 = rootBuild.Commits[1];
-        return branchReference;
+        return baselineBranch;
     }
 
-    private BranchReference AddMainBranchReference(IReferenceStore referenceStore)
+    private BaselineBranch AddMainBaselineBranch(IBaselineStore baselineStore)
     {
-        return AddBranchReference(_mainBranch, referenceStore, out _, out _);
+        return AddBaselineBranch(_mainBranch, baselineStore, out _, out _);
     }
 
-    private BranchReference AddMainBranchReference(IReferenceStore referenceStore, out Sha1 sha1)
+    private BaselineBranch AddMainBaselineBranch(IBaselineStore baselineStore, out Sha1 sha1)
     {
-        return AddBranchReference(_mainBranch, referenceStore, out sha1, out _);
+        return AddBaselineBranch(_mainBranch, baselineStore, out sha1, out _);
     }
 
-    private Workspace GetWorkspace(BranchReference branchReference, IOnDemandStore onDemandStore, IFlakyStore flakyStore)
+    private Workspace GetWorkspace(BaselineBranch baselineBranch, IOnDemandStore onDemandStore, IFlakyStore flakyStore)
     {
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         var onDemandRequests = new OnDemandRequests(Path.Combine(_temp.Path, "requests"));
         var workspace = new Workspace([], onDemandBuilds, onDemandRequests, new FlakyTests(flakyStore));
-        workspace.Add(branchReference);
+        workspace.Add(baselineBranch);
         return workspace;
     }
 
@@ -110,14 +110,14 @@ internal sealed class RequestManagerTests
     public async Task Register_ValidRequest_AddsToWorkspace()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _referenceRootJob, out var baselineStore)
             .WithNewRootBuilds(_referenceRootJob)
             .WithTestobs(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithRootJobs(_onDemandRootJob)
             .WithFlakies(out var flakyStore);
 
-        var branchReference = AddBranchReference(_mainBranch, referenceStore, out Sha1 sha1, out RootBuild rootBuild);
+        var baselineBranch = AddBaselineBranch(_mainBranch, baselineStore, out Sha1 sha1, out RootBuild rootBuild);
 
         var requestFilters = new[] { "integration" };
 
@@ -130,7 +130,7 @@ internal sealed class RequestManagerTests
         _filterManager.Setup(m => m.GetTestBuildDiffs("chain", requestFilters, _mainBranch))
             .Returns([new("chain", _referenceTestJob, _onDemandTestJob)]);
 
-        var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
+        var workspace = GetWorkspace(baselineBranch, onDemandStore, flakyStore);
 
         Assert.That(workspace.OnDemandRequests.ActiveRequests, Is.Empty);
 
@@ -145,17 +145,17 @@ internal sealed class RequestManagerTests
     public void Register_UnknownBranch_ThrowsInvalidOperationException()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _referenceRootJob, out var baselineStore)
             .WithNewRootBuilds(_referenceRootJob)
             .WithTestobs(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithFlakies(out var flakyStore);
 
-        var branchReference = AddMainBranchReference(referenceStore);
+        var baselineBranch = AddMainBaselineBranch(baselineStore);
 
         var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), new("unknown"), ["integration"], s_user, s_userEmail);
 
-        var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
+        var workspace = GetWorkspace(baselineBranch, onDemandStore, flakyStore);
         var requestManager = GetRequestManager(workspace);
 
         Assert.That(() => GetChains(request, workspace),
@@ -166,7 +166,7 @@ internal sealed class RequestManagerTests
     public void Register_UnknownCommit_ThrowsInvalidOperationException()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _referenceRootJob, out var baselineStore)
             .WithNewRootBuilds(_referenceRootJob)
             .WithTestobs(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
@@ -174,9 +174,9 @@ internal sealed class RequestManagerTests
 
         var request = Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _mainBranch, ["integration"], s_user, s_userEmail);
 
-        var branchReference = new BranchReference(referenceStore);
-        branchReference.TryAddRoot(_referenceRootJob);
-        var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
+        var baselineBranch = new BaselineBranch(baselineStore);
+        baselineBranch.TryAddRoot(_referenceRootJob);
+        var workspace = GetWorkspace(baselineBranch, onDemandStore, flakyStore);
         var requestManager = GetRequestManager(workspace);
 
         Assert.That(() => GetChains(request, workspace),
@@ -187,17 +187,17 @@ internal sealed class RequestManagerTests
     public async Task Register_ValidRequest_ReuseExistingReferenceBuilds()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _referenceRootJob, out var baselineStore)
             .WithNewRootBuilds(_referenceRootJob)
             .WithNewTestBuilds(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithRootJobs(_onDemandRootJob)
             .WithFlakies(out var flakyStore);
 
-        var branchReference = AddBranchReference(_mainBranch, referenceStore, out Sha1 sha1, out RootBuild rootBuild);
+        var baselineBranch = AddBaselineBranch(_mainBranch, baselineStore, out Sha1 sha1, out RootBuild rootBuild);
 
         var refTestBuild = new BuildReference(_referenceTestJob, RandomData.NextBuildNumber);
-        Assert.That(branchReference.TryAdd(new TestBuild(
+        Assert.That(baselineBranch.TryAdd(new TestBuild(
             refTestBuild.JobName,
             Guid.NewGuid().ToString(),
             refTestBuild.BuildNumber,
@@ -217,21 +217,21 @@ internal sealed class RequestManagerTests
         _filterManager.Setup(m => m.GetTestBuildDiffs("chain", requestFilters, _mainBranch))
             .Returns([new JobDiff("chain", _referenceTestJob, _onDemandTestJob)]);
 
-        var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
+        var workspace = GetWorkspace(baselineBranch, onDemandStore, flakyStore);
         var requestManager = GetRequestManager(workspace);
         var chains = GetChains(request, workspace);
 
         await requestManager.Register(request, chains).ConfigureAwait(false);
 
         var cachedRequest = workspace.OnDemandRequests.ActiveRequests.Single();
-        Assert.That(cachedRequest.Value.ChainDiffs[0].TestBuildDiffs.Single().ReferenceBuild.IsDone, Is.True);
+        Assert.That(cachedRequest.Value.ChainDiffs[0].TestBuildDiffs.Single().BaselineBuild.IsDone, Is.True);
     }
 
     [Test]
     public async Task Register_DoneRequest_SendReport()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _referenceRootJob, out var baselineStore)
             .WithNewRootBuilds(_referenceRootJob)
             .WithNewTestBuilds(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
@@ -239,10 +239,10 @@ internal sealed class RequestManagerTests
             .WithNewTestBuilds(_onDemandTestJob)
             .WithFlakies(out var flakyStore);
 
-        var branchReference = AddBranchReference(_mainBranch, referenceStore, out Sha1 sha1, out RootBuild rootBuild);
+        var baselineBranch = AddBaselineBranch(_mainBranch, baselineStore, out Sha1 sha1, out RootBuild rootBuild);
 
         var refTestBuild = new BuildReference(_referenceTestJob, RandomData.NextBuildNumber);
-        Assert.That(branchReference.TryAdd(new TestBuild(
+        Assert.That(baselineBranch.TryAdd(new TestBuild(
             refTestBuild.JobName,
             Guid.NewGuid().ToString(),
             refTestBuild.BuildNumber,
@@ -267,7 +267,7 @@ internal sealed class RequestManagerTests
             []
         );
 
-        var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
+        var workspace = GetWorkspace(baselineBranch, onDemandStore, flakyStore);
 
         workspace.OnDemandBuilds.TryAdd(onDemandRootBuild);
 
@@ -298,17 +298,17 @@ internal sealed class RequestManagerTests
     public async Task Register_IgnoresFailedOnDemandRootBuilds()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _referenceRootJob, out var baselineStore)
             .WithNewRootBuilds(_referenceRootJob)
             .WithNewTestBuilds(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
             .WithNewRootBuilds(_onDemandRootJob)
             .WithFlakies(out var flakyStore);
 
-        var branchReference = AddBranchReference(_mainBranch, referenceStore, out Sha1 sha1, out RootBuild rootBuild);
+        var baselineBranch = AddBaselineBranch(_mainBranch, baselineStore, out Sha1 sha1, out RootBuild rootBuild);
 
         var refTestBuild = new BuildReference(_referenceTestJob, RandomData.NextBuildNumber);
-        Assert.That(branchReference.TryAdd(new TestBuild(
+        Assert.That(baselineBranch.TryAdd(new TestBuild(
             refTestBuild.JobName,
             Guid.NewGuid().ToString(),
             refTestBuild.BuildNumber,
@@ -322,7 +322,7 @@ internal sealed class RequestManagerTests
         var requestFilters = new[] { "integration" };
         var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, s_user, s_userEmail);
 
-        var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
+        var workspace = GetWorkspace(baselineBranch, onDemandStore, flakyStore);
 
         var onDemandRootBuild = new RootBuild(
             _onDemandRootJob,
@@ -352,7 +352,7 @@ internal sealed class RequestManagerTests
     public async Task Register_IgnoresOtherTestBuilds()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _referenceRootJob, out var baselineStore)
             .WithNewRootBuilds(_referenceRootJob)
             .WithNewTestBuilds(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
@@ -360,10 +360,10 @@ internal sealed class RequestManagerTests
             .WithNewTestBuilds(_onDemandTestJob)
             .WithFlakies(out var flakyStore);
 
-        var branchReference = AddBranchReference(_mainBranch, referenceStore, out Sha1 sha1, out RootBuild rootBuild);
+        var baselineBranch = AddBaselineBranch(_mainBranch, baselineStore, out Sha1 sha1, out RootBuild rootBuild);
 
         var refTestBuild = new BuildReference(_referenceTestJob, RandomData.NextBuildNumber);
-        Assert.That(branchReference.TryAdd(new TestBuild(
+        Assert.That(baselineBranch.TryAdd(new TestBuild(
             refTestBuild.JobName,
             Guid.NewGuid().ToString(),
             refTestBuild.BuildNumber,
@@ -377,7 +377,7 @@ internal sealed class RequestManagerTests
         var requestFilters = new[] { "integration" };
         var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, s_user, s_userEmail);
 
-        var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
+        var workspace = GetWorkspace(baselineBranch, onDemandStore, flakyStore);
 
         var onDemandRootBuild = new RootBuild(
             _onDemandRootJob,
@@ -443,7 +443,7 @@ internal sealed class RequestManagerTests
     public async Task TriggerOnDemandTests_FailedRootBuild_TriggersNone()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _referenceRootJob, out var baselineStore)
             .WithNewRootBuilds(_referenceRootJob)
             .WithTestobs(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
@@ -457,8 +457,8 @@ internal sealed class RequestManagerTests
         };
         var requestState = await CreateRequestState(onDemandStore).ConfigureAwait(false);
 
-        var branchReference = AddBranchReference(_mainBranch, referenceStore, out Sha1 sha1, out RootBuild rootBuild);
-        var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
+        var baselineBranch = AddBaselineBranch(_mainBranch, baselineStore, out Sha1 sha1, out RootBuild rootBuild);
+        var workspace = GetWorkspace(baselineBranch, onDemandStore, flakyStore);
         workspace.OnDemandRequests.Add(requestState);
 
         _reportSender.Setup(x => x.Send(It.Is<RequestState>(r => r.Request.Id == requestState.Request.Id && r.IsDone == true), It.IsAny<Workspace>()))
@@ -475,7 +475,7 @@ internal sealed class RequestManagerTests
     public async Task UpdateRequests_WithActiveRequests_UpdatesStates(string job1, string job2)
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _referenceRootJob, out var baselineStore)
             .WithNewRootBuilds(_referenceRootJob)
             .WithNewTestBuilds(_referenceTestJob)
             .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
@@ -483,7 +483,7 @@ internal sealed class RequestManagerTests
             .WithNewTestBuilds(_onDemandTestJob)
             .WithFlakies(out var flakyStore);
 
-        var branchReference = AddMainBranchReference(referenceStore, out Sha1 sha1);
+        var baselineBranch = AddMainBaselineBranch(baselineStore, out Sha1 sha1);
 
         var referenceRoot = new BuildReference(_referenceRootJob, RandomData.NextBuildNumber);
         var requestState = await CreateRequestState(onDemandStore, referenceRoot: referenceRoot).ConfigureAwait(false);
@@ -491,7 +491,7 @@ internal sealed class RequestManagerTests
         var onDemandRoot = new BuildReference(_onDemandRootJob, RandomData.NextBuildNumber);
         requestState = await requestState.TriggerTests(onDemandRoot, job => Task.FromResult(testBuildNumber)).ConfigureAwait(false);
 
-        var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
+        var workspace = GetWorkspace(baselineBranch, onDemandStore, flakyStore);
 
         workspace.OnDemandRequests.Add(requestState);
 
@@ -505,8 +505,8 @@ internal sealed class RequestManagerTests
             if (job == _referenceTestJob.Value)
             {
                 var refTestBuild = RandomData.NextTestBuild(testJobName: job, rootBuild: referenceRoot);
-                Assert.That(workspace.BranchReferences.First().TryAdd(refTestBuild), Is.True);
-                await requestManager.PostReferenceTestBuild(referenceRoot, refTestBuild.Reference).ConfigureAwait(false);
+                Assert.That(workspace.BaselineBranches.First().TryAdd(refTestBuild), Is.True);
+                await requestManager.PostBaselineTestBuild(referenceRoot, refTestBuild.Reference).ConfigureAwait(false);
             }
             if (job == _onDemandTestJob.Value)
             {
@@ -528,15 +528,15 @@ internal sealed class RequestManagerTests
         using (Assert.EnterMultipleScope())
         {
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, _referenceRootJob, out var baselineStore)
                 .WithNewRootBuilds(_referenceRootJob)
                 .WithTestobs(_referenceTestJob)
                 .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
                 .WithFlakies(out var flakyStore);
 
-            var branchReference = new BranchReference(referenceStore);
-            branchReference.TryAddRoot(_referenceRootJob);
-            branchReference.TryAddTest(_referenceTestJob);
+            var baselineBranch = new BaselineBranch(baselineStore);
+            baselineBranch.TryAddRoot(_referenceRootJob);
+            baselineBranch.TryAddTest(_referenceTestJob);
             var buildCount = 2;
             var builds = RandomBuilds.Generate(buildCount, success: [true, false]).ToArray();
             var scheduled = Enumerable.Range(0, buildCount)
@@ -550,15 +550,15 @@ internal sealed class RequestManagerTests
             }
             client.Setup(x => x.GetLastBuilds(_referenceTestJob, 100)).ReturnsAsync([]);
             client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
-            var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
+            var workspace = GetWorkspace(baselineBranch, onDemandStore, flakyStore);
             var requestManager = GetRequestManager(workspace);
             var synchronizer = new JenkinsSynchronizer(client.Object, [requestManager]);
             await synchronizer.Update(workspace).ConfigureAwait(false);
-            Assert.That(branchReference.RootBuilds, Has.Count.EqualTo(1));
-            Assert.That(branchReference.RootBuilds[0], Has.Count.EqualTo(buildCount));
-            var rootBuilds = branchReference.RootBuilds[0].ToList();
-            Assert.That(branchReference.TestBuilds, Has.Count.EqualTo(1));
-            Assert.That(branchReference.TestBuilds[0].JobName.Value, Is.EqualTo(_referenceTestJob.Value));
+            Assert.That(baselineBranch.RootBuilds, Has.Count.EqualTo(1));
+            Assert.That(baselineBranch.RootBuilds[0], Has.Count.EqualTo(buildCount));
+            var rootBuilds = baselineBranch.RootBuilds[0].ToList();
+            Assert.That(baselineBranch.TestBuilds, Has.Count.EqualTo(1));
+            Assert.That(baselineBranch.TestBuilds[0].JobName.Value, Is.EqualTo(_referenceTestJob.Value));
             client.VerifyAll();
         }
     }

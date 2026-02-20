@@ -10,7 +10,7 @@ internal sealed class RequestuildDiffTests
     public void Ctor_IsNotDone()
     {
         var diff = new RequestBuildDiff(new("MainTest"), new("OnDemandTest"));
-        Assert.That(diff.ReferenceBuild.IsDone, Is.False);
+        Assert.That(diff.BaselineBuild.IsDone, Is.False);
         Assert.That(diff.OnDemandBuild.IsDone, Is.False);
         Assert.That(diff.IsDone, Is.False);
     }
@@ -34,18 +34,18 @@ internal sealed class RequestuildDiffTests
             Assert.That(diff.TryGetPendingReference(out jobName), Is.True);
             Assert.That(jobName, Is.EqualTo(refJob));
 
-            diff = new RequestBuildDiff(new("MainTest"), new("OnDemandTest")).DoneReference(RandomData.NextBuildNumber);
+            diff = new RequestBuildDiff(new("MainTest"), new("OnDemandTest")).DoneBaseline(RandomData.NextBuildNumber);
             Assert.That(diff.TryGetPendingReference(out jobName), Is.False);
             Assert.That(jobName, Is.Null);
         }
     }
 
     [Test]
-    public void DoneReference_WithMatchingBuild_IsDone()
+    public void DoneBaseline_WithMatchingBuild_IsDone()
     {
         var diff = new RequestBuildDiff(new("MainTest"), new("OnDemandTest"));
-        diff = diff.DoneReference(RandomData.NextBuildNumber);
-        Assert.That(diff.ReferenceBuild.IsDone, Is.True);
+        diff = diff.DoneBaseline(RandomData.NextBuildNumber);
+        Assert.That(diff.BaselineBuild.IsDone, Is.True);
         Assert.That(diff.OnDemandBuild.IsDone, Is.False);
         Assert.That(diff.IsDone, Is.False);
     }
@@ -55,7 +55,7 @@ internal sealed class RequestuildDiffTests
     {
         var diff = new RequestBuildDiff(new("MainTest"), new("OnDemandTest"));
         diff = diff.QueueOnDemand();
-        Assert.That(diff.ReferenceBuild.IsDone, Is.False);
+        Assert.That(diff.BaselineBuild.IsDone, Is.False);
         Assert.That(diff.OnDemandBuild.IsDone, Is.False);
         Assert.That(diff.IsDone, Is.False);
     }
@@ -78,7 +78,7 @@ internal sealed class RequestuildDiffTests
             Assert.That(diff.TryGetQueued(out testBuild), Is.False);
             Assert.That(testBuild, Is.Null);
 
-            diff = new RequestBuildDiff(new("MainTest"), new("OnDemandTest")).DoneReference(RandomData.NextBuildNumber);
+            diff = new RequestBuildDiff(new("MainTest"), new("OnDemandTest")).DoneBaseline(RandomData.NextBuildNumber);
             Assert.That(diff.TryGetQueued(out testBuild), Is.False);
             Assert.That(testBuild, Is.Null);
         }
@@ -93,7 +93,7 @@ internal sealed class RequestuildDiffTests
             Assert.That(() => diff.DoneOnDemand(RandomData.NextBuildNumber), Throws.InvalidOperationException.And.Message.EqualTo("Not triggered"));
             diff = diff.QueueOnDemand();
             diff = diff.DoneOnDemand(RandomData.NextBuildNumber);
-            Assert.That(diff.ReferenceBuild.IsDone, Is.False);
+            Assert.That(diff.BaselineBuild.IsDone, Is.False);
             Assert.That(diff.OnDemandBuild.IsDone, Is.True);
             Assert.That(diff.IsDone, Is.False);
             Assert.That(() => diff.DoneOnDemand(RandomData.NextBuildNumber), Throws.InvalidOperationException.And.Message.EqualTo("Already done"));
@@ -107,12 +107,12 @@ internal sealed class RequestuildDiffTests
         {
             var diff = new RequestBuildDiff(new("MainTest"), new("OnDemandTest"));
             var clone = diff.SerializationRoundTrip<RequestBuildDiff, RequestBuildDiff.Serializable>();
-            Assert.That(clone.ReferenceBuild.IsDone, Is.False);
+            Assert.That(clone.BaselineBuild.IsDone, Is.False);
             Assert.That(clone.OnDemandBuild.IsDone, Is.False);
 
             diff = diff.QueueOnDemand();
             clone = diff.SerializationRoundTrip<RequestBuildDiff, RequestBuildDiff.Serializable>();
-            Assert.That(clone.ReferenceBuild.IsDone, Is.False);
+            Assert.That(clone.BaselineBuild.IsDone, Is.False);
             Assert.That(clone.OnDemandBuild.IsDone, Is.False);
             Assert.That(clone.OnDemandBuild.Match(
                 onPending: _ => false,
@@ -122,12 +122,12 @@ internal sealed class RequestuildDiffTests
 
             diff = diff.DoneOnDemand(RandomData.NextBuildNumber);
             clone = diff.SerializationRoundTrip<RequestBuildDiff, RequestBuildDiff.Serializable>();
-            Assert.That(clone.ReferenceBuild.IsDone, Is.False);
+            Assert.That(clone.BaselineBuild.IsDone, Is.False);
             Assert.That(clone.OnDemandBuild.IsDone, Is.True);
 
-            diff = new RequestBuildDiff(new("MainTest"), new("OnDemandTest")).DoneReference(84);
+            diff = new RequestBuildDiff(new("MainTest"), new("OnDemandTest")).DoneBaseline(84);
             clone = diff.SerializationRoundTrip<RequestBuildDiff, RequestBuildDiff.Serializable>();
-            Assert.That(clone.ReferenceBuild.IsDone, Is.True);
+            Assert.That(clone.BaselineBuild.IsDone, Is.True);
             Assert.That(clone.OnDemandBuild.IsDone, Is.False);
         }
     }

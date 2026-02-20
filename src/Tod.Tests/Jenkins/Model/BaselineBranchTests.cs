@@ -1,4 +1,4 @@
-﻿using Moq;
+using Moq;
 using NUnit.Framework;
 using System.Diagnostics;
 using Tod.Git;
@@ -8,7 +8,7 @@ using Tod.Tests.IO;
 namespace Tod.Tests.Jenkins;
 
 [TestFixture]
-internal sealed class BranchReferenceTests
+internal sealed class BaselineBranchTests
 {
     private readonly BranchName _mainBranch = new("main");
     private readonly JobName _rootJob = new("MyJob");
@@ -18,17 +18,17 @@ internal sealed class BranchReferenceTests
     private readonly BranchName _devBranch = new("dev");
     private readonly JobName _devJob = new("DevJob");
 
-    private StoreMocks.BuildStoreMocks DevBranchMocks(out BranchReference devBranchRef, out RootBuild devRootBuild)
+    private StoreMocks.BuildStoreMocks DevBranchMocks(out BaselineBranch devBaseBranch, out RootBuild devRootBuild)
     {
         var devTestJob = new JobName("DevTestJob");
         var devMocks = StoreMocks.New()
-            .WithReferenceStore(_devBranch, _devJob, out var devReferenceStore)
+            .WithBaselineStore(_devBranch, _devJob, out var devBaselineStore)
             .WithNewRootBuilds(_devJob)
             .WithTestobs(devTestJob);
-        devBranchRef = new BranchReference(devReferenceStore);
-        devBranchRef.TryAddRoot(_devJob);
+        devBaseBranch = new BaselineBranch(devBaselineStore);
+        devBaseBranch.TryAddRoot(_devJob);
         devRootBuild = RandomData.NextRootBuild(jobName: _devJob.Value, commits: 3, testJobNames: [devTestJob.Value]);
-        devBranchRef.TryAdd(devRootBuild);
+        devBaseBranch.TryAdd(devRootBuild);
         return devMocks;
     }
 
@@ -38,32 +38,32 @@ internal sealed class BranchReferenceTests
         using (Assert.EnterMultipleScope())
         {
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore)
                 .WithNewRootBuilds(_rootJob)
                 .WithTestobs(_testJob1, _testJob2);
 
-            var branchReference = new BranchReference(referenceStore);
+            var baselineBranch = new BaselineBranch(baselineStore);
 
-            branchReference.TryAddRoot(_rootJob);
+            baselineBranch.TryAddRoot(_rootJob);
 
             var rootBuild = RandomData.NextRootBuild(jobName: _rootJob.Value);
-            Assert.That(branchReference.RootBuilds, Has.Count.EqualTo(1));
-            Assert.That(branchReference.RootBuilds[0], Has.Count.EqualTo(0));
-            Assert.That(branchReference.TestBuilds, Has.Count.EqualTo(0));
+            Assert.That(baselineBranch.RootBuilds, Has.Count.EqualTo(1));
+            Assert.That(baselineBranch.RootBuilds[0], Has.Count.EqualTo(0));
+            Assert.That(baselineBranch.TestBuilds, Has.Count.EqualTo(0));
 
-            var added = branchReference.TryAdd(rootBuild);
+            var added = baselineBranch.TryAdd(rootBuild);
             Assert.That(added, Is.True);
-            Assert.That(branchReference.RootBuilds, Has.Count.EqualTo(1));
-            Assert.That(branchReference.RootBuilds[0], Has.Count.EqualTo(1));
-            Assert.That(branchReference.RootBuilds[0].JobName.Value, Is.EqualTo(_rootJob.Value));
-            Assert.That(branchReference.RootBuilds[0].Contains(rootBuild.BuildNumber), Is.True);
-            Assert.That(branchReference.TestBuilds, Has.Count.EqualTo(2));
-            Assert.That(branchReference.TestBuilds[0].JobName.Value, Is.EqualTo(_testJob1.Value));
-            Assert.That(branchReference.TestBuilds[0], Has.Count.EqualTo(0));
-            Assert.That(branchReference.TestBuilds[1].JobName.Value, Is.EqualTo(_testJob2.Value));
-            Assert.That(branchReference.TestBuilds[1], Has.Count.EqualTo(0));
+            Assert.That(baselineBranch.RootBuilds, Has.Count.EqualTo(1));
+            Assert.That(baselineBranch.RootBuilds[0], Has.Count.EqualTo(1));
+            Assert.That(baselineBranch.RootBuilds[0].JobName.Value, Is.EqualTo(_rootJob.Value));
+            Assert.That(baselineBranch.RootBuilds[0].Contains(rootBuild.BuildNumber), Is.True);
+            Assert.That(baselineBranch.TestBuilds, Has.Count.EqualTo(2));
+            Assert.That(baselineBranch.TestBuilds[0].JobName.Value, Is.EqualTo(_testJob1.Value));
+            Assert.That(baselineBranch.TestBuilds[0], Has.Count.EqualTo(0));
+            Assert.That(baselineBranch.TestBuilds[1].JobName.Value, Is.EqualTo(_testJob2.Value));
+            Assert.That(baselineBranch.TestBuilds[1], Has.Count.EqualTo(0));
 
-            added = branchReference.TryAdd(rootBuild);
+            added = baselineBranch.TryAdd(rootBuild);
             Assert.That(added, Is.False);
         }
     }
@@ -74,14 +74,14 @@ internal sealed class BranchReferenceTests
         using (Assert.EnterMultipleScope())
         {
             using var temp = new TempDirectory();
-            var referenceStore = new ReferenceStore(_mainBranch, temp.Path);
-            var branchReference = new BranchReference(referenceStore);
+            var baselineStore = new BaselineStore(_mainBranch, temp.Path);
+            var baselineBranch = new BaselineBranch(baselineStore);
             var rootBuild = RandomData.NextRootBuild(jobName: _rootJob.Value);
-            var added = branchReference.TryAdd(rootBuild);
+            var added = baselineBranch.TryAdd(rootBuild);
             Assert.That(added, Is.True);
-            var clone = new BranchReference(new ReferenceStore(_mainBranch, temp.Path));
-            Assert.That(clone!.BranchName, Is.EqualTo(branchReference.BranchName));
-            Assert.That(clone.RootBuilds, Has.Count.EqualTo(branchReference.RootBuilds.Count));
+            var clone = new BaselineBranch(new BaselineStore(_mainBranch, temp.Path));
+            Assert.That(clone!.BranchName, Is.EqualTo(baselineBranch.BranchName));
+            Assert.That(clone.RootBuilds, Has.Count.EqualTo(baselineBranch.RootBuilds.Count));
         }
     }
 
@@ -91,13 +91,13 @@ internal sealed class BranchReferenceTests
         using (Assert.EnterMultipleScope())
         {
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore)
                 .WithRootJobs(_rootJob);
 
-            var branchReference = new BranchReference(referenceStore);
-            branchReference.TryAddRoot(_rootJob);
+            var baselineBranch = new BaselineBranch(baselineStore);
+            baselineBranch.TryAddRoot(_rootJob);
 
-            var found = branchReference.TryFindRootBuildByCommit(RandomData.NextSha1(), _rootJob, out var foundRootBuild);
+            var found = baselineBranch.TryFindRootBuildByCommit(RandomData.NextSha1(), _rootJob, out var foundRootBuild);
             Assert.That(found, Is.False);
             Assert.That(foundRootBuild, Is.Null);
         }
@@ -109,24 +109,24 @@ internal sealed class BranchReferenceTests
         using (Assert.EnterMultipleScope())
         {
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore)
                 .WithNewRootBuilds(_rootJob)
                 .WithTestobs(_testJob1, _testJob2);
 
-            var branchReference = new BranchReference(referenceStore);
-            branchReference.TryAddRoot(_rootJob);
+            var baselineBranch = new BaselineBranch(baselineStore);
+            baselineBranch.TryAddRoot(_rootJob);
             var commits = 3;
             var rootBuild = RandomData.NextRootBuild(jobName: _rootJob.Value, commits: commits);
-            var added = branchReference.TryAdd(rootBuild);
+            var added = baselineBranch.TryAdd(rootBuild);
             Assert.That(added, Is.True);
             for (var c = 0; c < commits; c++)
             {
-                var found = branchReference.TryFindRootBuildByCommit(rootBuild.Commits[c], _rootJob, out var foundRootBuild);
+                var found = baselineBranch.TryFindRootBuildByCommit(rootBuild.Commits[c], _rootJob, out var foundRootBuild);
                 Assert.That(found, Is.True);
                 Debug.Assert(foundRootBuild is not null);
                 Assert.That(foundRootBuild.Reference, Is.EqualTo(rootBuild.Reference));
             }
-            Assert.That(branchReference.TryFindRootBuildByCommit(RandomData.NextSha1(), _rootJob, out _), Is.False);
+            Assert.That(baselineBranch.TryFindRootBuildByCommit(RandomData.NextSha1(), _rootJob, out _), Is.False);
         }
     }
 
@@ -136,19 +136,19 @@ internal sealed class BranchReferenceTests
         using (Assert.EnterMultipleScope())
         {
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore)
                 .WithNewRootBuilds(_rootJob)
                 .WithTestobs(_testJob1, _testJob2);
 
-            var branchReference = new BranchReference(referenceStore);
-            branchReference.TryAddRoot(_rootJob);
+            var baselineBranch = new BaselineBranch(baselineStore);
+            baselineBranch.TryAddRoot(_rootJob);
             var builds = 5;
             var commitsPerBuild = 3;
             var rootBuilds = new List<RootBuild>();
             for (var b = 0; b < builds; b++)
             {
                 var rootBuild = RandomData.NextRootBuild(jobName: _rootJob.Value, buildNumber: b + 1, commits: commitsPerBuild);
-                var added = branchReference.TryAdd(rootBuild);
+                var added = baselineBranch.TryAdd(rootBuild);
                 Assert.That(added, Is.True);
                 rootBuilds.Add(rootBuild);
             }
@@ -157,13 +157,13 @@ internal sealed class BranchReferenceTests
                 var rootBuild = rootBuilds[b];
                 for (var c = 0; c < commitsPerBuild; c++)
                 {
-                    var found = branchReference.TryFindRootBuildByCommit(rootBuild.Commits[c], _rootJob, out var foundRootBuild);
+                    var found = baselineBranch.TryFindRootBuildByCommit(rootBuild.Commits[c], _rootJob, out var foundRootBuild);
                     Assert.That(found, Is.True);
                     Debug.Assert(foundRootBuild is not null);
                     Assert.That(foundRootBuild.Reference, Is.EqualTo(rootBuild.Reference));
                 }
             }
-            Assert.That(branchReference.TryFindRootBuildByCommit(RandomData.NextSha1(), _rootJob, out _), Is.False);
+            Assert.That(baselineBranch.TryFindRootBuildByCommit(RandomData.NextSha1(), _rootJob, out _), Is.False);
         }
     }
 
@@ -173,19 +173,19 @@ internal sealed class BranchReferenceTests
         using (Assert.EnterMultipleScope())
         {
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore)
                 .WithNewRootBuilds(_rootJob)
                 .WithTestobs(_testJob1, _testJob2);
 
-            var branchReference = new BranchReference(referenceStore);
-            branchReference.TryAddRoot(_rootJob);
+            var baselineBranch = new BaselineBranch(baselineStore);
+            baselineBranch.TryAddRoot(_rootJob);
             var builds = 5;
             var commitsPerBuild = 3;
             var rootBuilds = new List<RootBuild>();
             for (var b = 0; b < builds; b++)
             {
                 var rootBuild = RandomData.NextRootBuild(jobName: _rootJob.Value, buildNumber: b + 1, isSuccessful: false, commits: commitsPerBuild);
-                var added = branchReference.TryAdd(rootBuild);
+                var added = baselineBranch.TryAdd(rootBuild);
                 Assert.That(added, Is.True);
                 rootBuilds.Add(rootBuild);
             }
@@ -194,10 +194,10 @@ internal sealed class BranchReferenceTests
                 var rootBuild = rootBuilds[b];
                 for (var c = 0; c < commitsPerBuild; c++)
                 {
-                    Assert.That(branchReference.TryFindRootBuildByCommit(rootBuild.Commits[c], _rootJob, out _), Is.False);
+                    Assert.That(baselineBranch.TryFindRootBuildByCommit(rootBuild.Commits[c], _rootJob, out _), Is.False);
                 }
             }
-            Assert.That(branchReference.TryFindRootBuildByCommit(RandomData.NextSha1(), _rootJob, out _), Is.False);
+            Assert.That(baselineBranch.TryFindRootBuildByCommit(RandomData.NextSha1(), _rootJob, out _), Is.False);
         }
     }
 
@@ -207,11 +207,11 @@ internal sealed class BranchReferenceTests
         var testJobName = new JobName("MyTestJob");
         var otherTestJobName = new JobName("OtherTestJob");
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore)
             .WithNewTestBuilds(testJobName)
             .WithNewTestBuilds(otherTestJobName)
             .WithRemoved(testJobName);
-        var onDemandBuilds = new BranchReference(referenceStore);
+        var onDemandBuilds = new BaselineBranch(baselineStore);
         onDemandBuilds.TryAdd(RandomData.NextTestBuild(testJobName: testJobName.Value));
         onDemandBuilds.TryAdd(RandomData.NextTestBuild(testJobName: otherTestJobName.Value));
         Assert.That(onDemandBuilds.TestBuilds, Has.Count.EqualTo(2));
@@ -225,15 +225,15 @@ internal sealed class BranchReferenceTests
     {
         using var temp = new TempDirectory();
         var testJobName = new JobName("MyTestJob");
-        var referenceStore = new ReferenceStore(_mainBranch, temp.Path);
-        var branchReference = new BranchReference(referenceStore);
-        branchReference.TryAdd(RandomData.NextTestBuild(testJobName: testJobName.Value));
-        Assert.That(branchReference.TestBuilds, Has.Count.EqualTo(1));
-        branchReference.RemoveTest(testJobName);
+        var baselineStore = new BaselineStore(_mainBranch, temp.Path);
+        var baselineBranch = new BaselineBranch(baselineStore);
+        baselineBranch.TryAdd(RandomData.NextTestBuild(testJobName: testJobName.Value));
+        Assert.That(baselineBranch.TestBuilds, Has.Count.EqualTo(1));
+        baselineBranch.RemoveTest(testJobName);
 
-        var newStore = new ReferenceStore(_mainBranch, temp.Path);
-        var newReference = new BranchReference(newStore);
-        Assert.That(newReference.TestBuilds, Is.Empty);
+        var newStore = new BaselineStore(_mainBranch, temp.Path);
+        var newBaseline = new BaselineBranch(newStore);
+        Assert.That(newBaseline.TestBuilds, Is.Empty);
     }
 
     [Test]
@@ -242,17 +242,17 @@ internal sealed class BranchReferenceTests
         var testJobName = new JobName("MyTestJob");
 
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore)
+            .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore)
             .WithNewTestBuilds(testJobName);
 
-        var branchReference = new BranchReference(referenceStore);
-        branchReference.TryAddRoot(_rootJob);
+        var baselineBranch = new BaselineBranch(baselineStore);
+        baselineBranch.TryAddRoot(_rootJob);
 
         var testBuild = RandomData.NextTestBuild(testJobName: testJobName.Value);
-        var added = branchReference.TryAdd(testBuild);
+        var added = baselineBranch.TryAdd(testBuild);
         Assert.That(added, Is.True);
 
-        added = branchReference.TryAdd(testBuild);
+        added = baselineBranch.TryAdd(testBuild);
         Assert.That(added, Is.False);
     }
 
@@ -260,11 +260,11 @@ internal sealed class BranchReferenceTests
     public void TryFindTestBuild_WithoutBuilds_ReturnsNone()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore);
+            .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore);
 
-        var branchReference = new BranchReference(referenceStore);
-        branchReference.TryAddRoot(_rootJob);
-        Assert.That(branchReference.TryFindTestBuild(new("MyTestJob"), new BuildReference(_rootJob, 42), out var foundTestBuild), Is.False);
+        var baselineBranch = new BaselineBranch(baselineStore);
+        baselineBranch.TryAddRoot(_rootJob);
+        Assert.That(baselineBranch.TryFindTestBuild(new("MyTestJob"), new BuildReference(_rootJob, 42), out var foundTestBuild), Is.False);
         Assert.That(foundTestBuild, Is.Null);
     }
 
@@ -276,26 +276,26 @@ internal sealed class BranchReferenceTests
             var testJobName = new JobName("MyTestJob");
 
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore)
                 .WithNewTestBuilds(testJobName);
 
-            var branchReference = new BranchReference(referenceStore);
-            branchReference.TryAddRoot(_rootJob);
+            var baselineBranch = new BaselineBranch(baselineStore);
+            baselineBranch.TryAddRoot(_rootJob);
             var rootBuild = new BuildReference(_rootJob, RandomData.NextBuildNumber);
             var testBuildNumber = RandomData.NextBuildNumber;
             // Add a test build for root build
             var testBuild = RandomData.NextTestBuild(buildNumber: testBuildNumber, rootBuild: rootBuild);
-            Assert.That(branchReference.TryAdd(testBuild), Is.True);
+            Assert.That(baselineBranch.TryAdd(testBuild), Is.True);
             // Try to find test build for an older root build - should return none
             rootBuild = rootBuild.Next();
-            Assert.That(branchReference.TryFindTestBuild(testJobName, rootBuild, out var foundTestBuild), Is.False);
+            Assert.That(baselineBranch.TryFindTestBuild(testJobName, rootBuild, out var foundTestBuild), Is.False);
             Assert.That(foundTestBuild, Is.Null);
             // Add a test build for the newer root build
             testBuildNumber++;
             testBuild = RandomData.NextTestBuild(buildNumber: testBuildNumber, rootBuild: rootBuild);
-            Assert.That(branchReference.TryAdd(testBuild), Is.True);
+            Assert.That(baselineBranch.TryAdd(testBuild), Is.True);
             // Try to find test build for the newer root build - should return the newer one
-            Assert.That(branchReference.TryFindTestBuild(testJobName, rootBuild, out foundTestBuild), Is.True);
+            Assert.That(baselineBranch.TryFindTestBuild(testJobName, rootBuild, out foundTestBuild), Is.True);
             Debug.Assert(foundTestBuild is not null);
             Assert.That(foundTestBuild.Reference, Is.EqualTo(testBuild.Reference));
         }
@@ -309,17 +309,17 @@ internal sealed class BranchReferenceTests
             var testJobName = new JobName("MyTestJob");
 
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore)
                 .WithNewTestBuilds(testJobName);
 
-            var branchReference = new BranchReference(referenceStore);
-            branchReference.TryAddRoot(_rootJob);
+            var baselineBranch = new BaselineBranch(baselineStore);
+            baselineBranch.TryAddRoot(_rootJob);
 
             var buildNumber = RandomData.NextBuildNumber;
             var rootBuild = new BuildReference(_rootJob, buildNumber);
             var testBuild = RandomData.NextTestBuild(rootBuild: rootBuild.Next());
-            Assert.That(branchReference.TryAdd(testBuild), Is.True);
-            Assert.That(branchReference.TryFindTestBuild(testJobName, rootBuild, out var foundTestBuild), Is.True);
+            Assert.That(baselineBranch.TryAdd(testBuild), Is.True);
+            Assert.That(baselineBranch.TryFindTestBuild(testJobName, rootBuild, out var foundTestBuild), Is.True);
             Debug.Assert(foundTestBuild is not null);
             Assert.That(foundTestBuild.Reference, Is.EqualTo(testBuild.Reference));
         }
@@ -333,22 +333,22 @@ internal sealed class BranchReferenceTests
             var testJobName = new JobName("MyTestJob");
 
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore)
                 .WithNewTestBuilds(testJobName);
 
-            var branchReference = new BranchReference(referenceStore);
-            branchReference.TryAddRoot(_rootJob);
+            var baselineBranch = new BaselineBranch(baselineStore);
+            baselineBranch.TryAddRoot(_rootJob);
             var rootBuild = new BuildReference(_rootJob, RandomData.NextBuildNumber);
 
             // Add an old test build for root build N-1
             var oldTestBuild = RandomData.NextTestBuild(rootBuild: new BuildReference(rootBuild.JobName, rootBuild.BuildNumber - 1));
-            Assert.That(branchReference.TryAdd(oldTestBuild), Is.True);
+            Assert.That(baselineBranch.TryAdd(oldTestBuild), Is.True);
             // Add a new test build for root build N+1
             var newTtestBuild = RandomData.NextTestBuild(buildNumber: oldTestBuild.BuildNumber + 1, rootBuild: rootBuild.Next());
-            Assert.That(branchReference.TryAdd(newTtestBuild), Is.True);
+            Assert.That(baselineBranch.TryAdd(newTtestBuild), Is.True);
 
             // Search for test build for root build N - should find the newer one (N+1), not the older one (N-1)
-            Assert.That(branchReference.TryFindTestBuild(testJobName, rootBuild, out var foundTestBuild), Is.True);
+            Assert.That(baselineBranch.TryFindTestBuild(testJobName, rootBuild, out var foundTestBuild), Is.True);
             Debug.Assert(foundTestBuild is not null);
             Assert.That(foundTestBuild.Reference, Is.EqualTo(newTtestBuild.Reference));
         }
@@ -362,20 +362,20 @@ internal sealed class BranchReferenceTests
             var testJobName = new JobName("MyTestJob");
 
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore)
                 .WithNewTestBuilds(testJobName);
 
             var oldRootJob = new JobName("OldJob");
-            var branchReference = new BranchReference(referenceStore);
-            branchReference.TryAddRoot(_rootJob);
+            var baselineBranch = new BaselineBranch(baselineStore);
+            baselineBranch.TryAddRoot(_rootJob);
             var buildNumber = RandomData.NextBuildNumber;
             var rootBuild = new BuildReference(_rootJob, buildNumber);
 
             var oldTestBuild = RandomData.NextTestBuild(rootBuild: new BuildReference(oldRootJob, RandomData.NextBuildNumber));
-            Assert.That(branchReference.TryAdd(oldTestBuild), Is.True);
+            Assert.That(baselineBranch.TryAdd(oldTestBuild), Is.True);
             var newTtestBuild = RandomData.NextTestBuild(buildNumber: oldTestBuild.BuildNumber + 1, rootBuild: rootBuild.Next());
-            Assert.That(branchReference.TryAdd(newTtestBuild), Is.True);
-            Assert.That(branchReference.TryFindTestBuild(testJobName, rootBuild, out var foundTestBuild), Is.True);
+            Assert.That(baselineBranch.TryAdd(newTtestBuild), Is.True);
+            Assert.That(baselineBranch.TryFindTestBuild(testJobName, rootBuild, out var foundTestBuild), Is.True);
             Debug.Assert(foundTestBuild is not null);
             Assert.That(foundTestBuild.Reference, Is.EqualTo(newTtestBuild.Reference));
         }
@@ -385,14 +385,14 @@ internal sealed class BranchReferenceTests
     public void TryFindRefCommit_EmptyCommitArray_ThrowsNotSupportedException()
     {
         using var mocks = StoreMocks.New()
-            .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore);
+            .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore);
 
-        var branchReference = new BranchReference(referenceStore);
-        branchReference.TryAddRoot(_rootJob);
-        var branchReferences = new[] { branchReference };
+        var baselineBranch = new BaselineBranch(baselineStore);
+        baselineBranch.TryAddRoot(_rootJob);
+        var baselineBranches = new[] { baselineBranch };
         var commits = Array.Empty<Sha1>();
 
-        Assert.That(branchReferences.TryFindRefCommit(commits, [_rootJob], _mainBranch, out _), Is.False);
+        Assert.That(baselineBranches.TryFindRefCommit(commits, [_rootJob], _mainBranch, out _), Is.False);
     }
 
     [Test]
@@ -401,21 +401,21 @@ internal sealed class BranchReferenceTests
         using (Assert.EnterMultipleScope())
         {
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore)
                 .WithNewRootBuilds(_rootJob)
                 .WithTestobs(_testJob1, _testJob2);
 
-            var branchReference = new BranchReference(referenceStore);
-            branchReference.TryAddRoot(_rootJob);
+            var baselineBranch = new BaselineBranch(baselineStore);
+            baselineBranch.TryAddRoot(_rootJob);
 
             var rootBuild = RandomData.NextRootBuild(jobName: _rootJob.Value, commits: 3);
-            branchReference.TryAdd(rootBuild);
+            baselineBranch.TryAdd(rootBuild);
 
-            var branchReferences = new[] { branchReference };
+            var baselineBranches = new[] { baselineBranch };
             var commits = new[] { rootBuild.Commits[0], RandomData.NextSha1() };
 
             Assert.That(
-                () => branchReferences.TryFindRefCommit(commits, [_rootJob], _mainBranch, out _),
+                () => baselineBranches.TryFindRefCommit(commits, [_rootJob], _mainBranch, out _),
                 Throws.TypeOf<NotSupportedException>()
                     .With.Message.EqualTo("No local commits to test for job MyJob"));
         }
@@ -427,21 +427,21 @@ internal sealed class BranchReferenceTests
         using (Assert.EnterMultipleScope())
         {
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore)
                 .WithNewRootBuilds(_rootJob)
                 .WithTestobs(_testJob1, _testJob2);
 
-            var branchReference = new BranchReference(referenceStore);
-            branchReference.TryAddRoot(_rootJob);
+            var baselineBranch = new BaselineBranch(baselineStore);
+            baselineBranch.TryAddRoot(_rootJob);
             var rootBuild = RandomData.NextRootBuild(jobName: _rootJob.Value, commits: 3);
-            branchReference.TryAdd(rootBuild);
+            baselineBranch.TryAdd(rootBuild);
 
-            var branchReferences = new[] { branchReference };
+            var baselineBranches = new[] { baselineBranch };
             var localCommit = RandomData.NextSha1();
             var refCommit = rootBuild.Commits[1];
             var commits = new[] { localCommit, refCommit };
 
-            var result = branchReferences.TryFindRefCommit(commits, [_rootJob], _mainBranch, out var foundRefCommit);
+            var result = baselineBranches.TryFindRefCommit(commits, [_rootJob], _mainBranch, out var foundRefCommit);
 
             Assert.That(result, Is.True);
             Assert.That(foundRefCommit, Is.EqualTo(refCommit));
@@ -458,17 +458,17 @@ internal sealed class BranchReferenceTests
             var jobName2 = new JobName("MyJob2");
 
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, [jobName1, jobName2], out var referenceStore)
+                .WithBaselineStore(_mainBranch, [jobName1, jobName2], out var baselineStore)
                 .WithNewRootBuilds(jobName1)
                 .WithNewRootBuilds(jobName2)
                 .WithTestobs(_testJob1, _testJob2);
 
-            var branchReference = new BranchReference(referenceStore);
-            branchReference.TryAddRoot(jobName1);
-            branchReference.TryAddRoot(jobName2);
+            var baselineBranch = new BaselineBranch(baselineStore);
+            baselineBranch.TryAddRoot(jobName1);
+            baselineBranch.TryAddRoot(jobName2);
 
             var rootBuild1 = RandomData.NextRootBuild(jobName: jobName1.Value, commits: 3);
-            branchReference.TryAdd(rootBuild1);
+            baselineBranch.TryAdd(rootBuild1);
 
             var rootBuild2 = RandomData.NextRootBuild(jobName: jobName2.Value, commits: 3);
             rootBuild2 = new RootBuild(
@@ -480,13 +480,13 @@ internal sealed class BranchReferenceTests
                 rootBuild2.IsSuccessful,
                 rootBuild1.Commits,
                 rootBuild2.Scheduled);
-            branchReference.TryAdd(rootBuild2);
+            baselineBranch.TryAdd(rootBuild2);
 
-            var branchReferences = new[] { branchReference };
+            var baselineBranches = new[] { baselineBranch };
             var localCommit = RandomData.NextSha1();
             var refCommit = rootBuild2.Commits[2];
             var commits = new[] { localCommit, refCommit };
-            var result = branchReferences.TryFindRefCommit(commits, [jobName1, jobName2], _mainBranch, out var foundRefCommit);
+            var result = baselineBranches.TryFindRefCommit(commits, [jobName1, jobName2], _mainBranch, out var foundRefCommit);
             Assert.That(result, Is.True);
             Assert.That(foundRefCommit, Is.EqualTo(refCommit));
         }
@@ -498,19 +498,19 @@ internal sealed class BranchReferenceTests
         using (Assert.EnterMultipleScope())
         {
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore)
                 .WithNewRootBuilds(_rootJob)
                 .WithTestobs(_testJob1, _testJob2);
 
-            var branchReference = new BranchReference(referenceStore);
-            branchReference.TryAddRoot(_rootJob);
+            var baselineBranch = new BaselineBranch(baselineStore);
+            baselineBranch.TryAddRoot(_rootJob);
             var rootBuild = RandomData.NextRootBuild(jobName: _rootJob.Value, commits: 3);
-            branchReference.TryAdd(rootBuild);
+            baselineBranch.TryAdd(rootBuild);
 
-            var branchReferences = new[] { branchReference };
+            var baselineBranches = new[] { baselineBranch };
             var commits = new[] { RandomData.NextSha1(), RandomData.NextSha1() };
 
-            var result = branchReferences.TryFindRefCommit(commits, [_rootJob], new BranchName("nonexistent"), out var foundRefCommit);
+            var result = baselineBranches.TryFindRefCommit(commits, [_rootJob], new BranchName("nonexistent"), out var foundRefCommit);
 
             Assert.That(result, Is.False);
             Assert.That(foundRefCommit, Is.Null);
@@ -523,19 +523,19 @@ internal sealed class BranchReferenceTests
         using (Assert.EnterMultipleScope())
         {
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore)
                 .WithNewRootBuilds(_rootJob)
                 .WithTestobs(_testJob1, _testJob2);
 
-            var branchReference = new BranchReference(referenceStore);
-            branchReference.TryAddRoot(_rootJob);
+            var baselineBranch = new BaselineBranch(baselineStore);
+            baselineBranch.TryAddRoot(_rootJob);
             var rootBuild = RandomData.NextRootBuild(jobName: _rootJob.Value, commits: 3);
-            branchReference.TryAdd(rootBuild);
+            baselineBranch.TryAdd(rootBuild);
 
-            var branchReferences = new[] { branchReference };
+            var baselineBranches = new[] { baselineBranch };
             var commits = new[] { RandomData.NextSha1(), RandomData.NextSha1(), RandomData.NextSha1() };
 
-            var result = branchReferences.TryFindRefCommit(commits, [_rootJob], _mainBranch, out var foundRefCommit);
+            var result = baselineBranches.TryFindRefCommit(commits, [_rootJob], _mainBranch, out var foundRefCommit);
 
             Assert.That(result, Is.False);
             Assert.That(foundRefCommit, Is.Null);
@@ -551,18 +551,18 @@ internal sealed class BranchReferenceTests
             var mainJob = new JobName("MainJob");
 
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, mainJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, mainJob, out var baselineStore)
                 .WithNewRootBuilds(mainJob)
                 .WithTestobs(_testJob1, _testJob2);
 
-            var mainBranchRef = new BranchReference(referenceStore);
+            var mainBranchRef = new BaselineBranch(baselineStore);
             mainBranchRef.TryAddRoot(mainJob);
             var mainRootBuild = RandomData.NextRootBuild(jobName: mainJob.Value, commits: 3);
             mainBranchRef.TryAdd(mainRootBuild);
 
             using var devMocks = DevBranchMocks(out var devBranchRef, out var devRootBuild);
 
-            var branchReferences = new[] { mainBranchRef, devBranchRef };
+            var baselineBranches = new[] { mainBranchRef, devBranchRef };
             var localCommit = RandomData.NextSha1();
             var refCommit = mainRootBuild.Commits[1];
             var commits = new[] { localCommit, refCommit };
@@ -572,7 +572,7 @@ internal sealed class BranchReferenceTests
             var filterManager = new Mock<IFilterManager>(MockBehavior.Strict);
             filterManager.Setup(f => f.GetRootDiffs(rootFilters, mainBranchRef.BranchName)).Returns(expectedRootDiffs);
 
-            var result = branchReferences.TryGuessBranch(commits, rootFilters, filterManager.Object, out var rootDiffs, out var foundBranch, out var foundRefCommit);
+            var result = baselineBranches.TryGuessBranch(commits, rootFilters, filterManager.Object, out var rootDiffs, out var foundBranch, out var foundRefCommit);
 
             Assert.That(result, Is.True);
             Assert.That(rootDiffs, Is.EquivalentTo(expectedRootDiffs));
@@ -590,16 +590,16 @@ internal sealed class BranchReferenceTests
             var mainJob = new JobName("MainJob");
 
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, mainJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, mainJob, out var baselineStore)
                 .WithNewRootBuilds(mainJob)
                 .WithTestobs(_testJob1, _testJob2);
 
-            var mainBranchRef = new BranchReference(referenceStore);
+            var mainBranchRef = new BaselineBranch(baselineStore);
             mainBranchRef.TryAddRoot(mainJob);
             var mainRootBuild = RandomData.NextRootBuild(jobName: mainJob.Value, commits: 3);
             mainBranchRef.TryAdd(mainRootBuild);
 
-            var branchReferences = new[] { mainBranchRef };
+            var baselineBranches = new[] { mainBranchRef };
             var commits = new[] { RandomData.NextSha1(), RandomData.NextSha1(), RandomData.NextSha1() };
 
             var onDemandJob = new JobName("CustomJob");
@@ -607,7 +607,7 @@ internal sealed class BranchReferenceTests
             var filterManager = new Mock<IFilterManager>(MockBehavior.Strict);
             filterManager.Setup(f => f.GetRootDiffs(rootFilters, mainBranchRef.BranchName)).Returns(expectedRootDiffs);
 
-            var result = branchReferences.TryGuessBranch(commits, rootFilters, filterManager.Object, out var rootDiffs, out var foundBranch, out var foundRefCommit);
+            var result = baselineBranches.TryGuessBranch(commits, rootFilters, filterManager.Object, out var rootDiffs, out var foundBranch, out var foundRefCommit);
 
             Assert.That(result, Is.False);
             Assert.That(foundBranch, Is.Null);
@@ -621,23 +621,23 @@ internal sealed class BranchReferenceTests
         using (Assert.EnterMultipleScope())
         {
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore)
                 .WithNewRootBuilds(_rootJob)
                 .WithTestobs(_testJob1, _testJob2);
 
-            var branchReference = new BranchReference(referenceStore);
-            branchReference.TryAddRoot(_rootJob);
+            var baselineBranch = new BaselineBranch(baselineStore);
+            baselineBranch.TryAddRoot(_rootJob);
             var rootBuild = RandomData.NextRootBuild(jobName: _rootJob.Value, commits: 5);
-            branchReference.TryAdd(rootBuild);
+            baselineBranch.TryAdd(rootBuild);
 
-            var branchReferences = new[] { branchReference };
+            var baselineBranches = new[] { baselineBranch };
             var localCommit1 = RandomData.NextSha1();
             var localCommit2 = RandomData.NextSha1();
             var refCommit1 = rootBuild.Commits[1];
             var refCommit2 = rootBuild.Commits[2];
             var commits = new[] { localCommit1, localCommit2, refCommit1, refCommit2 };
 
-            var result = branchReferences.TryFindRefCommit(commits, [_rootJob], _mainBranch, out var foundRefCommit);
+            var result = baselineBranches.TryFindRefCommit(commits, [_rootJob], _mainBranch, out var foundRefCommit);
 
             Assert.That(result, Is.True);
             Assert.That(foundRefCommit, Is.EqualTo(refCommit1));
@@ -652,24 +652,24 @@ internal sealed class BranchReferenceTests
             var mainJob = new JobName("MainJob");
 
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, mainJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, mainJob, out var baselineStore)
                 .WithNewRootBuilds(mainJob)
                 .WithTestobs(_testJob1, _testJob2);
 
-            var mainBranchRef = new BranchReference(referenceStore);
+            var mainBranchRef = new BaselineBranch(baselineStore);
             mainBranchRef.TryAddRoot(mainJob);
             var mainRootBuild = RandomData.NextRootBuild(jobName: mainJob.Value, commits: 3);
             mainBranchRef.TryAdd(mainRootBuild);
 
             using var devMocks = DevBranchMocks(out var devBranchRef, out var devRootBuild);
 
-            var branchReferences = new[] { mainBranchRef, devBranchRef };
+            var baselineBranches = new[] { mainBranchRef, devBranchRef };
             var localCommit = RandomData.NextSha1();
             var refCommit = devRootBuild.Commits[1];
             var commits = new[] { localCommit, refCommit };
 
             // Should find dev branch when not specified
-            var result = branchReferences.TryFindRefCommit(commits, [_devJob], _devBranch, out var foundRefCommit);
+            var result = baselineBranches.TryFindRefCommit(commits, [_devJob], _devBranch, out var foundRefCommit);
 
             Assert.That(result, Is.True);
             Assert.That(foundRefCommit, Is.EqualTo(refCommit));
@@ -682,21 +682,21 @@ internal sealed class BranchReferenceTests
         using (Assert.EnterMultipleScope())
         {
             using var mocks = StoreMocks.New()
-                .WithReferenceStore(_mainBranch, _rootJob, out var referenceStore)
+                .WithBaselineStore(_mainBranch, _rootJob, out var baselineStore)
                 .WithNewRootBuilds(_rootJob)
                 .WithTestobs(_testJob1, _testJob2);
 
-            var branchReference = new BranchReference(referenceStore);
-            branchReference.TryAddRoot(_rootJob);
+            var baselineBranch = new BaselineBranch(baselineStore);
+            baselineBranch.TryAddRoot(_rootJob);
             var rootBuild = RandomData.NextRootBuild(jobName: _rootJob.Value, commits: 3);
-            branchReference.TryAdd(rootBuild);
+            baselineBranch.TryAdd(rootBuild);
 
-            var branchReferences = new[] { branchReference };
+            var baselineBranches = new[] { baselineBranch };
             var localCommit = RandomData.NextSha1();
             var refCommit = rootBuild.Commits[0];
             var commits = new[] { localCommit, refCommit };
 
-            var result = branchReferences.TryFindRefCommit(commits, [_rootJob], _mainBranch, out var foundRefCommit);
+            var result = baselineBranches.TryFindRefCommit(commits, [_rootJob], _mainBranch, out var foundRefCommit);
 
             Assert.That(result, Is.True);
             Assert.That(foundRefCommit, Is.EqualTo(refCommit));
@@ -706,10 +706,10 @@ internal sealed class BranchReferenceTests
     [Test]
     public void TryFindRefCommit_EmptyBranchReferences_ReturnsFalse()
     {
-        var branchReferences = Array.Empty<BranchReference>();
+        var baselineBranches = Array.Empty<BaselineBranch>();
         var commits = new[] { RandomData.NextSha1(), RandomData.NextSha1() };
 
-        var result = branchReferences.TryFindRefCommit(commits, [new JobName("UnknownJob")], _mainBranch, out var foundRefCommit);
+        var result = baselineBranches.TryFindRefCommit(commits, [new JobName("UnknownJob")], _mainBranch, out var foundRefCommit);
 
         Assert.That(result, Is.False);
         Assert.That(foundRefCommit, Is.Null);

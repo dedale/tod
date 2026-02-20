@@ -4,9 +4,9 @@ using Tod.Net;
 
 namespace Tod.Jenkins;
 
-internal sealed class ReferenceReportHandler(BranchReference branchReference, JenkinsConfig config, IFlakyTests flakyTests) : IPostBuildHandler
+internal sealed class BaselineReportHandler(BaselineBranch baselineBranch, JenkinsConfig config, IFlakyTests flakyTests) : IPostBuildHandler
 {
-    private readonly JobMatchCollection<ReferenceJobMatch, ReferenceJobPattern> _baselineJobMatches = new(config.ReferenceJobs.Select(j => new ReferenceJobPattern(j)));
+    private readonly JobMatchCollection<BaselineJobMatch, BaselineJobPattern> _baselineJobMatches = new(config.BaselineJobs.Select(j => new BaselineJobPattern(j)));
     private readonly Dictionary<JobName, string> _chainByJob = [];
 
     private bool TryGetChain(JobName job, [NotNullWhen(true)] out string? chain)
@@ -51,28 +51,28 @@ internal sealed class ReferenceReportHandler(BranchReference branchReference, Je
         return false;
     }
 
-    public Task PostReferenceRootBuild(RootBuild rootBuild, JobName[] scheduled)
+    public Task PostBaselineRootBuild(RootBuild rootBuild, JobName[] scheduled)
     {
-        if (config.ReferenceReportConfig?.Enabled == true && rootBuild.CommitAuthors.Length > 0)
+        if (config.BaselineReportConfig?.Enabled == true && rootBuild.CommitAuthors.Length > 0)
         {
             if (TryGetChain(rootBuild.JobName, out var chain))
             {
-                var tracker = branchReference.GetOrCreateChainTracker(chain);
+                var tracker = baselineBranch.GetOrCreateChainTracker(chain);
                 tracker.AddRootBuild(rootBuild, scheduled);
             }
         }
         return Task.CompletedTask;
     }
 
-    public async Task PostReferenceTestBuild(BuildReference rootBuild, BuildReference testBuild)
+    public async Task PostBaselineTestBuild(BuildReference rootBuild, BuildReference testBuild)
     {
-        if (config.ReferenceReportConfig?.Enabled != true)
+        if (config.BaselineReportConfig?.Enabled != true)
         {
             return;
         }
         if (TryGetChain(rootBuild.JobName, out var chain))
         {
-            var tracker = branchReference.GetOrCreateChainTracker(chain);
+            var tracker = baselineBranch.GetOrCreateChainTracker(chain);
             await tracker.MarkTestDone(rootBuild.BuildNumber, testBuild.JobName, testBuild, () => SendReferenceReportsIfReady(chain, tracker)).ConfigureAwait(false);
         }
     }
@@ -92,10 +92,10 @@ internal sealed class ReferenceReportHandler(BranchReference branchReference, Je
         var readyBuilds = tracker.GetReadyForReport();
         if (readyBuilds.Length > 0)
         {
-            var report = ReferenceReportBuilder.Build(readyBuilds, chainName, branchReference, flakyTests);
+            var report = BaselineReportBuilder.Build(readyBuilds, chainName, baselineBranch, flakyTests);
             if (report != null)
             {
-                var sender = new ReferenceReportSender(new MailSender(config.MailConfig));
+                var sender = new BaselineReportSender(new MailSender(config.MailConfig));
                 await sender.SendReport(report).ConfigureAwait(false);
             }
         }

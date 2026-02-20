@@ -48,13 +48,13 @@ internal abstract class BuildDiff
 
     public static readonly BuildDiff OnDemandPending = new NotComparable("Build not run");
     public static BuildDiff OnDemandTriggered(JobName job) => new NotComparable($"Build {job} not done");
-    public static readonly BuildDiff ReferencePending = new NotComparable("No reference build");
+    public static readonly BuildDiff BaselinePending = new NotComparable("No baseline build");
     public static BuildDiff Diff(FailedTestDiff diff) => new Comparable(diff);
 }
 
-internal sealed class BuildDiffResult(BuildReferenceResult reference, BuildReferenceResult result, BuildDiff diff)
+internal sealed class BuildDiffResult(BuildReferenceResult baseline, BuildReferenceResult result, BuildDiff diff)
 {
-    public BuildReferenceResult Reference { get; } = reference;
+    public BuildReferenceResult Baseline { get; } = baseline;
     public BuildReferenceResult Result { get; } = result;
     public BuildDiff Diff { get; } = diff;
 }
@@ -73,14 +73,14 @@ internal sealed class RequestReport(ChainReport[] chainReports, XElement? ganttC
 
 internal interface IRequestReportBuilder
 {
-    RequestReport Build(RequestState requestState, IEnumerable<BranchReference> branchReferences, OnDemandBuilds onDemandBuilds, IFlakyTests flakyTests);
+    RequestReport Build(RequestState requestState, IEnumerable<BaselineBranch> baselineBranches, OnDemandBuilds onDemandBuilds, IFlakyTests flakyTests);
 }
 
 internal static class IRequestReportBuilderExtensions
 {
     public static RequestReport Build(this IRequestReportBuilder builder, RequestState requestState, Workspace workspace)
     {
-        return builder.Build(requestState, workspace.BranchReferences, workspace.OnDemandBuilds, workspace.FlakyTests);
+        return builder.Build(requestState, workspace.BaselineBranches, workspace.OnDemandBuilds, workspace.FlakyTests);
     }
 }
 
@@ -120,7 +120,7 @@ internal sealed class RequestReportBuilder : IRequestReportBuilder
         return null;
     }
 
-    private static RequestReport Build(RequestState requestState, BranchReference branchReference, OnDemandBuilds onDemandBuilds, IFlakyTests flakyTests)
+    private static RequestReport Build(RequestState requestState, BaselineBranch baselineBranch, OnDemandBuilds onDemandBuilds, IFlakyTests flakyTests)
     {
         var chainReports = new List<ChainReport>();
         foreach (var chainDiff in requestState.ChainDiffs)
@@ -132,28 +132,28 @@ internal sealed class RequestReportBuilder : IRequestReportBuilder
             var buildDiffs = new List<BuildDiffResult>();
             foreach (var diff in chainDiff.TestBuildDiffs)
             {
-                TestBuild? referenceTestBuild = null;
-                var referenceResult = diff.ReferenceBuild.Match(
+                TestBuild? baselineTestBuild = null;
+                var baselineResult = diff.BaselineBuild.Match(
                     onPending: BuildReferenceResult.Pending,
                     onDone: referenceBuildRef =>
                     {
-                        referenceTestBuild = branchReference.GetTestBuild(referenceBuildRef);
-                        return BuildReferenceResult.Done(referenceTestBuild);
+                        baselineTestBuild = baselineBranch.GetTestBuild(referenceBuildRef);
+                        return BuildReferenceResult.Done(baselineTestBuild);
                     }
                 );
 
                 diff.OnDemandBuild.Match(
-                    onPending: jobName => buildDiffs.Add(new(referenceResult, BuildReferenceResult.Pending(jobName), BuildDiff.OnDemandPending)),
-                    onQueued: jobName => buildDiffs.Add(new(referenceResult, BuildReferenceResult.Queued(jobName), BuildDiff.OnDemandTriggered(jobName))),
+                    onPending: jobName => buildDiffs.Add(new(baselineResult, BuildReferenceResult.Pending(jobName), BuildDiff.OnDemandPending)),
+                    onQueued: jobName => buildDiffs.Add(new(baselineResult, BuildReferenceResult.Queued(jobName), BuildDiff.OnDemandTriggered(jobName))),
                     onDone: onDemandBuildRef =>
                     {
                         var onDemandTestBuild = onDemandBuilds.GetTestBuild(onDemandBuildRef);
-                        diff.ReferenceBuild.Match(
-                            onPending: jobName => buildDiffs.Add(new(referenceResult, BuildReferenceResult.Done(onDemandBuildRef, onDemandTestBuild.IsSuccessful), BuildDiff.ReferencePending)),
+                        diff.BaselineBuild.Match(
+                            onPending: jobName => buildDiffs.Add(new(baselineResult, BuildReferenceResult.Done(onDemandBuildRef, onDemandTestBuild.IsSuccessful), BuildDiff.BaselinePending)),
                             onDone: referenceBuildRef =>
                             {
-                                var failedTestsDiff = FailedTestDiffer.Diff(referenceTestBuild!.JobName, referenceTestBuild.FailedTests, onDemandTestBuild.FailedTests, flakyTests);
-                                buildDiffs.Add(new(referenceResult, BuildReferenceResult.Done(onDemandTestBuild), BuildDiff.Diff(failedTestsDiff)));
+                                var failedTestsDiff = FailedTestDiffer.Diff(baselineTestBuild!.JobName, baselineTestBuild.FailedTests, onDemandTestBuild.FailedTests, flakyTests);
+                                buildDiffs.Add(new(baselineResult, BuildReferenceResult.Done(onDemandTestBuild), BuildDiff.Diff(failedTestsDiff)));
                             }
                         );
                     }
@@ -167,10 +167,10 @@ internal sealed class RequestReportBuilder : IRequestReportBuilder
         return new RequestReport([.. chainReports], ganttChart);
     }
 
-    public RequestReport Build(RequestState request, IEnumerable<BranchReference> branchReferences, OnDemandBuilds onDemandBuilds, IFlakyTests flakyTests)
+    public RequestReport Build(RequestState request, IEnumerable<BaselineBranch> baselineBranches, OnDemandBuilds onDemandBuilds, IFlakyTests flakyTests)
     {
-        var branchReference = branchReferences.Single(r => r.BranchName == request.Request.GitReference.Branch);
-        return Build(request, branchReference, onDemandBuilds, flakyTests);
+        var baselineBranch = baselineBranches.Single(r => r.BranchName == request.Request.GitReference.Branch);
+        return Build(request, baselineBranch, onDemandBuilds, flakyTests);
     }
 }
 
@@ -331,7 +331,7 @@ internal sealed class RequestReportSender(IJobLinker jobLinker, IMailSender mail
                 new XAttribute("class", "build-header")),
             GetLink(buildDiffResult.Result, "🧪"),
             " vs ",
-            GetLink(buildDiffResult.Reference, "📘"));
+            GetLink(buildDiffResult.Baseline, "📘"));
 
         yield return buildDiffResult.Diff.Match(
             onNotComparable: message => (object)new XElement("tr",

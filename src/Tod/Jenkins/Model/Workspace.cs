@@ -3,17 +3,17 @@ using Tod.Git;
 
 namespace Tod.Jenkins;
 
-internal sealed class Workspace(List<BranchReference> branchReferences, OnDemandBuilds onDemandBuilds, OnDemandRequests onDemandRequests, FlakyTests flakyTests)
+internal sealed class Workspace(List<BaselineBranch> baselineBranches, OnDemandBuilds onDemandBuilds, OnDemandRequests onDemandRequests, FlakyTests flakyTests)
 {
-    public IEnumerable<BranchReference> BranchReferences { get; } = branchReferences;
+    public IEnumerable<BaselineBranch> BaselineBranches { get; } = baselineBranches;
     public OnDemandBuilds OnDemandBuilds { get; } = onDemandBuilds;
     public OnDemandRequests OnDemandRequests { get; } = onDemandRequests;
     public FlakyTests FlakyTests { get; } = flakyTests;
 
-    public void Add(BranchReference branchReference)
+    public void Add(BaselineBranch baselineBranch)
     {
-        // TODO auto save branches when adding new branch references
-        branchReferences.Add(branchReference);
+        // TODO auto save branches when adding new baseline branches
+        baselineBranches.Add(baselineBranch);
     }
 
     // TODO init verb to create workspace directory structure
@@ -21,34 +21,34 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
     public static Workspace New(string dir, JobGroups jobGroups)
     {
         var workspaceStore = new WorkspaceStore(dir);
-        var branchReferences = new List<BranchReference>();
+        var baselineBranches = new List<BaselineBranch>();
 
         var rootJobNamesByBranch = jobGroups.ByRoot.Values
-            .SelectMany(x => x.ReferenceJobByBranch)
+            .SelectMany(x => x.BaselineJobByBranch)
             .GroupBy(kvp => kvp.Key)
             .ToDictionary(g => g.Key, g => g.Select(kvp => kvp.Value).ToList());
         foreach (var branch in rootJobNamesByBranch.Keys)
         {
-            var referenceStore = workspaceStore.GetReferenceStore(branch);
-            var branchReference = new BranchReference(referenceStore);
+            var baselineStore = workspaceStore.GetBaselineStore(branch);
+            var baselineBranch = new BaselineBranch(baselineStore);
             foreach (var rootJob in rootJobNamesByBranch[branch])
             {
-                branchReference.TryAddRoot(rootJob);
+                baselineBranch.TryAddRoot(rootJob);
             }
-            branchReferences.Add(branchReference);
+            baselineBranches.Add(baselineBranch);
         }
 
         var testJobNamesByBranch = jobGroups.ByTest.Values
-            .SelectMany(x => x.ReferenceJobByBranch)
+            .SelectMany(x => x.BaselineJobByBranch)
             .GroupBy(kvp => kvp.Key)
             .ToDictionary(g => g.Key, g => g.Select(kvp => kvp.Value).ToList());
-        foreach (var branchReference in branchReferences)
+        foreach (var baselineBranch in baselineBranches)
         {
-            if (testJobNamesByBranch.TryGetValue(branchReference.BranchName, out var jobNames))
+            if (testJobNamesByBranch.TryGetValue(baselineBranch.BranchName, out var jobNames))
             {
                 foreach (var jobName in jobNames)
                 {
-                    branchReference.TryAddTest(jobName);
+                    baselineBranch.TryAddTest(jobName);
                 }
             }
         }
@@ -74,90 +74,90 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
         var flakyTests = new FlakyTests(flakyStore);
         flakyStore.Save(flakyTests);
 
-        var workspace = new Workspace(branchReferences, onDemandBuilds, onDemandRequests, flakyTests);
+        var workspace = new Workspace(baselineBranches, onDemandBuilds, onDemandRequests, flakyTests);
         return workspace;
     }
 
     public static Workspace Load(string dir, IWorkspaceStore workspaceStore)
     {
-        var branchReferences = new List<BranchReference>();
+        var baselineBranches = new List<BaselineBranch>();
         foreach (var branch in workspaceStore.Branches)
         {
-            var referenceStore = workspaceStore.GetReferenceStore(branch);
-            var branchReference = new BranchReference(referenceStore);
-            branchReferences.Add(branchReference);
+            var baselineStore = workspaceStore.GetBaselineStore(branch);
+            var baselineBranch = new BaselineBranch(baselineStore);
+            baselineBranches.Add(baselineBranch);
         }
         var onDemandBuilds = new OnDemandBuilds(workspaceStore.OnDemandStore);
         var onDemandRequests = new OnDemandRequests(Path.Combine(dir, "Requests"));
         var flakyTests = workspaceStore.FlakyStore.Load();
-        return new Workspace(branchReferences, onDemandBuilds, onDemandRequests, flakyTests);
+        return new Workspace(baselineBranches, onDemandBuilds, onDemandRequests, flakyTests);
     }
 
     public void UpdateJobs(IWorkspaceStore workspaceStore, JobGroups jobGroups)
     {
-        var branchReferenceByBranch = BranchReferences.ToDictionary(br => br.BranchName, br => br);
+        var baselineBranchByBranch = BaselineBranches.ToDictionary(br => br.BranchName, br => br);
 
         var rootJobNamesByBranch = jobGroups.ByRoot.Values
-            .SelectMany(x => x.ReferenceJobByBranch)
+            .SelectMany(x => x.BaselineJobByBranch)
             .GroupBy(kvp => kvp.Key)
             .ToDictionary(g => g.Key, g => g.Select(kvp => kvp.Value).ToHashSet());
         foreach (var branch in rootJobNamesByBranch.Keys)
         {
-            if (branchReferenceByBranch.TryGetValue(branch, out var branchReference))
+            if (baselineBranchByBranch.TryGetValue(branch, out var baselineBranch))
             {
                 foreach (var rootJob in rootJobNamesByBranch[branch])
                 {
-                    if (!branchReference.RootBuilds.Contains(rootJob))
+                    if (!baselineBranch.RootBuilds.Contains(rootJob))
                     {
                         Log.Information("Adding root job {@RootJob} to branch {Branch}", rootJob, branch);
-                        branchReference.TryAddRoot(rootJob);
+                        baselineBranch.TryAddRoot(rootJob);
                     }
                 }
-                foreach (var rootJob in branchReference.RootBuilds.Select(b => b.JobName).ToList())
+                foreach (var rootJob in baselineBranch.RootBuilds.Select(b => b.JobName).ToList())
                 {
                     if (!rootJobNamesByBranch[branch].Contains(rootJob))
                     {
                         Log.Information("Removing root job {@RootJob} from branch {Branch}", rootJob, branch);
-                        branchReference.RemoveRoot(rootJob);
+                        baselineBranch.RemoveRoot(rootJob);
                     }
                 }
             }
             else
             {
-                var referenceStore = workspaceStore.GetReferenceStore(branch);
-                branchReference = new BranchReference(referenceStore);
+                var baselineStore = workspaceStore.GetBaselineStore(branch);
+                baselineBranch = new BaselineBranch(baselineStore);
                 foreach (var rootJob in rootJobNamesByBranch[branch])
                 {
                     Log.Information("Adding root job {@RootJob} to new branch {Branch}", rootJob, branch);
-                    branchReference.TryAddRoot(rootJob);
+                    baselineBranch.TryAddRoot(rootJob);
                 }
-                branchReferences.Add(branchReference);
+                Add(baselineBranch);
             }
         }
 
         var testJobNamesByBranch = jobGroups.ByTest.Values
-            .SelectMany(x => x.ReferenceJobByBranch)
+            .SelectMany(x => x.BaselineJobByBranch)
             .GroupBy(kvp => kvp.Key)
             .ToDictionary(g => g.Key, g => g.Select(kvp => kvp.Value).ToHashSet());
-        foreach (var branchReference in branchReferences)
+        foreach (var baselineBranch in BaselineBranches)
         {
-            var branch = branchReference.BranchName;
+            var branch = baselineBranch.BranchName;
             if (testJobNamesByBranch.TryGetValue(branch, out var testJobs))
             {
                 foreach (var testJob in testJobs)
                 {
-                    if (!branchReference.TestBuilds.Contains(testJob))
+                    if (!baselineBranch.TestBuilds.Contains(testJob))
                     {
                         Log.Information("Adding test job {@TestJob} to branch {Branch}", testJob, branch);
-                        branchReference.TryAddTest(testJob);
+                        baselineBranch.TryAddTest(testJob);
                     }
                 }
-                foreach (var testJob in branchReference.TestBuilds.Select(b => b.JobName).ToList())
+                foreach (var testJob in baselineBranch.TestBuilds.Select(b => b.JobName).ToList())
                 {
                     if (!testJobNamesByBranch[branch].Contains(testJob))
                     {
                         Log.Information("Removing test job {@TestJob} from branch {Branch}", testJob, branch);
-                        branchReference.RemoveTest(testJob);
+                        baselineBranch.RemoveTest(testJob);
                     }
                 }
             }
@@ -202,9 +202,9 @@ internal sealed class Workspace(List<BranchReference> branchReferences, OnDemand
     public int RemoveBuildsOlderThan(DateTime thresholdUtc)
     {
         var removed = 0;
-        foreach (var branchReference in BranchReferences)
+        foreach (var baselineBranch in BaselineBranches)
         {
-            removed += branchReference.RemoveBuildsOlderThan(thresholdUtc);
+            removed += baselineBranch.RemoveBuildsOlderThan(thresholdUtc);
         }
         removed += OnDemandBuilds.RemoveBuildsOlderThan(thresholdUtc);
         return removed;
@@ -218,8 +218,8 @@ internal static class WorkspaceExtensions
         if (wantedBranch != null)
         {
             rootDiffs = filterManager.GetRootDiffs(rootFilters, wantedBranch);
-            var rootJobNames = rootDiffs.Select(d => d.ReferenceJob).ToArray();
-            if (!workspace.BranchReferences.TryFindRefCommit(commits, rootJobNames, wantedBranch, out var commit))
+            var rootJobNames = rootDiffs.Select(d => d.BaselineJob).ToArray();
+            if (!workspace.BaselineBranches.TryFindRefCommit(commits, rootJobNames, wantedBranch, out var commit))
             {
                 return null;
             }
@@ -227,7 +227,7 @@ internal static class WorkspaceExtensions
         }
         else
         {
-            if (!workspace.BranchReferences.TryGuessBranch(commits, rootFilters, filterManager, out rootDiffs, out var branchName, out var commit))
+            if (!workspace.BaselineBranches.TryGuessBranch(commits, rootFilters, filterManager, out rootDiffs, out var branchName, out var commit))
             {
                 return null;
             }

@@ -53,13 +53,13 @@ internal sealed class OnDemandRequests
         return cached;
     }
 
-    public LockedJsons<RequestState> GetPendingReferenceTest(BuildReference rootBuild, JobName testJob)
+    public LockedJsons<RequestState> GetPendingBaselineTest(BuildReference rootBuild, JobName testJob)
     {
         var requests = new LockedJsons<RequestState>();
         foreach (var cached in _requestById.Values)
         {
             var request = cached.Value;
-            if (!request.TryGetChainReference(rootBuild, out var chainDiff))
+            if (!request.TryGetBaselineChain(rootBuild, out var chainDiff))
             {
                 continue;
             }
@@ -67,7 +67,7 @@ internal sealed class OnDemandRequests
             {
                 if (buildDiff.TryGetPendingReference(out var jobName) && jobName.Equals(testJob))
                 {
-                    requests.Add(cached.Lock(nameof(GetPendingReferenceTest)));
+                    requests.Add(cached.Lock(nameof(GetPendingBaselineTest)));
                     break;
                 }
             }
@@ -80,7 +80,7 @@ internal sealed class OnDemandRequests
         foreach (var cached in _requestById.Values)
         {
             var request = cached.Value;
-            if (request.TryGetChainOnDemand(onDemandRootJob, commit, out var chainDiff) && chainDiff.Status == ChainStatus.RootTriggered)
+            if (request.TryGetOnDemandChain(onDemandRootJob, commit, out var chainDiff) && chainDiff.Status == ChainStatus.RootTriggered)
             {
                 lockedRequest = cached.Lock(nameof(TryGetRootQueued));
                 return true;

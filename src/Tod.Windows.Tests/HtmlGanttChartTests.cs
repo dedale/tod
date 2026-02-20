@@ -24,14 +24,14 @@ internal sealed class HtmlGanttChartTests
 {
     private static readonly string s_user = "user";
     private static readonly string s_userEmail = $"user@example.org";
-    private static readonly BranchName _refBranch = new("main");
+    private static readonly BranchName _baseBranch = new("main");
 
-    private static readonly JobName _refCoreRoot = new("MAIN-Core-build");
+    private static readonly JobName _baseCoreRoot = new("MAIN-Core-build");
     private static readonly JobName _testCoreRoot = new("CUSTOM-Core-build");
-    private static readonly JobName _refCoreDevTest = new("MAIN-Core-Dev-tests");
+    private static readonly JobName _baseCoreDevTest = new("MAIN-Core-Dev-tests");
     private static readonly JobName _testCoreDevTest = new("CUSTOM-Core-Dev-tests");
 
-    private static Request NewRequest() => Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _refBranch, [], s_user, s_userEmail);
+    private static Request NewRequest() => Request.Create(RandomData.NextSha1(), RandomData.NextSha1(), _baseBranch, [], s_user, s_userEmail);
 
     private sealed record BuildTimes(int StartMin, int? EndMin = null);
 
@@ -51,9 +51,9 @@ internal sealed class HtmlGanttChartTests
         var request = NewRequest().MinutesAgo(startedMin);
 
         var chains = new[] { new RequestChain(
-            new BuildReference(_refCoreRoot, RandomData.NextBuildNumber),
+            new BuildReference(_baseCoreRoot, RandomData.NextBuildNumber),
             RequestRootBuildReference.Queue(_testCoreRoot, request.Commit),
-            [ new RequestBuildDiff(_refCoreDevTest, _testCoreDevTest), ]
+            [ new RequestBuildDiff(_baseCoreDevTest, _testCoreDevTest), ]
         ),};
         Func<OnDemandJobKind, JobName, TriggerParameters, Task> triggerBuild = (_, _, _) => Task.CompletedTask;
         var requestState = await RequestState.New(request, chains, onDemandBuilds, triggerBuild).ConfigureAwait(false);
@@ -68,7 +68,7 @@ internal sealed class HtmlGanttChartTests
             {
                 var testCoreDevTestRef = new BuildReference(_testCoreDevTest, RandomData.NextBuildNumber);
                 requestState = requestState
-                    .DoneReferenceTestBuild(requestState.ChainDiffs[0].ReferenceRoot, new BuildReference(_refCoreDevTest, RandomData.NextBuildNumber))
+                    .DoneBaselineTestBuild(requestState.ChainDiffs[0].BaselineRoot, new BuildReference(_baseCoreDevTest, RandomData.NextBuildNumber))
                     .DoneOnDemandTestBuild(testCoreRootRef, testCoreDevTestRef);
                 onDemandBuilds.TryAdd(NewTestBuild(start, testCoreDevTestRef, testTimes));
             }
@@ -83,7 +83,7 @@ internal sealed class HtmlGanttChartTests
         var request = NewRequest().MinutesAgo(startedMin);
 
         var chains = new[] { new RequestChain(
-            new BuildReference(_refCoreRoot, RandomData.NextBuildNumber),
+            new BuildReference(_baseCoreRoot, RandomData.NextBuildNumber),
             RequestRootBuildReference.Queue(_testCoreRoot, request.Commit),
             [.. Enumerable.Range(1, testTimes.Length).Select(i => new RequestBuildDiff(RefJob(i), TestJob(i)))]
         ),};
@@ -104,7 +104,7 @@ internal sealed class HtmlGanttChartTests
                 }
                 var testCoreDevTestRef = new BuildReference(TestJob(i), RandomData.NextBuildNumber);
                 requestState = requestState
-                    .DoneReferenceTestBuild(requestState.ChainDiffs[0].ReferenceRoot, new BuildReference(RefJob(i), RandomData.NextBuildNumber))
+                    .DoneBaselineTestBuild(requestState.ChainDiffs[0].BaselineRoot, new BuildReference(RefJob(i), RandomData.NextBuildNumber))
                     .DoneOnDemandTestBuild(testCoreRootRef, testCoreDevTestRef);
                 onDemandBuilds.TryAdd(NewTestBuild(start, testCoreDevTestRef, testTimes[i - 1]));
             }

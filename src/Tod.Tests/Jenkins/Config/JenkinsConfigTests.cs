@@ -24,8 +24,8 @@ internal sealed class JenkinsConfigTests
         };
         var refJobConfigs = new[]
         {
-            new ReferenceJobConfig("^MAIN-(?<root>build)", new("main"), true),
-            new ReferenceJobConfig("^MAIN-(?<test>.*)", new("main"), false),
+            new BaselineJobConfig("^MAIN-(?<root>build)", new("main"), true),
+            new BaselineJobConfig("^MAIN-(?<test>.*)", new("main"), false),
         };
         var onDemandJobConfigs = new[]
         {
@@ -37,7 +37,7 @@ internal sealed class JenkinsConfigTests
             new TestFilter("tests", "^tests$", "tests"),
             new TestFilter("integration", "^integration-tests$", "tests"),
         };
-        var config = JenkinsConfig.New("http://localhost:8080", jobNames: jobs, referenceJobs: refJobConfigs, onDemandJobs: onDemandJobConfigs, testFilters: testFilters);
+        var config = JenkinsConfig.New("http://localhost:8080", jobNames: jobs, baselineJobs: refJobConfigs, onDemandJobs: onDemandJobConfigs, testFilters: testFilters);
         var path = Path.Combine(temp.Path, "jenkins_config.json");
         try
         {
@@ -47,7 +47,7 @@ internal sealed class JenkinsConfigTests
             {
                 Assert.That(reloaded.Url, Is.EqualTo(config.Url));
                 Assert.That(reloaded.JobNames, Is.EquivalentTo(config.JobNames));
-                Assert.That(reloaded.ReferenceJobs, Is.EquivalentTo(config.ReferenceJobs));
+                Assert.That(reloaded.BaselineJobs, Is.EquivalentTo(config.BaselineJobs));
                 Assert.That(reloaded.OnDemandJobs, Is.EquivalentTo(config.OnDemandJobs));
                 Assert.That(reloaded.RootFilters, Is.EquivalentTo(config.RootFilters));
                 Assert.That(reloaded.TestFilters, Is.EquivalentTo(config.TestFilters));
@@ -79,7 +79,7 @@ internal sealed class JenkinsConfigTests
         };
         var refJobConfigs = new[]
         {
-            new ReferenceJobConfig("^MAIN-(?<root>build)", new("main"), true),
+            new BaselineJobConfig("^MAIN-(?<root>build)", new("main"), true),
         };
         var onDemandJobConfigs = new[]
         {
@@ -97,7 +97,7 @@ internal sealed class JenkinsConfigTests
             "http://localhost:8080",
             multiBranchFolders: ["folder1", "folder2"],
             jobNames: originalJobs,
-            referenceJobs: refJobConfigs,
+            baselineJobs: refJobConfigs,
             onDemandJobs: onDemandJobConfigs,
             rootFilters: rootFilters,
             chainTestGroup: "chains",
@@ -124,7 +124,7 @@ internal sealed class JenkinsConfigTests
             Assert.That(reloaded.JobNames, Is.EquivalentTo(updatedJobs));
             Assert.That(reloaded.Url, Is.EqualTo(originalConfig.Url));
             Assert.That(reloaded.MultiBranchFolders, Is.EquivalentTo(originalConfig.MultiBranchFolders));
-            Assert.That(reloaded.ReferenceJobs, Is.EquivalentTo(originalConfig.ReferenceJobs));
+            Assert.That(reloaded.BaselineJobs, Is.EquivalentTo(originalConfig.BaselineJobs));
             Assert.That(reloaded.OnDemandJobs, Is.EquivalentTo(originalConfig.OnDemandJobs));
             Assert.That(reloaded.RootFilters, Is.EquivalentTo(originalConfig.RootFilters));
             Assert.That(reloaded.ChainTestGroup, Is.EqualTo(originalConfig.ChainTestGroup));

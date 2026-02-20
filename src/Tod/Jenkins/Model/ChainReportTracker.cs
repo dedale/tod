@@ -2,41 +2,41 @@ using System.Text.Json.Serialization;
 
 namespace Tod.Jenkins;
 
-internal sealed record ReferenceChain(
+internal sealed record BaselineChain(
     BuildReference RootBuild,
     bool RootBuildSucceeded,
-    Dictionary<JobName, RefTestBuildReference> TestBuilds,
+    Dictionary<JobName, BaseTestBuildReference> TestBuilds,
     bool ReportSent = false
-) : IWithCustomSerialization<ReferenceChain.Serializable>
+) : IWithCustomSerialization<BaselineChain.Serializable>
 {
     public bool AllTestsDone => TestBuilds.Values.All(tb => tb.IsDone);
 
-    public ReferenceChain MarkTestDone(JobName testJob, BuildReference testBuild)
+    public BaselineChain MarkTestDone(JobName testJob, BuildReference testBuild)
     {
         if (!TestBuilds.ContainsKey(testJob))
         {
             return this;
         }
 
-        var updated = new Dictionary<JobName, RefTestBuildReference>(TestBuilds)
+        var updated = new Dictionary<JobName, BaseTestBuildReference>(TestBuilds)
         {
-            [testJob] = TestBuilds[testJob].DoneReference(testBuild.BuildNumber)
+            [testJob] = TestBuilds[testJob].DoneBaseline(testBuild.BuildNumber)
         };
         return this with { TestBuilds = updated };
     }
 
-    public ReferenceChain MarkReportSent()
+    public BaselineChain MarkReportSent()
     {
         return this with { ReportSent = true };
     }
 
-    internal sealed class Serializable : ICustomSerializable<ReferenceChain>
+    internal sealed class Serializable : ICustomSerializable<BaselineChain>
     {
         [JsonConstructor]
         private Serializable(
             BuildReference rootBuild,
             bool rootBuildSucceeded,
-            List<RefTestBuildReference.Serializable> testBuilds,
+            List<BaseTestBuildReference.Serializable> testBuilds,
             bool reportSent)
         {
             RootBuild = rootBuild;
@@ -45,7 +45,7 @@ internal sealed record ReferenceChain(
             ReportSent = reportSent;
         }
 
-        public Serializable(ReferenceChain chain)
+        public Serializable(BaselineChain chain)
         {
             RootBuild = chain.RootBuild;
             RootBuildSucceeded = chain.RootBuildSucceeded;
@@ -55,12 +55,12 @@ internal sealed record ReferenceChain(
 
         public BuildReference RootBuild { get; set; }
         public bool RootBuildSucceeded { get; set; }
-        public List<RefTestBuildReference.Serializable> TestBuilds { get; set; }
+        public List<BaseTestBuildReference.Serializable> TestBuilds { get; set; }
         public bool ReportSent { get; set; }
 
-        public ReferenceChain FromSerializable()
+        public BaselineChain FromSerializable()
         {
-            return new ReferenceChain(
+            return new BaselineChain(
                 RootBuild,
                 RootBuildSucceeded,
                 TestBuilds.Select(b => b.FromSerializable()).ToDictionary(b => b.JobName),
@@ -76,7 +76,7 @@ internal sealed record ReferenceChain(
 }
 
 // Tracks the state of root builds and their associated test builds for a chain, and determines when reports are ready to be sent.
-internal sealed class ChainReportTracker(string chain, List<ReferenceChain> referenceChains, IByChainStore byChainStore)
+internal sealed class ChainReportTracker(string chain, List<BaselineChain> baselineChains, IByChainStore byChainStore)
 {
     public ChainReportTracker(string chain, IByChainStore byChainStore)
         : this(chain, [], byChainStore)
@@ -92,43 +92,43 @@ internal sealed class ChainReportTracker(string chain, List<ReferenceChain> refe
     {
         var testBuilds = expectedTestJobs.ToDictionary(
             job => job,
-            RefTestBuildReference.Create
+            BaseTestBuildReference.Create
         );
-        referenceChains.Add(new ReferenceChain(rootBuild.Reference, rootBuild.IsSuccessful, testBuilds));
+        baselineChains.Add(new BaselineChain(rootBuild.Reference, rootBuild.IsSuccessful, testBuilds));
         Save();
     }
 
     public async Task MarkTestDone(int rootBuildNumber, JobName testJob, BuildReference testBuild, Func<Task> sendReport)
     {
-        var index = referenceChains.FindIndex(c => c.RootBuild.BuildNumber == rootBuildNumber);
+        var index = baselineChains.FindIndex(c => c.RootBuild.BuildNumber == rootBuildNumber);
         if (index >= 0)
         {
-            referenceChains[index] = referenceChains[index].MarkTestDone(testJob, testBuild);
+            baselineChains[index] = baselineChains[index].MarkTestDone(testJob, testBuild);
 
-            if (referenceChains[index].AllTestsDone && !referenceChains[index].ReportSent)
+            if (baselineChains[index].AllTestsDone && !baselineChains[index].ReportSent)
             {
                 await sendReport().ConfigureAwait(false);
-                referenceChains[index] = referenceChains[index].MarkReportSent();
+                baselineChains[index] = baselineChains[index].MarkReportSent();
             }
 
             Save();
         }
     }
 
-    public ReferenceChain[] GetReadyForReport()
+    public BaselineChain[] GetReadyForReport()
     {
-        var index = referenceChains.FindIndex(rb => rb.AllTestsDone && !rb.ReportSent);
+        var index = baselineChains.FindIndex(rb => rb.AllTestsDone && !rb.ReportSent);
         if (index < 0)
         {
             return [];
         }
 
-        var buildsToReport = new List<ReferenceChain> { referenceChains[index] };
+        var buildsToReport = new List<BaselineChain> { baselineChains[index] };
         for (int i = index - 1; i >= 0; i--)
         {
-            if (!referenceChains[i].RootBuildSucceeded)
+            if (!baselineChains[i].RootBuildSucceeded)
             {
-                buildsToReport.Insert(0, referenceChains[i]);
+                buildsToReport.Insert(0, baselineChains[i]);
             }
             else
             {
@@ -140,21 +140,21 @@ internal sealed class ChainReportTracker(string chain, List<ReferenceChain> refe
     }
 
     [method: JsonConstructor]
-    internal sealed class Serializable(string chain, List<ReferenceChain.Serializable> referenceChains)
+    internal sealed class Serializable(string chain, List<BaselineChain.Serializable> baselineChains)
     {
         public string Chain { get; } = chain;
-        public List<ReferenceChain.Serializable> ReferenceChains { get; } = referenceChains;
+        public List<BaselineChain.Serializable> BaselineChains { get; } = baselineChains;
 
         public ChainReportTracker FromSerializable(IByChainStore byChainStore)
         {
-            var chains = ReferenceChains.Select(rc => rc.FromSerializable()).ToList();
+            var chains = BaselineChains.Select(rc => rc.FromSerializable()).ToList();
             return new ChainReportTracker(Chain, chains, byChainStore);
         }
     }
 
     public Serializable ToSerializable()
     {
-        var serializableChains = referenceChains.Select(rc => rc.ToSerializable()).ToList();
+        var serializableChains = baselineChains.Select(rc => rc.ToSerializable()).ToList();
         return new Serializable(chain, serializableChains);
     }
 }

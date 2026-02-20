@@ -9,7 +9,7 @@ Tod is a command-line tool for running tests on-demand on Jenkins. It helps you 
 ## Features
 
 - 🚀 **On-Demand Test Execution** - Trigger Jenkins builds for specific commits
-- 🔍 **Smart Branch Detection** - Automatically identifies the correct reference branch
+- 🔍 **Smart Branch Detection** - Automatically identifies the correct baseline branch
 - 📊 **Build Tracking** - Monitors and synchronizes build status
 - 📧 **Email Reports** - Sends build results via email
 - 🎯 **Filter-Based Job Selection** - Use regex patterns to select which jobs to run
@@ -41,7 +41,7 @@ Create a `jenkins_config.json` file with your Jenkins settings:
 {
   "Url": "https://jenkins.example.com",
   "MultiBranchFolders": ["MyProject"],
-  "ReferenceJobs": [
+  "BaselineJobs": [
     {
       "Pattern": "^MAIN-(?<root>build)$",
       "BranchName": "main",
@@ -88,9 +88,8 @@ Create a `jenkins_config.json` file with your Jenkins settings:
     "From": "jenkins@example.com"
   },
   "KeptDays": 30,
-  "ReferenceReportConfig": {
-    "Enabled": true,
-    "TestCompletionTimeout": "02:00:00"
+  "BaselineReportConfig": {
+    "Enabled": true
   }
 }
 ```
@@ -118,13 +117,13 @@ The Jenkins configuration file (`jenkins_config.json`) defines how Tod interacts
 | `KeptDays` | int? | Number of days to keep build history (optional) |
 | `MaxUserActiveRequests` | int? | Maximum number of active requests per user (optional) |
 | `GerritReviewServer` | string? | Gerrit review server URL (optional). When set, verifies commits exist in Gerrit before triggering Jenkins builds |
-| `ReferenceReportConfig` | ReferenceReportConfig? | Configuration for automatic reference build reports (optional). See [Reference Build Reports](#reference-build-reports) |
+| `BaselineReportConfig` | BaselineReportConfig? | Configuration for automatic baseline build reports (optional). See [Baseline Build Reports](#baseline-build-reports) |
 
 ### Job Patterns
 
-#### Reference Jobs
+#### Baseline Jobs
 
-Define patterns for reference branch jobs (e.g., main, develop):
+Define patterns for baseline branch jobs (e.g., main, develop):
 
 ```json
 {
@@ -282,25 +281,23 @@ When `GerritReviewServer` is configured, Tod verifies that the commit exists in 
 
 **Note:** If `GerritReviewServer` is not configured, this check is skipped.
 
-### Reference Build Reports
+### Baseline Build Reports
 
-When `ReferenceReportConfig` is configured, Tod automatically sends email reports to commit authors when reference builds complete with new test failures:
+When `BaselineReportConfig` is configured, Tod automatically sends email reports to commit authors when baseline builds complete with new test failures:
 
 ```json
 {
-  "ReferenceReportConfig": {
-    "Enabled": true,
-    "TestCompletionTimeout": "02:00:00"
+  "BaselineReportConfig": {
+    "Enabled": true
   }
 }
 ```
 
 **Properties:**
-- `Enabled`: Enable or disable automatic reference reports (required)
-- `TestCompletionTimeout`: Maximum time to wait for test builds to complete (optional, format: "HH:MM:SS")
+- `Enabled`: Enable or disable automatic baseline reports (required)
 
 **How it works:**
-- Monitors reference branch builds (e.g., main, develop) for completion
+- Monitors baseline branch builds (e.g., main, develop) for completion
 - When all test builds for a root build are complete, analyzes test failures
 - Compares current test results with the last successful build to identify new failures
 - Sends email report to all commit authors if new failures are detected
@@ -322,7 +319,7 @@ When `ReferenceReportConfig` is configured, Tod automatically sends email report
 - Details of each new failed test (not recurring failures)
 - Flaky test indicators
 
-**Note:** Reference reports use the same SMTP configuration as on-demand reports (`MailConfig`).
+**Note:** Baseline reports use the same SMTP configuration as on-demand reports (`MailConfig`).
 
 ## Commands
 
@@ -357,14 +354,14 @@ tod new --config jenkins_config.json --workspace ./workspace --branch main --roo
 **Options:**
 - `-c, --config` (required): Path to Jenkins config file
 - `-w, --workspace` (required): Path to workspace directory
-- `-b, --branch`: Reference branch (auto-detected if not specified)
+- `-b, --branch`: Baseline branch (auto-detected if not specified)
 - `-r, --root-filters` (required): Root filter names to run
 - `-t, --test-filters` (required): Test filter names to run
 - `-u, --user-token` (required): Jenkins API token
 
 **How it works:**
 1. Detects your current Git commit
-2. Finds the matching reference build on the specified branch
+2. Finds the matching baseline build on the specified branch
 3. Triggers on-demand builds with your changes
 4. Tracks build progress and collects results
 
@@ -379,7 +376,7 @@ tod jobs --config jenkins_config.json --workspace ./workspace --branch main --ro
 **Options:**
 - `-c, --config` (required): Path to Jenkins config file
 - `-w, --workspace` (required): Path to workspace directory
-- `-b, --branch`: Reference branch
+- `-b, --branch`: Baseline branch
 - `-r, --root-filters` (required): Root filter names
 - `-t, --test-filters` (required): Test filter names
 
@@ -636,7 +633,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Timeout support for FileLock
 
 ## Jenkins
-- Send email to commiters when all reference builds of a chain are done (with results)
 - Support complex job dependency graphs
 - Support job renaming
 - Multiple changesets support (identify the right one containing the files to test) (needed?)
@@ -650,7 +646,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Workspace
 - Serialization UT: ensure that json converters are needed
-- Auto save branch references when adding new ones
+- Auto save baseline branches when adding new ones
 
 ## Requests
 - Transactional triggering of requests, safe resuming without double triggering

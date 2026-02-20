@@ -44,20 +44,20 @@ internal sealed class BuildDiffTests
     }
 
     [Test]
-    public void ReferencePending_Match_CallsOnNotComparable()
+    public void BaselinePending_Match_CallsOnNotComparable()
     {
-        BuildDiff.ReferencePending.Match(
-            onNotComparable: msg => Assert.That(msg, Is.EqualTo("No reference build")),
+        BuildDiff.BaselinePending.Match(
+            onNotComparable: msg => Assert.That(msg, Is.EqualTo("No baseline build")),
             onComparable: _ => Assert.Fail("Should not be comparable"));
     }
 
     [Test]
-    public void ReferencePending_MatchWithReturn_ReturnsNotComparableResult()
+    public void BaselinePending_MatchWithReturn_ReturnsNotComparableResult()
     {
-        var result = BuildDiff.ReferencePending.Match(
+        var result = BuildDiff.BaselinePending.Match(
             onNotComparable: msg => msg,
             onComparable: _ => "");
-        Assert.That(result, Is.EqualTo("No reference build"));
+        Assert.That(result, Is.EqualTo("No baseline build"));
     }
 
     [Test]

@@ -5,13 +5,13 @@ using Tod.Jenkins;
 namespace Tod.Tests.Jenkins;
 
 [TestFixture]
-internal sealed class ReferenceJobPatternTests
+internal sealed class BaselineJobPatternTests
 {
     [Test]
     public void IsMatch_WithRootJob()
     {
-        var config = new ReferenceJobConfig("MAIN-(?<root>build)", new("main"), true);
-        var pattern = new ReferenceJobPattern(config);
+        var config = new BaselineJobConfig("MAIN-(?<root>build)", new("main"), true);
+        var pattern = new BaselineJobPattern(config);
         Assert.That(pattern.IsMatch(new("MAIN-build"), out var jobMatch), Is.True);
         Assert.That(jobMatch, Is.Not.Null);
         jobMatch.Match(
@@ -38,8 +38,8 @@ internal sealed class ReferenceJobPatternTests
     {
         using (Assert.EnterMultipleScope())
         {
-            var config = new ReferenceJobConfig("PROD-(?<test>.*)", new("prod"), false);
-            var pattern = new ReferenceJobPattern(config);
+            var config = new BaselineJobConfig("PROD-(?<test>.*)", new("prod"), false);
+            var pattern = new BaselineJobPattern(config);
             Assert.That(pattern.IsMatch(new("PROD-integration-tests"), out var jobMatch), Is.True);
             Assert.That(jobMatch, Is.Not.Null);
             Debug.Assert(jobMatch is not null);

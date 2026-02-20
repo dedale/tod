@@ -1,4 +1,4 @@
-﻿using NUnit.Framework;
+using NUnit.Framework;
 using Tod.Jenkins;
 
 namespace Tod.Tests.Jenkins;
@@ -17,10 +17,10 @@ internal sealed class FlakyTestsTests
         var flakyStore = InMemoryFlakyStore.Default;
         var flakyTests = new FlakyTests(flakyStore);
 
-        var branchReferences = new List<BranchReference>();
-        var referenceStore = new InMemoryReferenceStore(s_main);
-        var branchReference = new BranchReference(referenceStore);
-        branchReferences.Add(branchReference);
+        var baselineBranches = new List<BaselineBranch>();
+        var baselineStore = new InMemoryBaselineStore(s_main);
+        var baselineBranch = new BaselineBranch(baselineStore);
+        baselineBranches.Add(baselineBranch);
 
         var buildCount = 30;
         var buildNumber = RandomData.NextBuildNumber;
@@ -35,11 +35,11 @@ internal sealed class FlakyTestsTests
                 failedTests.Add(failedTest);
             }
             var testBuild = RandomData.NextTestBuild(testJobName: s_testJob.Value, buildNumber: buildNumber, failedTests: [.. failedTests]);
-            Assert.That(branchReference.TryAdd(testBuild), Is.True);
+            Assert.That(baselineBranch.TryAdd(testBuild), Is.True);
             buildNumber++;
         }
 
-        flakyTests.Update(branchReferences);
+        flakyTests.Update(baselineBranches);
 
         Assert.That(flakyTests.IsFlaky(s_testJob, failedTest), Is.True);
     }
@@ -50,10 +50,10 @@ internal sealed class FlakyTestsTests
         var flakyStore = InMemoryFlakyStore.Default;
         var flakyTests = new FlakyTests(flakyStore);
 
-        var branchReferences = new List<BranchReference>();
-        var referenceStore = new InMemoryReferenceStore(s_main);
-        var branchReference = new BranchReference(referenceStore);
-        branchReferences.Add(branchReference);
+        var baselineBranches = new List<BaselineBranch>();
+        var baselineStore = new InMemoryBaselineStore(s_main);
+        var baselineBranch = new BaselineBranch(baselineStore);
+        baselineBranches.Add(baselineBranch);
 
         var buildCount = 30;
         bool IsFlaky(int ith) => ith / 10 == 2;
@@ -67,11 +67,11 @@ internal sealed class FlakyTestsTests
                 failedTests.Add(failedTest);
             }
             var testBuild = RandomData.NextTestBuild(testJobName: s_testJob.Value, buildNumber: buildNumber, failedTests: [.. failedTests]);
-            Assert.That(branchReference.TryAdd(testBuild), Is.True);
+            Assert.That(baselineBranch.TryAdd(testBuild), Is.True);
             buildNumber++;
         }
 
-        flakyTests.Update(branchReferences);
+        flakyTests.Update(baselineBranches);
 
         Assert.That(flakyTests.IsFlaky(s_testJob, failedTest), Is.False);
     }
@@ -82,10 +82,10 @@ internal sealed class FlakyTestsTests
         var flakyStore = InMemoryFlakyStore.Default;
         var flakyTests = new FlakyTests(flakyStore);
 
-        var branchReferences = new List<BranchReference>();
-        var referenceStore = new InMemoryReferenceStore(s_main);
-        var branchReference = new BranchReference(referenceStore);
-        branchReferences.Add(branchReference);
+        var baselineBranches = new List<BaselineBranch>();
+        var baselineStore = new InMemoryBaselineStore(s_main);
+        var baselineBranch = new BaselineBranch(baselineStore);
+        baselineBranches.Add(baselineBranch);
 
         var buildCount = 30;
         var buildNumber = RandomData.NextBuildNumber;
@@ -98,11 +98,11 @@ internal sealed class FlakyTestsTests
                 failedTests.Add(failedTest);
             }
             var testBuild = RandomData.NextTestBuild(testJobName: s_testJob.Value, buildNumber: buildNumber, failedTests: [.. failedTests]);
-            Assert.That(branchReference.TryAdd(testBuild), Is.True);
+            Assert.That(baselineBranch.TryAdd(testBuild), Is.True);
             buildNumber++;
         }
 
-        flakyTests.Update(branchReferences);
+        flakyTests.Update(baselineBranches);
 
         var serializable = flakyTests.ToSerializable();
         var reloaded = serializable.FromSerializable(flakyStore);
