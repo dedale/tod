@@ -521,4 +521,46 @@ internal sealed class RequestManagerTests
         }
         Assert.That(workspace.OnDemandRequests.ActiveRequests, Is.Empty);
     }
+
+    [Test]
+    public async Task Update_BranchReference_AddNewRootBuilds()
+    {
+        using (Assert.EnterMultipleScope())
+        {
+            using var mocks = StoreMocks.New()
+                .WithReferenceStore(_mainBranch, _referenceRootJob, out var referenceStore)
+                .WithNewRootBuilds(_referenceRootJob)
+                .WithTestobs(_referenceTestJob)
+                .WithOnDemandStore(_onDemandRootJob, out var onDemandStore)
+                .WithFlakies(out var flakyStore);
+
+            var branchReference = new BranchReference(referenceStore);
+            branchReference.TryAddRoot(_referenceRootJob);
+            branchReference.TryAddTest(_referenceTestJob);
+            var buildCount = 2;
+            var builds = RandomBuilds.Generate(buildCount, success: [true, false]).ToArray();
+            var scheduled = Enumerable.Range(0, buildCount)
+                .Select(i => i == 0 ? new JobName[] { _referenceTestJob } : [])
+                .ToArray();
+            var client = new Mock<IJenkinsClient>(MockBehavior.Strict);
+            client.Setup(x => x.GetLastBuilds(_referenceRootJob, 100)).ReturnsAsync(builds);
+            for (var i = 0; i < buildCount; i++)
+            {
+                client.Setup(x => x.GetScheduledJobs(new(_referenceRootJob, builds[i].Number))).ReturnsAsync(scheduled[i]);
+            }
+            client.Setup(x => x.GetLastBuilds(_referenceTestJob, 100)).ReturnsAsync([]);
+            client.Setup(x => x.GetLastBuilds(_onDemandRootJob, 100)).ReturnsAsync([]);
+            var workspace = GetWorkspace(branchReference, onDemandStore, flakyStore);
+            var requestManager = GetRequestManager(workspace);
+            var synchronizer = new JenkinsSynchronizer(client.Object, [requestManager]);
+            await synchronizer.Update(workspace).ConfigureAwait(false);
+            Assert.That(branchReference.RootBuilds, Has.Count.EqualTo(1));
+            Assert.That(branchReference.RootBuilds[0], Has.Count.EqualTo(buildCount));
+            var rootBuilds = branchReference.RootBuilds[0].ToList();
+            Assert.That(branchReference.TestBuilds, Has.Count.EqualTo(1));
+            Assert.That(branchReference.TestBuilds[0].JobName.Value, Is.EqualTo(_referenceTestJob.Value));
+            client.VerifyAll();
+        }
+    }
+
 }

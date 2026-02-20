@@ -150,19 +150,15 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IEnumera
                     build.GetCommitAuthors()
                 );
 
-                // After a purge, do not try to add old builds
-                if (rootBuilds.Count == 0 || rootBuild.BuildNumber > minBuildNumber)
-                {
-                    Log.Information("Adding root build {@RootBuild} ({@IsSuccessful})",
-                        rootBuild.Reference, rootBuild.IsSuccessful ? BuildResultInfo.Success("Success") : BuildResultInfo.Failure("Failure"));
-                    rootBuilds.TryAdd(rootBuild, false);
+                Log.Information("Adding root build {@RootBuild} ({@IsSuccessful})",
+                    rootBuild.Reference, rootBuild.IsSuccessful ? BuildResultInfo.Success("Success") : BuildResultInfo.Failure("Failure"));
+                rootBuilds.TryAdd(rootBuild, false);
 
-                    if (commits.Length == 1)
+                if (commits.Length == 1)
+                {
+                    foreach (var handler in postBuildHandlers)
                     {
-                        foreach (var handler in postBuildHandlers)
-                        {
-                            await handler.PostOnDemandRootBuild(rootBuild.Reference, commits[0], rootBuild.IsSuccessful).ConfigureAwait(false);
-                        }
+                        await handler.PostOnDemandRootBuild(rootBuild.Reference, commits[0], rootBuild.IsSuccessful).ConfigureAwait(false);
                     }
                 }
             }
