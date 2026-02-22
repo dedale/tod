@@ -27,7 +27,8 @@ internal static class Program
     {
         var config = JenkinsConfig.Load(options.ConfigPath);
         JobName.Init(config.JobMappings);
-        using var jenkinsClient = new JenkinsClient(config, Environment.UserName, options.JenkinsToken);
+        var serviceUser = options.ServiceUser ?? Environment.UserName;
+        using var jenkinsClient = new JenkinsClient(config, serviceUser, options.JenkinsToken);
         var jobManager = new JobManager(config, jenkinsClient);
         var jobGroups = await jobManager.TryLoad(jobNames => config.SaveJobs(options.ConfigPath, jobNames)).ConfigureAwait(false);
         var workspaceStore = new WorkspaceStore(options.WorkspaceDir);
@@ -48,7 +49,8 @@ internal static class Program
         Debug.Assert(config is not null);
         JobName.Init(config.JobMappings);
 
-        using var jenkinsClient = new JenkinsClient(config, Environment.UserName, options.JenkinsToken);
+        var serviceUser = options.ServiceUser ?? Environment.UserName;
+        using var jenkinsClient = new JenkinsClient(config, serviceUser, options.JenkinsToken);
         JobGroups? jobGroups;
         if (config.JobNames.Length == 0)
         {
@@ -107,8 +109,9 @@ internal static class Program
 
         var userName = options.User ?? Environment.UserName;
         var userDomain = options.UserDomain ?? Environment.UserDomainName;
+        var serviceUser = options.ServiceUser ?? Environment.UserName;
 
-        var jenkinsClient = new JenkinsClient(config, userName, options.JenkinsToken);
+        var jenkinsClient = new JenkinsClient(config, serviceUser, options.JenkinsToken);
         var jobManager = new JobManager(config, jenkinsClient);
         var jobGroups = await jobManager.TryLoad().ConfigureAwait(false);
         Debug.Assert(jobGroups is not null);
@@ -127,7 +130,7 @@ internal static class Program
 
         if (!string.IsNullOrEmpty(config.GerritReviewServer))
         {
-            using var gerritClient = new GerritClient(config.GerritReviewServer, userName, options.GerritToken);
+            using var gerritClient = new GerritClient(config.GerritReviewServer, serviceUser, options.GerritToken);
             if (!await gerritClient.IsKnown(request.Commit).ConfigureAwait(false))
             {
                 Log.Error("Commit {Commit} is not known in Gerrit. Jenkins will not be able to checkout the code. " +

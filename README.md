@@ -321,6 +321,100 @@ When `BaselineReportConfig` is configured, Tod automatically sends email reports
 
 **Note:** Baseline reports use the same SMTP configuration as on-demand reports (`MailConfig`).
 
+## Service Mode
+
+Tod can be run as a service or daemon to automate testing workflows. In service mode, you typically need to separate:
+- **Request ownership**: The developer who created the request (receives email reports)
+- **API authentication**: The service account credentials used to access Jenkins and Gerrit
+
+### Service User Authentication
+
+Use the `--service-user` option to specify the service account username for API access:
+
+```bash
+# Sync builds using service account
+tod sync \
+  --config jenkins_config.json \
+  --workspace ./workspace \
+  --jenkins-token $SERVICE_TOKEN \
+  --service-user jenkins-bot
+
+# Create request on behalf of a developer
+tod new \
+  --config jenkins_config.json \
+  --workspace ./workspace \
+  --root-filters build \
+  --test-filters unit integration \
+  --user john.doe \
+  --domain CORP \
+  --service-user jenkins-bot \
+  --jenkins-token $SERVICE_TOKEN \
+  --gerrit-token $SERVICE_TOKEN
+```
+
+### Authentication Flow
+
+| Parameter | Purpose | Example | Used For |
+|-----------|---------|---------|----------|
+| `--service-user` | API authentication | `jenkins-bot` | Jenkins/Gerrit API calls |
+| `--user` | Request ownership | `john.doe` | Email notifications, request tracking |
+| `--domain` | User domain | `CORP` | Email address resolution |
+
+**When to use each parameter:**
+- **`--service-user`**: Always use when Tod runs as a service with a dedicated service account
+- **`--user`**: Use when creating requests on behalf of other users (e.g., via web API)
+- **`--domain`**: Use when the service runs in a different domain than the users
+
+**Defaults:**
+- If `--service-user` is not specified, defaults to the current system user (`Environment.UserName`)
+- If `--user` is not specified (in `new` command), defaults to the current system user
+- If `--domain` is not specified, defaults to the current system domain (`Environment.UserDomainName`)
+
+### Example: Automated Service
+
+Here's a typical setup for running Tod as a scheduled service:
+
+```bash
+#!/bin/bash
+# Service configuration
+SERVICE_USER="jenkins-bot"
+SERVICE_TOKEN="$JENKINS_SERVICE_TOKEN"
+CONFIG="/etc/tod/jenkins_config.json"
+WORKSPACE="/var/tod/workspace"
+
+# Sync builds every 5 minutes
+tod sync \
+  --config $CONFIG \
+  --workspace $WORKSPACE \
+  --jenkins-token $SERVICE_TOKEN \
+  --service-user $SERVICE_USER
+```
+
+### Example: Web API Integration
+
+When integrating Tod with a web API to create requests on behalf of developers:
+
+```bash
+# User john.doe@corp.com submits a request via web UI
+# Web service calls Tod with proper user attribution
+tod new \
+  --config jenkins_config.json \
+  --workspace ./workspace \
+  --branch main \
+  --root-filters build \
+  --test-filters unit integration \
+  --user john.doe \
+  --domain CORP \
+  --service-user jenkins-bot \
+  --jenkins-token $SERVICE_TOKEN \
+  --gerrit-token $SERVICE_TOKEN
+```
+
+Result:
+- Request is created by `john.doe` (receives email report)
+- Jenkins/Gerrit API calls use `jenkins-bot` credentials
+- Email sent to `john.doe@corp.com`
+
 ## Commands
 
 ### `sync`
@@ -329,26 +423,37 @@ Synchronize build history from Jenkins.
 
 #### Sync builds
 ```
-tod sync --config jenkins_config.json --workspace ./workspace --user-token TOKEN
+tod sync --config jenkins_config.json --workspace ./workspace --jenkins-token TOKEN
 ```
 
 #### Sync job list (run this first or when jobs change)
 ```
-tod sync --config jenkins_config.json --workspace ./workspace --user-token TOKEN --jobs
+tod sync --config jenkins_config.json --workspace ./workspace --jenkins-token TOKEN --jobs
 ```
 
 **Options:**
 - `-c, --config` (required): Path to Jenkins config file
 - `-w, --workspace` (required): Path to workspace directory
-- `-u, --user-token` (required): Jenkins API token
-- `-j, --jobs`: Sync job definitions instead of builds
+- `-j, --jenkins-token` (required): Jenkins API token
+- `--service-user`: Service account username for API access (defaults to current user)
+- `-s, --jobs`: Sync job definitions instead of builds
+
+**Service Mode:**
+
+When running Tod as a service (e.g., in a scheduled task or daemon), use the `--service-user` option to specify the service account credentials:
+
+```
+tod sync --config jenkins_config.json --workspace ./workspace --jenkins-token SERVICE_TOKEN --service-user jenkins-bot
+```
+
+This separates the API authentication user from the system user running the command.
 
 ### `new`
 
 Create a new on-demand test request.
 
 ```
-tod new --config jenkins_config.json --workspace ./workspace --branch main --root-filters build --test-filters unit integration --user-token TOKEN
+tod new --config jenkins_config.json --workspace ./workspace --branch main --root-filters build --test-filters unit integration --jenkins-token TOKEN --gerrit-token TOKEN
 ```
 
 **Options:**
@@ -357,7 +462,33 @@ tod new --config jenkins_config.json --workspace ./workspace --branch main --roo
 - `-b, --branch`: Baseline branch (auto-detected if not specified)
 - `-r, --root-filters` (required): Root filter names to run
 - `-t, --test-filters` (required): Test filter names to run
-- `-u, --user-token` (required): Jenkins API token
+- `-j, --jenkins-token` (required): Jenkins API token
+- `-g, --gerrit-token` (required): Gerrit API token (if Gerrit integration is enabled)
+- `-u, --user`: User name for request ownership (defaults to current user)
+- `--domain`: User domain for request ownership (defaults to current domain)
+- `--service-user`: Service account username for API access (defaults to current user)
+
+**Service Mode:**
+
+When running Tod as a service, use both `--user` and `--service-user` to distinguish between the request owner and the API authentication:
+
+```
+tod new \
+  --config jenkins_config.json \
+  --workspace ./workspace \
+  --branch main \
+  --root-filters build \
+  --test-filters unit integration \
+  --user john.doe \
+  --domain CORP \
+  --service-user jenkins-bot \
+  --jenkins-token SERVICE_TOKEN \
+  --gerrit-token SERVICE_TOKEN
+```
+
+- `--user john.doe`: The request is owned by john.doe (who receives the email report)
+- `--service-user jenkins-bot`: API calls use jenkins-bot credentials
+- `--domain CORP`: Used to resolve john.doe's email address
 
 **How it works:**
 1. Detects your current Git commit
