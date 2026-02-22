@@ -19,7 +19,7 @@ internal sealed class BaselineReportSender(IMailSender mailSender)
 
         if (authors.Length == 0)
         {
-            Log.Warning("No authors found for reference report on {BranchName} {ChainName}", report.BranchName, chainName);
+            Log.Warning("No authors found for baseline report on {BranchName} {ChainName}", report.BranchName, chainName);
             return;
         }
 
@@ -34,30 +34,24 @@ internal sealed class BaselineReportSender(IMailSender mailSender)
         }
 
         var body = BuildEmailBody(report, false);
+        var recipients = string.Join(", ", authors);
         var attachment = BuildEmailBody(report, true);
 
-        foreach (var author in authors)
+        try
         {
-            try
-            {
-                var subject = $"{report.BranchName} Build Report{(report.ChainName.Length > 0 ? $": {report.ChainName}" : "")}";
-                await mailSender.Send(author!, subject, body, attachment)
-                    .ConfigureAwait(false);
-                Log.Information("Sent reference report for {BranchName} {ChainName} to {Author}",
-                    report.BranchName, chainName, authors.Length, author);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Failed to send reference report for {BranchName} {ChainName} to {Author}",
-                    report.BranchName, chainName, author);
-            }
+            var subject = $"{report.BranchName} Build Report{(report.ChainName.Length > 0 ? $": {report.ChainName}" : "")}";
+            await mailSender.Send(recipients, subject, body, attachment).ConfigureAwait(false);
+            Log.Information("Sent baseline report for {BranchName} {ChainName} to {AuthorCount} author(s): {Authors}",
+                report.BranchName, chainName, authors.Length, recipients);
         }
-
-        Log.Information("Sent reference report for {BranchName} {ChainName} to {AuthorCount} author(s)",
-            report.BranchName, chainName, authors.Length);
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to send baseline report for {BranchName} {ChainName} to {Authors}",
+                report.BranchName, chainName, recipients);
+        }
     }
 
-    private static string BuildEmailBody(BaselineChainReport report, full)
+    private static string BuildEmailBody(BaselineChainReport report, bool full)
     {
         var newFailures = report.TestDiffs.Values
             .SelectMany(diff => diff.FailedTests.Where(t => t.Newness == Newness.New))
