@@ -1,11 +1,9 @@
 ﻿using CommandLine;
-using System.Diagnostics.CodeAnalysis;
 
 namespace Tod;
 
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
-[ExcludeFromCodeCoverage]
 internal abstract class BaseOptions
 {
     [Option('c', "config", Required = true, HelpText = "Path to config file")]
@@ -18,7 +16,6 @@ internal abstract class BaseOptions
     public bool Debug { get; set; }
 }
 
-[ExcludeFromCodeCoverage]
 [Verb("sync", HelpText = "Sync builds or jobs")]
 internal sealed class SyncOptions : BaseOptions
 {
@@ -32,8 +29,6 @@ internal sealed class SyncOptions : BaseOptions
     public bool Jobs { get; set; }
 }
 
-
-[ExcludeFromCodeCoverage]
 [Verb("new", HelpText = "Create a new request")]
 internal sealed class NewOptions : BaseOptions
 {
@@ -62,8 +57,6 @@ internal sealed class NewOptions : BaseOptions
     public string GerritToken { get; set; }
 }
 
-
-[ExcludeFromCodeCoverage]
 [Verb("jobs", HelpText = "Get job names from filters")]
 internal sealed class JobsOptions : BaseOptions
 {
@@ -80,7 +73,6 @@ internal sealed class JobsOptions : BaseOptions
     public IEnumerable<string> Commits { get; set; }
 }
 
-[ExcludeFromCodeCoverage]
 [Verb("report", HelpText = "Send report for a request")]
 internal sealed class ReportOptions : BaseOptions
 {
@@ -91,7 +83,6 @@ internal sealed class ReportOptions : BaseOptions
     public string? User { get; set; }
 }
 
-[ExcludeFromCodeCoverage]
 [Verb("list", HelpText = "List requests for current user")]
 internal sealed class ListOptions : BaseOptions
 {
@@ -102,7 +93,6 @@ internal sealed class ListOptions : BaseOptions
     public string? User { get; set; }
 }
 
-[ExcludeFromCodeCoverage]
 [Verb("abort", HelpText = "Abort a request")]
 internal sealed class AbortOptions : BaseOptions
 {
@@ -113,7 +103,6 @@ internal sealed class AbortOptions : BaseOptions
     public string? User { get; set; }
 }
 
-[ExcludeFromCodeCoverage]
 [Verb("filters", HelpText = "List jobs per filters")]
 internal sealed class FiltersOptions : BaseOptions
 {
