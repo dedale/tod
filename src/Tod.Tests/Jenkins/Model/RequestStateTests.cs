@@ -1,4 +1,8 @@
 ﻿using NUnit.Framework;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Tod.Core;
+using Tod.Git;
 using Tod.Jenkins;
 
 namespace Tod.Tests.Jenkins;
@@ -15,6 +19,7 @@ internal sealed class RequestStateTests
     private static readonly string s_userEmail = $"user@example.org";
     private static readonly RequestBuildDiff s_requestBuildDiff1 = new(new("MainTest1"), new("OnDemandTest1"));
     private static readonly RequestBuildDiff s_requestBuildDiff2 = new(new("MainTest2"), new("OnDemandTest2"));
+    private static readonly JsonSerializerOptions s_jsonOptions = LockedJsonSerializer<RequestState, RequestState.Serializable>.GetJsonOptions(indented: true);
 
     private Task<RequestState> NewState(List<RequestBuildDiff> testBuildDiffs, IOnDemandStore onDemandStore)
     {
@@ -660,5 +665,143 @@ internal sealed class RequestStateTests
                 Assert.That(clonedChainDiff.TestBuildDiffs.Count, Is.EqualTo(originalChainDiff.TestBuildDiffs.Count()));
             }
         }
+    }
+
+    private Task<RequestState> GetRequestStateForSerialization(IOnDemandStore onDemandStore)
+    {
+        var diffs = new List<RequestBuildDiff>
+        {
+            new(new("MainTest"), new("OnDemandTest")),
+        };
+        return NewState(diffs, onDemandStore);
+    }
+
+    private static string Serialize(RequestState state)
+    {
+        return JsonSerializer.Serialize(state.ToSerializable(), s_jsonOptions);
+    }
+
+    private static string ReadJsonForNew(string jsonName, RequestState state)
+    {
+        return File.ReadAllText(Path.Combine(@"Jenkins\Model\Serialization", jsonName))
+            .Replace("<id>", state.Request.Id.ToString())
+            .Replace("<created>", state.Request.CreatedUtc.ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss.FFFFFFFK"))
+            .Replace("<commit>", state.Request.Commit.Value)
+            .Replace("<parentCommit>", state.Request.GitReference.Commit.Value)
+            .Replace("\"<mainRootBuildNumber>\"", state.ChainDiffs[0].BaselineRoot.BuildNumber.ToString());
+    }
+
+    private static string ReadJsonForDoneBase(string jsonName, RequestState state)
+    {
+        return ReadJsonForNew(jsonName, state)
+            .Replace("\"<mainTestBuildNumber>\"", state.ChainDiffs[0].TestBuildDiffs.First().BaselineBuild.Match(_ => 0, b => b.BuildNumber).ToString());
+    }
+
+    private static string ReadJsonForDoneRoot(string jsonName, RequestState state)
+    {
+        return ReadJsonForNew(jsonName, state)
+            .Replace("\"<onDemandRootBuildNumber>\"", state.ChainDiffs[0].OnDemandRoot.BuildNumber.ToString());
+    }
+
+    private static string ReadJsonForDoneOnDemandTest(string jsonName, RequestState state)
+    {
+        return ReadJsonForDoneRoot(jsonName, state)
+            .Replace("\"<onDemandTestBuildNumber>\"", state.ChainDiffs[0].TestBuildDiffs.First().OnDemandBuild.Match(_ => 0, _ => 0, b => b.BuildNumber).ToString());
+    }
+
+    [Test]
+    public async Task Serialization_NewRequest_CurrentFormatVersion()
+    {
+        using var mocks = OnDemandStoreMocks(out var onDemandStore);
+        var state = await GetRequestStateForSerialization(onDemandStore).ConfigureAwait(false);
+        var json = Serialize(state);
+        var expected = ReadJsonForNew("RequestState.New-1.json", state);
+        Assert.That(json, Is.EqualTo(expected));
+    }
+
+    [Test]
+    public async Task Serialization_NewRequest_NoFormatVersion()
+    {
+        using var mocks = OnDemandStoreMocks(out var onDemandStore);
+        var state = await GetRequestStateForSerialization(onDemandStore).ConfigureAwait(false);
+        var json = ReadJsonForNew("RequestState.New-0.json", state);
+        json = RequestState.UpgradeFormat(json, s_jsonOptions);
+        var expected = Serialize(state);
+        Assert.That(json, Is.EqualTo(expected));
+    }
+
+    [Test]
+    public async Task Serialization_DoneBaselineTest_CurrentFormatVersion()
+    {
+        using var mocks = OnDemandStoreMocks(out var onDemandStore);
+        var state = await GetRequestStateForSerialization(onDemandStore).ConfigureAwait(false);
+        var testBuild = new BuildReference("MainTest", RandomData.NextBuildNumber);
+        state = state.DoneBaselineTestBuild(_referenceRoot, testBuild);
+        var json = Serialize(state);
+        var expected = ReadJsonForDoneBase("RequestState.DoneBase-1.json", state);
+        Assert.That(json, Is.EqualTo(expected));
+    }
+
+    [Test]
+    public async Task Serialization_DoneBaselineTest_NoFormatVersion()
+    {
+        using var mocks = OnDemandStoreMocks(out var onDemandStore);
+        var state = await GetRequestStateForSerialization(onDemandStore).ConfigureAwait(false);
+        var testBuild = new BuildReference("MainTest", RandomData.NextBuildNumber);
+        state = state.DoneBaselineTestBuild(_referenceRoot, testBuild);
+        var json = ReadJsonForDoneBase("RequestState.DoneBase-0.json", state);
+        json = RequestState.UpgradeFormat(json, s_jsonOptions);
+        var expected = Serialize(state);
+        Assert.That(json, Is.EqualTo(expected));
+    }
+
+    [Test]
+    public async Task Serialization_DoneOnDemandRoot_CurrentFormatVersion()
+    {
+        using var mocks = OnDemandStoreMocks(out var onDemandStore);
+        var state = await GetRequestStateForSerialization(onDemandStore).ConfigureAwait(false);
+        state = await state.TriggerTests(_onDemandRoot, job => Task.CompletedTask).ConfigureAwait(false);
+        var json = Serialize(state);
+        var expected = ReadJsonForDoneRoot("RequestState.DoneRoot-1.json", state);
+        Assert.That(json, Is.EqualTo(expected));
+    }
+
+    [Test]
+    public async Task Serialization_DoneOnDemandRoot_NoFormatVersion()
+    {
+        using var mocks = OnDemandStoreMocks(out var onDemandStore);
+        var state = await GetRequestStateForSerialization(onDemandStore).ConfigureAwait(false);
+        state = await state.TriggerTests(_onDemandRoot, job => Task.CompletedTask).ConfigureAwait(false);
+        var json = ReadJsonForDoneRoot("RequestState.DoneRoot-0.json", state);
+        json = RequestState.UpgradeFormat(json, s_jsonOptions);
+        var expected = Serialize(state);
+        Assert.That(json, Is.EqualTo(expected));
+    }
+
+    [Test]
+    public async Task Serialization_DoneOnDemandTest_CurrentFormatVersion()
+    {
+        using var mocks = OnDemandStoreMocks(out var onDemandStore);
+        var state = await GetRequestStateForSerialization(onDemandStore).ConfigureAwait(false);
+        state = await state.TriggerTests(_onDemandRoot, job => Task.CompletedTask).ConfigureAwait(false);
+        var testBuild = new BuildReference("OnDemandTest", RandomData.NextBuildNumber);
+        state = state.DoneOnDemandTestBuild(_onDemandRoot, testBuild);
+        var json = Serialize(state);
+        var expected = ReadJsonForDoneOnDemandTest("RequestState.DoneTest-1.json", state);
+        Assert.That(json, Is.EqualTo(expected));
+    }
+
+    [Test]
+    public async Task Serialization_DoneOnDemandTest_NoFormatVersion()
+    {
+        using var mocks = OnDemandStoreMocks(out var onDemandStore);
+        var state = await GetRequestStateForSerialization(onDemandStore).ConfigureAwait(false);
+        state = await state.TriggerTests(_onDemandRoot, job => Task.CompletedTask).ConfigureAwait(false);
+        var testBuild = new BuildReference("OnDemandTest", RandomData.NextBuildNumber);
+        state = state.DoneOnDemandTestBuild(_onDemandRoot, testBuild);
+        var json = ReadJsonForDoneOnDemandTest("RequestState.DoneTest-0.json", state);
+        json = RequestState.UpgradeFormat(json, s_jsonOptions);
+        var expected = Serialize(state);
+        Assert.That(json, Is.EqualTo(expected));
     }
 }

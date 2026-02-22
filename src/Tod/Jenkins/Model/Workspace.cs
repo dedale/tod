@@ -1,4 +1,5 @@
 ﻿using Serilog;
+using Tod.Core;
 using Tod.Git;
 
 namespace Tod.Jenkins;
@@ -80,6 +81,8 @@ internal sealed class Workspace(List<BaselineBranch> baselineBranches, OnDemandB
 
     public static Workspace Load(string dir, IWorkspaceStore workspaceStore)
     {
+        MigrateWorkspaceIfNeeded(dir, workspaceStore);
+
         var baselineBranches = new List<BaselineBranch>();
         foreach (var branch in workspaceStore.Branches)
         {
@@ -91,6 +94,74 @@ internal sealed class Workspace(List<BaselineBranch> baselineBranches, OnDemandB
         var onDemandRequests = new OnDemandRequests(Path.Combine(dir, "Requests"));
         var flakyTests = workspaceStore.FlakyStore.Load();
         return new Workspace(baselineBranches, onDemandBuilds, onDemandRequests, flakyTests);
+    }
+
+    private static void MigrateWorkspaceIfNeeded(string dir, IWorkspaceStore workspaceStore)
+    {
+        const int CurrentRequestsFormatVersion = RequestState.CurrentFormatVersion;
+
+        var metadata = workspaceStore.LoadMetadata();
+
+        if (metadata.RequestsFormatVersion < CurrentRequestsFormatVersion)
+        {
+            Log.Information("Migrating workspace requests from format v{OldVersion} to v{NewVersion}",
+                metadata.RequestsFormatVersion, CurrentRequestsFormatVersion);
+
+            MigrateRequests(dir, CurrentRequestsFormatVersion);
+
+            metadata = metadata with { RequestsFormatVersion = CurrentRequestsFormatVersion };
+            workspaceStore.SaveMetadata(metadata);
+
+            Log.Information("Workspace migration completed");
+        }
+    }
+
+    private static void MigrateRequests(string dir, int targetVersion)
+    {
+        var requestsDir = Path.Combine(dir, "Requests");
+        if (!Directory.Exists(requestsDir))
+        {
+            Log.Debug("No requests directory found, skipping migration");
+            return;
+        }
+
+        var requestFiles = Directory.GetFiles(requestsDir, "*.json");
+        if (requestFiles.Length == 0)
+        {
+            Log.Debug("No request files found, skipping migration");
+            return;
+        }
+
+        var options = LockedJsonSerializer<RequestState, RequestState.Serializable>.GetJsonOptions(indented: true);
+
+        Log.Information("Migrating {Count} request files to format v{Version}",
+            requestFiles.Length, targetVersion);
+
+        var migrated = 0;
+        var skipped = 0;
+        foreach (var file in requestFiles)
+        {
+            var contents = File.ReadAllText(file);
+
+            if (!contents.Contains("\"FormatVersion\""))
+            {
+                var upgraded = RequestState.UpgradeFormat(contents, options);
+
+                var backup = file + ".bak";
+                File.Copy(file, backup, overwrite: true);
+                File.WriteAllText(file, upgraded);
+                File.Delete(backup);
+
+                migrated++;
+            }
+            else
+            {
+                skipped++;
+            }
+        }
+
+        Log.Information("Migration complete: {Migrated} migrated, {Skipped} already up-to-date",
+            migrated, skipped);
     }
 
     public void UpdateJobs(IWorkspaceStore workspaceStore, JobGroups jobGroups)

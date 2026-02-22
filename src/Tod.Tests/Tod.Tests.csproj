@@ -35,4 +35,10 @@
     <InternalsVisibleTo Include="$(AssemblyName).Benchmarks" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Jenkins\Model\Serialization\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

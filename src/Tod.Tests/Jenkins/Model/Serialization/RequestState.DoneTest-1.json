@@ -1,0 +1,44 @@
+﻿{
+  "FormatVersion": 1,
+  "Request": {
+    "Id": "<id>",
+    "UserName": "user",
+    "UserEmail": "user@example.org",
+    "CreatedUtc": "<created>",
+    "Commit": "<commit>",
+    "GitReference": {
+      "Branch": "main",
+      "Commit": "<parentCommit>"
+    },
+    "TestFilters": "tests"
+  },
+  "ChainDiffs": [
+    {
+      "Status": "TestsTriggered",
+      "BaselineRoot": {
+        "JobName": "MainBuild",
+        "BuildNumber": "<mainRootBuildNumber>"
+      },
+      "OnDemandRoot": {
+        "Done": {
+          "JobName": "OnDemandBuild",
+          "BuildNumber": "<onDemandRootBuildNumber>"
+        }
+      },
+      "TestBuildDiffs": [
+        {
+          "BaselineBuild": {
+            "Pending": "MainTest"
+          },
+          "OnDemandBuild": {
+            "Done": {
+              "JobName": "OnDemandTest",
+              "BuildNumber": "<onDemandTestBuildNumber>"
+            }
+          },
+          "TestDuration": "00:00:00"
+        }
+      ]
+    }
+  ]
+}

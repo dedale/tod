@@ -59,10 +59,11 @@ internal static class LockedJsonSerializer<TValue, TSerializable>
     private static readonly JsonSerializerOptions s_jsonOptionsIndented = GetJsonOptions(true);
     private static readonly JsonSerializerOptions s_jsonOptionsFlat = GetJsonOptions(false);
 
-    private static JsonSerializerOptions GetJsonOptions(bool indented)
+    public static JsonSerializerOptions GetJsonOptions(bool indented)
     {
         var options = new JsonSerializerOptions
         {
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
             WriteIndented = indented,
         };
         options.Converters.Add(new JsonStringEnumConverter());

@@ -1,5 +1,7 @@
 ﻿using Serilog;
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Tod.Git;
 
@@ -7,6 +9,8 @@ namespace Tod.Jenkins;
 
 internal sealed class RequestState : IWithCustomSerialization<RequestState.Serializable>
 {
+    public const int CurrentFormatVersion = 1;
+
     private RequestState(Request request, ChainDiff[] chainDiffs)
     {
         Request = request;
@@ -154,9 +158,15 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
 
     internal sealed class Serializable : ICustomSerializable<RequestState>
     {
-        [JsonConstructor]
         private Serializable(Request request, List<ChainDiff.Serializable> chainDiffs)
+            : this(CurrentFormatVersion, request, chainDiffs)
         {
+        }
+
+        [JsonConstructor]
+        private Serializable(int formatVersion, Request request, List<ChainDiff.Serializable> chainDiffs)
+        {
+            FormatVersion = formatVersion;
             Request = request;
             ChainDiffs = chainDiffs;
         }
@@ -166,6 +176,7 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
         {
         }
 
+        public int FormatVersion { get; set; }
         public Request Request { get; set; }
         public List<ChainDiff.Serializable> ChainDiffs { get; set; }
 
@@ -179,5 +190,79 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
     public Serializable ToSerializable()
     {
         return new Serializable(this);
+    }
+
+    private static JsonObject ToFormat1(JsonObject node)
+    {
+        var clone = new JsonObject
+        {
+            ["FormatVersion"] = 1
+        };
+        foreach (var kvp in node)
+        {
+            if (kvp.Key == "ChainDiffs" && kvp.Value is JsonArray chainDiffs)
+            {
+                var updatedChainDiffs = new JsonArray();
+                foreach (var chainDiff in chainDiffs)
+                {
+                    if (chainDiff is JsonObject chainDiffObj)
+                    {
+                        var updatedChainDiff = new JsonObject();
+                        foreach (var chainKvp in chainDiffObj)
+                        {
+                            if (chainKvp.Key == "ReferenceRoot")
+                            {
+                                updatedChainDiff["BaselineRoot"] = chainKvp.Value!.DeepClone();
+                            }
+                            else if (chainKvp.Key == "TestBuildDiffs" && chainKvp.Value is JsonArray testBuildDiffs)
+                            {
+                                var updatedTestBuildDiffs = new JsonArray();
+                                foreach (var testBuildDiff in testBuildDiffs)
+                                {
+                                    if (testBuildDiff is JsonObject testBuildDiffObj)
+                                    {
+                                        var updatedTestBuildDiff = new JsonObject();
+                                        foreach (var testKvp in testBuildDiffObj)
+                                        {
+                                            if (testKvp.Key == "ReferenceBuild")
+                                            {
+                                                updatedTestBuildDiff["BaselineBuild"] = testKvp.Value!.DeepClone();
+                                            }
+                                            else
+                                            {
+                                                updatedTestBuildDiff[testKvp.Key] = testKvp.Value!.DeepClone();
+                                            }
+                                        }
+                                        updatedTestBuildDiffs.Add(updatedTestBuildDiff);
+                                    }
+                                }
+                                updatedChainDiff["TestBuildDiffs"] = updatedTestBuildDiffs;
+                            }
+                            else
+                            {
+                                updatedChainDiff[chainKvp.Key] = chainKvp.Value!.DeepClone();
+                            }
+                        }
+                        updatedChainDiffs.Add(updatedChainDiff);
+                    }
+                }
+                clone["ChainDiffs"] = updatedChainDiffs;
+            }
+            else
+            {
+                clone[kvp.Key] = kvp.Value!.DeepClone();
+            }
+        }
+        return clone;
+    }
+
+    public static string UpgradeFormat(string contents, JsonSerializerOptions options)
+    {
+        var node = JsonNode.Parse(contents)!.AsObject();
+        if (!node.ContainsKey("FormatVersion"))
+        {
+            node = ToFormat1(node);
+        }
+        return node.ToJsonString(options);
     }
 }

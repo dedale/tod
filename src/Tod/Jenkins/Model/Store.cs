@@ -1,6 +1,9 @@
 ﻿using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Tod.Jenkins;
+
+internal sealed record WorkspaceMetadata(int RequestsFormatVersion);
 
 internal interface IByJobNameStore
 {
@@ -51,6 +54,8 @@ internal interface IWorkspaceStore
     IBaselineStore GetBaselineStore(BranchName branch);
     IOnDemandStore OnDemandStore { get; }
     IFlakyStore FlakyStore { get; }
+    WorkspaceMetadata LoadMetadata();
+    void SaveMetadata(WorkspaceMetadata metadata);
 }
 
 internal abstract class BuildBranch
@@ -102,13 +107,18 @@ internal sealed class ByJobNameStore : IByJobNameStore
 
     public IEnumerable<JobName> JobNames => _jobNames;
 
+    private void WriteJobs()
+    {
+        var json = JsonSerializer.Serialize(_jobNames);
+        File.WriteAllText(_jsonPath, json);
+    }
+
     public void Add(JobName jobName)
     {
         if (_jobNames.Add(jobName))
         {
             Directory.CreateDirectory(_jsonDir);
-            var json = JsonSerializer.Serialize(_jobNames);
-            File.WriteAllText(_jsonPath, json);
+            WriteJobs();
         }
     }
 
@@ -116,16 +126,15 @@ internal sealed class ByJobNameStore : IByJobNameStore
     {
         if (_jobNames.Remove(jobName))
         {
-            var json = JsonSerializer.Serialize(_jobNames);
-            File.WriteAllText(_jsonPath, json);
+            WriteJobs();
         }
     }
 
     public void Save<T>(JobName jobName, T item)
     {
-        var json = JsonSerializer.Serialize(item);
         var jsonPath = Path.Combine(_jsonDir, $"{jobName.Value.Replace('/', Path.DirectorySeparatorChar)}.json");
         Directory.CreateDirectory(Path.GetDirectoryName(jsonPath)!);
+        var json = JsonSerializer.Serialize(item);
         File.WriteAllText(jsonPath, json);
     }
 
@@ -256,6 +265,7 @@ internal sealed class WorkspaceStore : IWorkspaceStore
 {
     private readonly string _dir;
     private readonly string _branchJson;
+    private readonly string _metadataJson;
     private readonly HashSet<BranchName> _branches;
     private readonly Dictionary<BranchName, IBaselineStore> _baselineByBranch = new();
 
@@ -267,6 +277,7 @@ internal sealed class WorkspaceStore : IWorkspaceStore
         }
         _dir = dir;
         _branchJson = Path.Combine(dir, "Branches.json");
+        _metadataJson = Path.Combine(dir, "Workspace.json");
         _branches = File.Exists(_branchJson) ? JsonSerializer.Deserialize<List<BranchName>>(File.ReadAllText(_branchJson))!.ToHashSet() : [];
         OnDemandStore = new OnDemandStore(Path.Combine(_dir, "OnDemand"));
         FlakyStore = new FlakyStore(Path.Combine(_dir, "FlakyTests.json"));
@@ -297,4 +308,20 @@ internal sealed class WorkspaceStore : IWorkspaceStore
 
     public IOnDemandStore OnDemandStore { get; }
     public IFlakyStore FlakyStore { get; }
+
+    public WorkspaceMetadata LoadMetadata()
+    {
+        if (File.Exists(_metadataJson))
+        {
+            return JsonSerializer.Deserialize<WorkspaceMetadata>(File.ReadAllText(_metadataJson))!;
+        }
+        return new WorkspaceMetadata(RequestsFormatVersion: 0);
+    }
+
+    public void SaveMetadata(WorkspaceMetadata metadata)
+    {
+        Directory.CreateDirectory(_dir);
+        var options = new JsonSerializerOptions { WriteIndented = true };
+        File.WriteAllText(_metadataJson, JsonSerializer.Serialize(metadata, options));
+    }
 }

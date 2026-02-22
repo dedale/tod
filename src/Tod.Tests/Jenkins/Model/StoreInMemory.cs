@@ -133,6 +133,7 @@ internal sealed class InMemoryWorkspaceStore : IWorkspaceStore
 {
     private readonly Dictionary<BranchName, InMemoryBaselineStore> _baselineByBranch = [];
     private readonly InMemoryOnDemandStore _onDemandStore = new();
+    private WorkspaceMetadata _metadata = new(RequestsFormatVersion: RequestState.CurrentFormatVersion);
 
     public IEnumerable<BranchName> Branches => _baselineByBranch.Keys;
 
@@ -149,4 +150,8 @@ internal sealed class InMemoryWorkspaceStore : IWorkspaceStore
 
     public IOnDemandStore OnDemandStore => _onDemandStore;
     public IFlakyStore FlakyStore => InMemoryFlakyStore.Default;
+
+    public WorkspaceMetadata LoadMetadata() => _metadata;
+
+    public void SaveMetadata(WorkspaceMetadata metadata) => _metadata = metadata;
 }

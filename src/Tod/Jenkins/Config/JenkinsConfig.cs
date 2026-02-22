@@ -254,6 +254,7 @@ internal sealed class JenkinsConfig
     {
         var options = new JsonSerializerOptions
         {
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
             WriteIndented = true,
         };
         options.Converters.Add(new JsonStringEnumConverter());
