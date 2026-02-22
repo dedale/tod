@@ -57,7 +57,7 @@ internal sealed class BaselineReportSender(IMailSender mailSender)
             report.BranchName, chainName, authors.Length);
     }
 
-    private string BuildEmailBody(BaselineChainReport report, bool full)
+    private static string BuildEmailBody(BaselineChainReport report, full)
     {
         var newFailures = report.TestDiffs.Values
             .SelectMany(diff => diff.FailedTests.Where(t => t.Newness == Newness.New))
@@ -113,7 +113,7 @@ internal sealed class BaselineReportSender(IMailSender mailSender)
         return doc.ToString();
     }
 
-    private XElement GetTestDiffElement(JobName testJob, FailedTestDiff diff)
+    private static XElement GetTestDiffElement(JobName testJob, FailedTestDiff diff)
     {
         return new XElement("table",
             new XAttribute("class", "tests"),

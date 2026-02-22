@@ -16,12 +16,12 @@ internal sealed class JenkinsSynchronizerTests
     private readonly JobName _onDemandTestJob1 = new("CUSTOM-test1");
     private readonly JobName _onDemandTestJob2 = new("CUSTOM-test2");
 
-    private Workspace NewWorkspace(OnDemandBuilds onDemandBuilds, IFlakyStore flakyStore)
+    private static Workspace NewWorkspace(OnDemandBuilds onDemandBuilds, IFlakyStore flakyStore)
     {
         return new Workspace([], onDemandBuilds, new OnDemandRequests("requests"), new FlakyTests(flakyStore));
     }
 
-    private Workspace NewWorkspace(BaselineBranch baselineBranch, JobName onDemandRootJobName, IOnDemandStore onDemandStore, IFlakyStore flakyStore)
+    private static Workspace NewWorkspace(BaselineBranch baselineBranch, JobName onDemandRootJobName, IOnDemandStore onDemandStore, IFlakyStore flakyStore)
     {
         var onDemandBuilds = new OnDemandBuilds(onDemandStore);
         onDemandBuilds.TryAddRoot(onDemandRootJobName);
