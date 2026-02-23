@@ -26,7 +26,7 @@ internal sealed class TestCase(string className, string testName, string status,
     {
         var className = $"MyTests.Class{(char)('A' + _rand.Next(0, 26))}";
         var testName = $"Test{_rand.Next(1, 100)}";
-        if (_rand.Next(0, 2) == 0)
+        if (failed || _rand.Next(0, 2) == 0)
         {
             errorDetails ??= $"Error details for {className}.{testName}";
             return new TestCase(className, testName, "FAILED", errorDetails);
