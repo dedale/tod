@@ -70,7 +70,7 @@ internal sealed class BaselineReportSender(IMailSender mailSender)
                     new XElement("table",
                         new XAttribute("class", "summary"),
                         new XElement("tr",
-                            new XElement("th", "🌿 Reference branch"),
+                            new XElement("th", "🌿 Branch"),
                             new XElement("td", report.BranchName)),
                         new XElement("tr",
                             new XElement("th", "⚙ Chain"),

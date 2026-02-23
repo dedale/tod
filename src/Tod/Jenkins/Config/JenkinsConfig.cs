@@ -133,13 +133,15 @@ internal sealed record BaselineReportConfig(
 
 internal sealed class JenkinsConfig
 {
+    private const int DefaultMaxErrorDetailsLength = 1000;
+
     private static readonly MailConfig s_emptyMailConfig = new(string.Empty, string.Empty);
 
     private readonly Dictionary<string, RootFilter> _rootFilterByName;
     private readonly Dictionary<string, TestFilter> _testFilterByName;
 
     public JenkinsConfig(string url)
-        : this(url, [], [], [], [], [], [], string.Empty, [], s_emptyMailConfig, null, [], [], null, null, null)
+        : this(url, [], [], [], [], [], [], string.Empty, [], s_emptyMailConfig, null, [], [], null, null, null, DefaultMaxErrorDetailsLength)
     {
     }
 
@@ -160,7 +162,8 @@ internal sealed class JenkinsConfig
         JobMapping[] jobMappings,
         int? maxUserActiveRequests,
         string? gerritReviewServer,
-        BaselineReportConfig? baselineReportConfig)
+        BaselineReportConfig? baselineReportConfig,
+        int maxErrorDetailsLength = DefaultMaxErrorDetailsLength)
     {
         Url = url;
         MultiBranchFolders = multiBranchFolders;
@@ -180,6 +183,7 @@ internal sealed class JenkinsConfig
         MaxUserActiveRequests = maxUserActiveRequests;
         GerritReviewServer = gerritReviewServer;
         BaselineReportConfig = baselineReportConfig;
+        MaxErrorDetailsLength = maxErrorDetailsLength;
     }
 
     public static JenkinsConfig New(
@@ -198,7 +202,8 @@ internal sealed class JenkinsConfig
         JobMapping[]? jobMappings = null,
         int? maxUserActiveRequests = null,
         string? gerritReviewServer = null,
-        BaselineReportConfig? baselineReportConfig = null
+        BaselineReportConfig? baselineReportConfig = null,
+        int maxErrorDetailsLength = DefaultMaxErrorDetailsLength
     )
     {
         return new JenkinsConfig(
@@ -217,7 +222,8 @@ internal sealed class JenkinsConfig
             jobMappings ?? [],
             maxUserActiveRequests ?? null,
             gerritReviewServer ?? null,
-            baselineReportConfig ?? null
+            baselineReportConfig ?? null,
+            maxErrorDetailsLength
         );
     }
 
@@ -237,6 +243,7 @@ internal sealed class JenkinsConfig
     public int? MaxUserActiveRequests { get; }
     public string? GerritReviewServer { get; }
     public BaselineReportConfig? BaselineReportConfig { get; }
+    public int MaxErrorDetailsLength { get; }
 
     public bool TryGetRootFilter(string name, [NotNullWhen(true)] out RootFilter? filter)
     {

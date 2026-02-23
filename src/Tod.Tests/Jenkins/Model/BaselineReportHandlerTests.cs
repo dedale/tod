@@ -8,7 +8,6 @@ namespace Tod.Tests.Jenkins.Model;
 internal sealed class BaselineReportHandlerTests
 {
     private static readonly BranchName s_mainBranch = new("main");
-    private static readonly BranchName s_prodBranch = new("PROD");
     private static readonly JobName s_rootJob = new("MAIN-build");
     private static readonly JobName s_testJob1 = new("MAIN-test1");
     private static readonly JobName s_testJob2 = new("MAIN-test2");
@@ -132,8 +131,9 @@ internal sealed class BaselineReportHandlerTests
         _config = CreateConfigWithReports(true);
         var handler = new BaselineReportHandler(_baselineBranch, _config, _mockFlakyTests.Object);
         var otherRootJob = new JobName("OTHER-build");
+        var otherTestJob = new JobName("OTHER-test");
         var rootBuildRef = new BuildReference(otherRootJob, RandomData.NextBuildNumber);
-        var testBuildRef = new BuildReference(s_testJob1, RandomData.NextBuildNumber);
+        var testBuildRef = new BuildReference(otherTestJob, RandomData.NextBuildNumber);
 
         await handler.PostBaselineTestBuild(rootBuildRef, testBuildRef).ConfigureAwait(false);
 
@@ -328,4 +328,308 @@ internal sealed class BaselineReportHandlerTests
         Assert.That(tracker, Is.Not.Null);
         Assert.That(tracker!.GetReadyForReport(), Is.Empty);
     }
+
+    [Test]
+    public async Task TryGetChain_RootJobWithDefaultChain_ReturnsDefaultChain()
+    {
+        _config = JenkinsConfig.New(
+            "https://jenkins.test",
+            rootFilters:
+            [
+                new RootFilter("build", "build")
+            ],
+            baselineJobs:
+            [
+                new BaselineJobConfig("MAIN-(?<root>build)", s_mainBranch, true)
+            ],
+            baselineReportConfig: new BaselineReportConfig(true)
+        );
+        var handler = new BaselineReportHandler(_baselineBranch, _config, _mockFlakyTests.Object);
+        var rootBuild = RandomData.NextRootBuild(jobName: s_rootJob.Value, commits: 1, testJobNames: []);
+
+        await handler.PostBaselineRootBuild(rootBuild, []).ConfigureAwait(false);
+
+        var tracker = _baselineBranch.GetChainTracker(RootFilter.DefaultChain);
+        Assert.That(tracker, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task TryGetChain_RootJobWithNamedChain_ReturnsNamedChain()
+    {
+        _config = JenkinsConfig.New(
+            "https://jenkins.test",
+            rootFilters:
+            [
+                new RootFilter("frontend-build", "^(?<chain>frontend)-build$")
+            ],
+            baselineJobs:
+            [
+                new BaselineJobConfig("MAIN-(?<root>frontend-build)", s_mainBranch, true)
+            ],
+            baselineReportConfig: new BaselineReportConfig(true)
+        );
+        var handler = new BaselineReportHandler(_baselineBranch, _config, _mockFlakyTests.Object);
+        var frontendJob = new JobName("MAIN-frontend-build");
+        var rootBuild = RandomData.NextRootBuild(jobName: frontendJob.Value, commits: 1, testJobNames: []);
+
+        await handler.PostBaselineRootBuild(rootBuild, []).ConfigureAwait(false);
+
+        var tracker = _baselineBranch.GetChainTracker("frontend");
+        Assert.That(tracker, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task TryGetChain_TestJobWithDefaultChain_ReturnsDefaultChain()
+    {
+        _config = JenkinsConfig.New(
+            "https://jenkins.test",
+            rootFilters:
+            [
+                new RootFilter("build", "build")
+            ],
+            testFilters:
+            [
+                new TestFilter("unit", "unit", "tests")
+            ],
+            baselineJobs:
+            [
+                new BaselineJobConfig("MAIN-(?<root>build)", s_mainBranch, true),
+                new BaselineJobConfig("MAIN-(?<test>unit)", s_mainBranch, false)
+            ],
+            baselineReportConfig: new BaselineReportConfig(true)
+        );
+        var handler = new BaselineReportHandler(_baselineBranch, _config, _mockFlakyTests.Object);
+        var testJob = new JobName("MAIN-unit");
+        var rootBuild = RandomData.NextRootBuild(jobName: s_rootJob.Value, commits: 1, testJobNames: [testJob.Value]);
+
+        _baselineBranch.TryAddRoot(s_rootJob);
+        _baselineBranch.TryAddTest(testJob);
+        _baselineBranch.TryAdd(rootBuild);
+        await handler.PostBaselineRootBuild(rootBuild, [testJob]).ConfigureAwait(false);
+
+        var testBuild = new TestBuild(
+            testJob,
+            "test-id",
+            RandomData.NextBuildNumber,
+            DateTime.UtcNow.AddMinutes(-10),
+            DateTime.UtcNow,
+            true,
+            [rootBuild.Reference],
+            []
+        );
+        _baselineBranch.TryAdd(testBuild);
+
+        await handler.PostBaselineTestBuild(rootBuild.Reference, testBuild.Reference).ConfigureAwait(false);
+
+        var tracker = _baselineBranch.GetChainTracker(RootFilter.DefaultChain);
+        Assert.That(tracker, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task TryGetChain_TestJobWithNamedChain_ReturnsNamedChain()
+    {
+        _config = JenkinsConfig.New(
+            "https://jenkins.test",
+            rootFilters:
+            [
+                new RootFilter("frontend-build", "^(?<chain>frontend)-build$")
+            ],
+            testFilters:
+            [
+                new TestFilter("frontend-unit", "^(?<chain>frontend)-unit$", "tests")
+            ],
+            baselineJobs:
+            [
+                new BaselineJobConfig("MAIN-(?<root>frontend-build)", s_mainBranch, true),
+                new BaselineJobConfig("MAIN-(?<test>frontend-unit)", s_mainBranch, false)
+            ],
+            baselineReportConfig: new BaselineReportConfig(true)
+        );
+        var handler = new BaselineReportHandler(_baselineBranch, _config, _mockFlakyTests.Object);
+        var frontendRootJob = new JobName("MAIN-frontend-build");
+        var frontendTestJob = new JobName("MAIN-frontend-unit");
+        var rootBuild = RandomData.NextRootBuild(jobName: frontendRootJob.Value, commits: 1, testJobNames: [frontendTestJob.Value]);
+
+        _baselineBranch.TryAddRoot(frontendRootJob);
+        _baselineBranch.TryAddTest(frontendTestJob);
+        _baselineBranch.TryAdd(rootBuild);
+        await handler.PostBaselineRootBuild(rootBuild, [frontendTestJob]).ConfigureAwait(false);
+
+        var testBuild = new TestBuild(
+            frontendTestJob,
+            "test-id",
+            RandomData.NextBuildNumber,
+            DateTime.UtcNow.AddMinutes(-10),
+            DateTime.UtcNow,
+            true,
+            [rootBuild.Reference],
+            []
+        );
+        _baselineBranch.TryAdd(testBuild);
+
+        await handler.PostBaselineTestBuild(rootBuild.Reference, testBuild.Reference).ConfigureAwait(false);
+
+        var tracker = _baselineBranch.GetChainTracker("frontend");
+        Assert.That(tracker, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task TryGetChain_JobNotMatchingBaselinePattern_ReturnsFalse()
+    {
+        _config = JenkinsConfig.New(
+            "https://jenkins.test",
+            rootFilters:
+            [
+                new RootFilter("build", "build")
+            ],
+            baselineJobs:
+            [
+                new BaselineJobConfig("MAIN-(?<root>build)", s_mainBranch, true)
+            ],
+            baselineReportConfig: new BaselineReportConfig(true)
+        );
+        var handler = new BaselineReportHandler(_baselineBranch, _config, _mockFlakyTests.Object);
+        var otherJob = new JobName("OTHER-build");
+        var rootBuild = RandomData.NextRootBuild(jobName: otherJob.Value, commits: 1, testJobNames: []);
+
+        await handler.PostBaselineRootBuild(rootBuild, []).ConfigureAwait(false);
+
+        var tracker = _baselineBranch.GetChainTracker(RootFilter.DefaultChain);
+        Assert.That(tracker, Is.Null);
+    }
+
+    [Test]
+    public async Task TryGetChain_RootJobNotMatchingAnyFilter_ReturnsFalse()
+    {
+        _config = JenkinsConfig.New(
+            "https://jenkins.test",
+            rootFilters:
+            [
+                new RootFilter("deploy", "deploy")
+            ],
+            baselineJobs:
+            [
+                new BaselineJobConfig("MAIN-(?<root>build)", s_mainBranch, true)
+            ],
+            baselineReportConfig: new BaselineReportConfig(true)
+        );
+        var handler = new BaselineReportHandler(_baselineBranch, _config, _mockFlakyTests.Object);
+        var rootBuild = RandomData.NextRootBuild(jobName: s_rootJob.Value, commits: 1, testJobNames: []);
+
+        await handler.PostBaselineRootBuild(rootBuild, []).ConfigureAwait(false);
+
+        var tracker = _baselineBranch.GetChainTracker(RootFilter.DefaultChain);
+        Assert.That(tracker, Is.Null);
+    }
+
+    [Test]
+    public async Task TryGetChain_TestJobNotMatchingAnyFilter_ReturnsFalse()
+    {
+        _config = JenkinsConfig.New(
+            "https://jenkins.test",
+            rootFilters:
+            [
+                new RootFilter("build", "build")
+            ],
+            testFilters:
+            [
+                new TestFilter("integration", "integration", "tests")
+            ],
+            baselineJobs:
+            [
+                new BaselineJobConfig("MAIN-(?<root>build)", s_mainBranch, true),
+                new BaselineJobConfig("MAIN-(?<test>unit)", s_mainBranch, false)
+            ],
+            baselineReportConfig: new BaselineReportConfig(true)
+        );
+        var handler = new BaselineReportHandler(_baselineBranch, _config, _mockFlakyTests.Object);
+        var testJob = new JobName("MAIN-unit");
+        var rootBuild = RandomData.NextRootBuild(jobName: s_rootJob.Value, commits: 1, testJobNames: [testJob.Value]);
+
+        _baselineBranch.TryAddRoot(s_rootJob);
+        _baselineBranch.TryAddTest(testJob);
+        _baselineBranch.TryAdd(rootBuild);
+        await handler.PostBaselineRootBuild(rootBuild, [testJob]).ConfigureAwait(false);
+
+        var testBuild = new TestBuild(
+            testJob,
+            "test-id",
+            RandomData.NextBuildNumber,
+            DateTime.UtcNow.AddMinutes(-10),
+            DateTime.UtcNow,
+            true,
+            [rootBuild.Reference],
+            []
+        );
+
+        await handler.PostBaselineTestBuild(rootBuild.Reference, testBuild.Reference).ConfigureAwait(false);
+
+        var tracker = _baselineBranch.GetChainTracker(RootFilter.DefaultChain);
+        Assert.That(tracker, Is.Not.Null);
+        var serializable = tracker!.ToSerializable();
+        Assert.That(serializable.BaselineChains[0].TestBuilds.Count, Is.EqualTo(1));
+        Assert.That(serializable.BaselineChains[0].TestBuilds[0].Pending, Is.Not.Null);
+        Assert.That(serializable.BaselineChains[0].TestBuilds[0].Pending, Is.EqualTo(testJob));
+    }
+
+    [Test]
+    public async Task TryGetChain_CalledTwiceForSameJob_UsesCachedValue()
+    {
+        _config = JenkinsConfig.New(
+            "https://jenkins.test",
+            rootFilters:
+            [
+                new RootFilter("build", "build")
+            ],
+            baselineJobs:
+            [
+                new BaselineJobConfig("MAIN-(?<root>build)", s_mainBranch, true)
+            ],
+            baselineReportConfig: new BaselineReportConfig(true)
+        );
+        var handler = new BaselineReportHandler(_baselineBranch, _config, _mockFlakyTests.Object);
+        var rootBuild1 = RandomData.NextRootBuild(jobName: s_rootJob.Value, buildNumber: 100, commits: 1, testJobNames: []);
+        var rootBuild2 = RandomData.NextRootBuild(jobName: s_rootJob.Value, buildNumber: 101, commits: 1, testJobNames: []);
+
+        await handler.PostBaselineRootBuild(rootBuild1, []).ConfigureAwait(false);
+        await handler.PostBaselineRootBuild(rootBuild2, []).ConfigureAwait(false);
+
+        var tracker = _baselineBranch.GetChainTracker(RootFilter.DefaultChain);
+        Assert.That(tracker, Is.Not.Null);
+        var serializable = tracker!.ToSerializable();
+        Assert.That(serializable.BaselineChains.Count, Is.EqualTo(2));
+    }
+
+    [Test]
+    public async Task TryGetChain_DifferentJobsSameChain_UseSameTracker()
+    {
+        _config = JenkinsConfig.New(
+            "https://jenkins.test",
+            rootFilters:
+            [
+                new RootFilter("build1", "build1"),
+                new RootFilter("build2", "build2")
+            ],
+            baselineJobs:
+            [
+                new BaselineJobConfig("MAIN-(?<root>build1)", s_mainBranch, true),
+                new BaselineJobConfig("MAIN-(?<root>build2)", s_mainBranch, true)
+            ],
+            baselineReportConfig: new BaselineReportConfig(true)
+        );
+        var handler = new BaselineReportHandler(_baselineBranch, _config, _mockFlakyTests.Object);
+        var job1 = new JobName("MAIN-build1");
+        var job2 = new JobName("MAIN-build2");
+        var rootBuild1 = RandomData.NextRootBuild(jobName: job1.Value, commits: 1, testJobNames: []);
+        var rootBuild2 = RandomData.NextRootBuild(jobName: job2.Value, commits: 1, testJobNames: []);
+
+        await handler.PostBaselineRootBuild(rootBuild1, []).ConfigureAwait(false);
+        await handler.PostBaselineRootBuild(rootBuild2, []).ConfigureAwait(false);
+
+        var tracker = _baselineBranch.GetChainTracker(RootFilter.DefaultChain);
+        Assert.That(tracker, Is.Not.Null);
+        var serializable = tracker!.ToSerializable();
+        Assert.That(serializable.BaselineChains.Count, Is.EqualTo(2));
+    }
 }
+

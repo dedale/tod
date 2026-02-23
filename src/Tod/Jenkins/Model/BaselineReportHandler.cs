@@ -70,7 +70,7 @@ internal sealed class BaselineReportHandler(BaselineBranch baselineBranch, Jenki
         {
             return;
         }
-        if (TryGetChain(rootBuild.JobName, out var chain))
+        if (TryGetChain(testBuild.JobName, out var chain))
         {
             var tracker = baselineBranch.GetOrCreateChainTracker(chain);
             await tracker.MarkTestDone(rootBuild.BuildNumber, testBuild.JobName, testBuild, () => SendReferenceReportsIfReady(chain, tracker)).ConfigureAwait(false);

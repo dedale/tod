@@ -116,6 +116,7 @@ The Jenkins configuration file (`jenkins_config.json`) defines how Tod interacts
 | `MultiBranchFolders` | string[] | Folders containing multi-branch pipeline jobs |
 | `KeptDays` | int? | Number of days to keep build history (optional) |
 | `MaxUserActiveRequests` | int? | Maximum number of active requests per user (optional) |
+| `MaxErrorDetailsLength` | int | Maximum length of error details in reports (default: 1000) |
 | `GerritReviewServer` | string? | Gerrit review server URL (optional). When set, verifies commits exist in Gerrit before triggering Jenkins builds |
 | `BaselineReportConfig` | BaselineReportConfig? | Configuration for automatic baseline build reports (optional). See [Baseline Build Reports](#baseline-build-reports) |
 

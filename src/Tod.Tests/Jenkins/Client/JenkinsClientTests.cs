@@ -22,13 +22,13 @@ internal sealed class TestCase(string className, string testName, string status,
 
     public bool IsFailed => Status == "FAILED";
 
-    public static TestCase Random()
+    public static TestCase Random(bool failed = false, string? errorDetails = null)
     {
         var className = $"MyTests.Class{(char)('A' + _rand.Next(0, 26))}";
         var testName = $"Test{_rand.Next(1, 100)}";
         if (_rand.Next(0, 2) == 0)
         {
-            var errorDetails = $"Error details for {className}.{testName}";
+            errorDetails ??= $"Error details for {className}.{testName}";
             return new TestCase(className, testName, "FAILED", errorDetails);
         }
         else
@@ -319,6 +319,32 @@ internal sealed class JenkinsClientTests
             var failedTests = await client.GetFailedTests(new(jobName, buildNumber)).ConfigureAwait(false);
             var expectedFailedTests = tests.Where(t => t.IsFailed).Select(t => new FailedTest(t.ClassName, t.TestName, t.ErrorDetails)).ToArray();
             Assert.That(failedTests, Is.EquivalentTo(expectedFailedTests));
+        }
+        apiClient.VerifyAll();
+    }
+
+    [Test]
+    public async Task GetFailedTests_WithLongDetails_AreTrimmed()
+    {
+        var jobName = new JobName("MyTests");
+        var buildNumber = 17;
+        var longDetails = new string('A', s_config.MaxErrorDetailsLength + 100);
+        var tests = new TestCase[] { TestCase.Random(failed: true, errorDetails: longDetails) };
+        var testReport = new TestReport(
+        [
+            new TestSuite(tests)
+        ]);
+        var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
+        apiClient
+            .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/{buildNumber}/testReport/api/json"))
+            .ReturnsAsync(testReport.Serialize());
+        apiClient.Setup(c => c.Dispose());
+        using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
+        {
+            var failedTests = await client.GetFailedTests(new(jobName, buildNumber)).ConfigureAwait(false);
+            Assert.That(failedTests, Has.Length.EqualTo(1));
+            Assert.That(failedTests[0].ErrorDetails.Length, Is.EqualTo(s_config.MaxErrorDetailsLength));
+            Assert.That(failedTests[0].ErrorDetails, Is.EqualTo(longDetails[..(s_config.MaxErrorDetailsLength - 3)] + "..."));
         }
         apiClient.VerifyAll();
     }

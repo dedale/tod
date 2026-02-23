@@ -171,7 +171,10 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userName, strin
                     string className = testCase.GetProperty("className").GetString()!;
                     string testName = testCase.GetProperty("name").GetString()!;
                     string errorDetails = testCase.GetProperty("errorDetails").GetString()!;
-                    //string stackTrace = testCase.GetProperty("errorStackTrace").GetString()!;
+                    if (errorDetails.Length > config.MaxErrorDetailsLength)
+                    {
+                        errorDetails = string.Concat(errorDetails.AsSpan(0, 997), "...");
+                    }
                     failedTests.Add(new FailedTest(className, testName, errorDetails));
                 }
             }

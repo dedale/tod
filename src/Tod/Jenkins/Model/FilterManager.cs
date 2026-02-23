@@ -62,7 +62,6 @@ internal sealed class FilterManager(JenkinsConfig config, JobGroups jobGroups) :
         var unknownFilters = new List<string>();
         foreach (var filter in requestFilters)
         {
-
             if (config.TryGetTestFilter(filter, out var testFilter))
             {
                 filters.Add(testFilter);
