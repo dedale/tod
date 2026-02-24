@@ -89,7 +89,8 @@ Create a `jenkins_config.json` file with your Jenkins settings:
   },
   "KeptDays": 30,
   "BaselineReportConfig": {
-    "Enabled": true
+    "Enabled": true,
+    "HideFlakyTests": true
   }
 }
 ```

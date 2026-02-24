@@ -4,7 +4,7 @@ using Tod.Net;
 
 namespace Tod.Jenkins;
 
-internal sealed class BaselineReportSender(IMailSender mailSender)
+internal sealed class BaselineReportSender(IMailSender mailSender, bool hideFlakies)
 {
     public async Task SendReport(BaselineChainReport report)
     {
@@ -51,7 +51,7 @@ internal sealed class BaselineReportSender(IMailSender mailSender)
         }
     }
 
-    private static string BuildEmailBody(BaselineChainReport report, bool full)
+    private string BuildEmailBody(BaselineChainReport report, bool full)
     {
         var newFailures = report.TestDiffs.Values
             .SelectMany(diff => diff.FailedTests.Where(t => t.Newness == Newness.New))
@@ -60,6 +60,10 @@ internal sealed class BaselineReportSender(IMailSender mailSender)
         var totalFailures = report.TestDiffs.Values
             .SelectMany(diff => diff.FailedTests)
             .Count();
+
+        var flakyTests = report.TestDiffs.Values
+            .SelectMany(d => d.FailedTests.Where(t => t.IsFlaky).Select(t => t.Test.ErrorDetails))
+            .ToHashSet();
 
         var doc = new XDocument(
             new XElement("html",
@@ -98,16 +102,22 @@ internal sealed class BaselineReportSender(IMailSender mailSender)
                             new XElement("th", "🔴 New Failures"),
                             new XElement("td", $"{newFailures} / {totalFailures}"))),
                     full ? report.TestDiffs
-                        .Where(kvp => kvp.Value.FailedTests.Any(t => t.Newness == Newness.New))
-                        .Select(kvp => GetTestDiffElement(kvp.Key, kvp.Value)) : null
+                        .Where(kvp => kvp.Value.FailedTests.Any(ContainsNewErrors))
+                        .Select(kvp => GetTestDiffElement(kvp.Key, kvp.Value, ContainsNewErrors)) : null
                 )
             )
         );
 
         return doc.ToString();
+
+        bool ContainsNewErrors(FailedTestResult testResult)
+        {
+            return testResult.Newness == Newness.New
+                && (!hideFlakies || !testResult.IsFlaky && !flakyTests.Contains(testResult.Test.ErrorDetails));
+        }
     }
 
-    private static XElement GetTestDiffElement(JobName testJob, FailedTestDiff diff)
+    private XElement GetTestDiffElement(JobName testJob, FailedTestDiff diff, Func<FailedTestResult, bool> containsNewErrors)
     {
         return new XElement("table",
             new XAttribute("class", "tests"),
@@ -116,7 +126,7 @@ internal sealed class BaselineReportSender(IMailSender mailSender)
                     new XAttribute("colspan", "2"),
                     $"Test: {testJob}")),
             diff.FailedTests
-                .Where(t => t.Newness == Newness.New)
+                .Where(containsNewErrors)
                 .Select(t => new XElement("tr",
                     new XElement("td",
                         new XAttribute("class", "test-info"),

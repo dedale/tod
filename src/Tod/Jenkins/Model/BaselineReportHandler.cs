@@ -8,6 +8,7 @@ internal sealed class BaselineReportHandler(BaselineBranch baselineBranch, Jenki
 {
     private readonly JobMatchCollection<BaselineJobMatch, BaselineJobPattern> _baselineJobMatches = new(config.BaselineJobs.Select(j => new BaselineJobPattern(j)));
     private readonly Dictionary<JobName, string> _chainByJob = [];
+    private readonly bool _hideFlakies = config.BaselineReportConfig?.HideFlakyTests == true;
 
     private bool TryGetChain(JobName job, [NotNullWhen(true)] out string? chain)
     {
@@ -95,7 +96,7 @@ internal sealed class BaselineReportHandler(BaselineBranch baselineBranch, Jenki
             var report = BaselineReportBuilder.Build(readyBuilds, chainName, baselineBranch, flakyTests);
             if (report != null)
             {
-                var sender = new BaselineReportSender(new MailSender(config.MailConfig));
+                var sender = new BaselineReportSender(new MailSender(config.MailConfig), _hideFlakies);
                 await sender.SendReport(report).ConfigureAwait(false);
             }
         }

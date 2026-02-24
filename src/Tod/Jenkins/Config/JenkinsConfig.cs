@@ -128,7 +128,8 @@ internal sealed record LoadThreshold(int QueueSize, TimeSpan MaxRequestDuration)
 internal sealed record JobMapping(string OldName, string NewName);
 
 internal sealed record BaselineReportConfig(
-    bool Enabled
+    bool Enabled,
+    bool HideFlakyTests = false
 );
 
 internal sealed class JenkinsConfig

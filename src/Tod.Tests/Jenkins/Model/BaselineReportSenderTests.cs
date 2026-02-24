@@ -14,15 +14,13 @@ internal sealed class BaselineReportSenderTests
 
     private Mock<IMailSender> _mockMailSender;
     private BaselineReportSender _sender;
-    private JenkinsConfig _config;
     private IFlakyTests _flakyTests;
 
     [SetUp]
     public void SetUp()
     {
         _mockMailSender = new Mock<IMailSender>(MockBehavior.Strict);
-        _sender = new BaselineReportSender(_mockMailSender.Object);
-        _config = JenkinsConfig.New("https://jenkins.example.com");
+        _sender = new BaselineReportSender(_mockMailSender.Object, hideFlakies: false);
         var flakyStore = InMemoryFlakyStore.Default;
         _flakyTests = new FlakyTests(flakyStore);
     }
@@ -219,5 +217,53 @@ internal sealed class BaselineReportSenderTests
         )).Returns(Task.CompletedTask);
 
         await _sender.SendReport(report);
+    }
+
+    [TestCase(true, false)]
+    [TestCase(false, true)]
+    public async Task SendReport_WithFlakyTests_IncludedBasedOnHideFlakies(bool hideFlakyTests, bool isIncluded)
+    {
+        var testJob3 = new JobName("TestJob3");
+        var sender = new BaselineReportSender(_mockMailSender.Object, hideFlakyTests);
+        var rootBuild = RandomData.NextRootBuild(commits: 1);
+
+        const string sharedError = "SharedError";
+        var uniqueTest = new FailedTest("UniqueTestClass", "UniqueTestMethod", "UniqueError");
+        var flakyTest = new FailedTest("FlakyTestClass", "FlakyTestMethod", sharedError);
+        var sharedErrorTest = new FailedTest("SharedErrorTestClass", "SharedErrorTestMethod", sharedError);
+
+        var mockFlakyTests = new Mock<IFlakyTests>(MockBehavior.Strict);
+        mockFlakyTests.Setup(f => f.IsFlaky(_testJob1, It.IsAny<TestId>())).Returns(false);
+        mockFlakyTests.Setup(f => f.IsFlaky(_testJob2, It.IsAny<TestId>())).Returns(true);
+        mockFlakyTests.Setup(f => f.IsFlaky(testJob3, It.IsAny<TestId>())).Returns(false);
+
+        var diff1 = FailedTestDiffer.Diff(_testJob1, [], [uniqueTest], mockFlakyTests.Object);
+        var diff2 = FailedTestDiffer.Diff(_testJob2, [], [flakyTest], mockFlakyTests.Object);
+        var diff3 = FailedTestDiffer.Diff(testJob3, [], [sharedErrorTest], mockFlakyTests.Object);
+
+        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, FailedTestDiff>
+        {
+            [_testJob1] = diff1,
+            [_testJob2] = diff2,
+            [testJob3] = diff3
+        });
+
+        string capturedAttachment = null!;
+        _mockMailSender
+            .Setup(m => m.Send(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .Callback<string, string, string, string>((_, _, _, attachment) => capturedAttachment = attachment)
+            .Returns(Task.CompletedTask);
+
+        await sender.SendReport(report);
+
+        Assert.That(capturedAttachment, Does.Contain("UniqueTestClass.UniqueTestMethod"));
+        Assert.That(capturedAttachment, isIncluded
+            ? Does.Contain("FlakyTestClass.FlakyTestMethod")
+            : Does.Not.Contain("FlakyTestClass.FlakyTestMethod"));
+        Assert.That(capturedAttachment, isIncluded
+            ? Does.Contain("SharedErrorTestClass.SharedErrorTestMethod")
+            : Does.Not.Contain("SharedErrorTestClass.SharedErrorTestMethod"));
+
+        mockFlakyTests.VerifyAll();
     }
 }
