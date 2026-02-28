@@ -138,6 +138,12 @@ internal sealed class BuildCollection<T>(JobName jobName, IByJobNameStore byJobN
             var removed = 0;
             for (var i = 0; i < _builds.Count;)
             {
+                if (i == _builds.Count - 1)
+                {
+                    // Don't remove the last build even if it's older than the threshold, to ensure we always have at least one build for the job
+                    // and to avoid adding old builds back when the last build is older than the threshold.
+                    break;
+                }
                 if (_builds[i].EndTimeUtc < thresholdUtc)
                 {
                     removed++;

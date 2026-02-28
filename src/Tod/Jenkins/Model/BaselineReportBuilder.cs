@@ -36,16 +36,16 @@ internal sealed class BaselineReportBuilder
                 continue;
             }
 
-            var currentTest = baselineBranch.GetTestBuild(currentTestBuildRef);
+            var currentTestBuild = baselineBranch.GetTestBuild(currentTestBuildRef);
 
-            var baseline = GetBaselineTestBuild(currentRoot.Reference, testJob, baselineBranch);
+            var baselineTestBuild = GetBaselineTestBuild(currentRoot.Reference, testJob, baselineBranch);
 
-            if (baseline == null)
+            if (baselineTestBuild == null)
             {
                 testDiffs[testJob] = FailedTestDiffer.Diff(
                     testJob,
                     [],
-                    currentTest.FailedTests,
+                    currentTestBuild.FailedTests,
                     flakyTests
                 );
             }
@@ -53,8 +53,8 @@ internal sealed class BaselineReportBuilder
             {
                 testDiffs[testJob] = FailedTestDiffer.Diff(
                     testJob,
-                    baseline.FailedTests,
-                    currentTest.FailedTests,
+                    baselineTestBuild.FailedTests,
+                    currentTestBuild.FailedTests,
                     flakyTests
                 );
             }

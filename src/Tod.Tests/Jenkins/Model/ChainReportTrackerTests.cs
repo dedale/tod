@@ -34,8 +34,8 @@ internal sealed class ChainReportTrackerTests
         var testBuildRef = new BuildReference(_testJob1, RandomData.NextBuildNumber);
         await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, testBuildRef, () => Task.CompletedTask).ConfigureAwait(false);
 
-        var readyBuilds = tracker.GetReadyForReport();
-        Assert.That(readyBuilds, Is.Empty);
+        var readyChains = tracker.GetReadyForReport();
+        Assert.That(readyChains, Is.Empty);
     }
 
     [Test]
@@ -46,9 +46,9 @@ internal sealed class ChainReportTrackerTests
         var rootBuild = RandomData.NextRootBuild(commits: 2, testJobNames: [_testJob1.Value, _testJob2.Value]);
         tracker.AddRootBuild(rootBuild, [_testJob1, _testJob2]);
 
-        var readyBuilds = tracker.GetReadyForReport();
+        var readyChains = tracker.GetReadyForReport();
 
-        Assert.That(readyBuilds, Is.Empty);
+        Assert.That(readyChains, Is.Empty);
     }
 
     [Test]
@@ -59,16 +59,16 @@ internal sealed class ChainReportTrackerTests
         var rootBuild = RandomData.NextRootBuild(commits: 2, testJobNames: [_testJob1.Value, _testJob2.Value]);
         tracker.AddRootBuild(rootBuild, [_testJob1, _testJob2]);
 
-        BaselineChain[]? readyBuilds = null;
+        BaselineChain[]? readyChains = null;
         await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), () => Task.CompletedTask).ConfigureAwait(false);
         await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob2, new BuildReference(_testJob2, RandomData.NextBuildNumber), () =>
         {
-            readyBuilds = tracker.GetReadyForReport();
+            readyChains = tracker.GetReadyForReport();
             return Task.CompletedTask;
         }).ConfigureAwait(false);
 
-        Assert.That(readyBuilds, Has.Length.EqualTo(1));
-        Assert.That(readyBuilds![0].RootBuild.BuildNumber, Is.EqualTo(rootBuild.BuildNumber));
+        Assert.That(readyChains, Has.Length.EqualTo(1));
+        Assert.That(readyChains![0].RootBuild.BuildNumber, Is.EqualTo(rootBuild.BuildNumber));
     }
 
     [Test]
@@ -82,16 +82,16 @@ internal sealed class ChainReportTrackerTests
         tracker.AddRootBuild(failedBuild, [_testJob1]);
         tracker.AddRootBuild(successBuild, [_testJob1]);
 
-        BaselineChain[]? readyBuilds = null;
+        BaselineChain[]? readyChains = null;
         await tracker.MarkTestDone(successBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), () =>
         {
-            readyBuilds = tracker.GetReadyForReport();
+            readyChains = tracker.GetReadyForReport();
             return Task.CompletedTask;
         }).ConfigureAwait(false);
 
-        Assert.That(readyBuilds, Has.Length.EqualTo(2));
-        Assert.That(readyBuilds![0].RootBuild.BuildNumber, Is.EqualTo(100));
-        Assert.That(readyBuilds[1].RootBuild.BuildNumber, Is.EqualTo(101));
+        Assert.That(readyChains, Has.Length.EqualTo(2));
+        Assert.That(readyChains![0].RootBuild.BuildNumber, Is.EqualTo(100));
+        Assert.That(readyChains[1].RootBuild.BuildNumber, Is.EqualTo(101));
     }
 
     [Test]
@@ -109,16 +109,16 @@ internal sealed class ChainReportTrackerTests
 
         await tracker.MarkTestDone(successBuild1.BuildNumber, _testJob1, new BuildReference(_testJob1, 50), () => Task.CompletedTask).ConfigureAwait(false);
 
-        BaselineChain[]? readyBuilds = null;
+        BaselineChain[]? readyChains = null;
         await tracker.MarkTestDone(successBuild2.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), () =>
         {
-            readyBuilds = tracker.GetReadyForReport();
+            readyChains = tracker.GetReadyForReport();
             return Task.CompletedTask;
         }).ConfigureAwait(false);
 
-        Assert.That(readyBuilds, Has.Length.EqualTo(2));
-        Assert.That(readyBuilds![0].RootBuild.BuildNumber, Is.EqualTo(100));
-        Assert.That(readyBuilds[1].RootBuild.BuildNumber, Is.EqualTo(101));
+        Assert.That(readyChains, Has.Length.EqualTo(2));
+        Assert.That(readyChains![0].RootBuild.BuildNumber, Is.EqualTo(100));
+        Assert.That(readyChains[1].RootBuild.BuildNumber, Is.EqualTo(101));
     }
 
     [Test]
@@ -130,8 +130,8 @@ internal sealed class ChainReportTrackerTests
         tracker.AddRootBuild(rootBuild, [_testJob1]);
         await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), () => Task.CompletedTask).ConfigureAwait(false);
 
-        var readyBuilds = tracker.GetReadyForReport();
-        Assert.That(readyBuilds, Is.Empty);
+        var readyChains = tracker.GetReadyForReport();
+        Assert.That(readyChains, Is.Empty);
     }
 
     [Test]
@@ -177,8 +177,8 @@ internal sealed class ChainReportTrackerTests
         Assert.That(restoredSerializable.ContainsBuild(100), Is.True);
         Assert.That(restoredSerializable.ContainsBuild(101), Is.True);
 
-        var readyBuilds = restored.GetReadyForReport();
-        Assert.That(readyBuilds, Is.Empty);
+        var readyChains = restored.GetReadyForReport();
+        Assert.That(readyChains, Is.Empty);
     }
 
     [Test]
@@ -249,7 +249,7 @@ internal sealed class ChainReportTrackerTests
 
         await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), () => Task.CompletedTask).ConfigureAwait(false);
 
-        var readyBuilds = tracker.GetReadyForReport();
-        Assert.That(readyBuilds, Is.Empty);
+        var readyChains = tracker.GetReadyForReport();
+        Assert.That(readyChains, Is.Empty);
     }
 }

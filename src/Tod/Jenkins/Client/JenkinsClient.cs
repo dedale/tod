@@ -166,7 +166,8 @@ internal sealed class JenkinsClient(JenkinsConfig config, string userName, strin
         {
             foreach (var testCase in suite.GetProperty("cases").EnumerateArray())
             {
-                if (testCase.GetProperty("status").GetString() == "FAILED")
+                var status = testCase.GetProperty("status").GetString();
+                if (status == "FAILED" || status == "REGRESSION")
                 {
                     string className = testCase.GetProperty("className").GetString()!;
                     string testName = testCase.GetProperty("name").GetString()!;

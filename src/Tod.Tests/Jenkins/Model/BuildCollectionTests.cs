@@ -341,4 +341,144 @@ internal sealed class BuildCollectionTests
         // Average: (1.5 + 150 + 45) / 3 = 65.5 minutes
         Assert.That(collection.AverageDuration, Is.EqualTo(TimeSpan.FromMinutes(65.5)));
     }
+
+    [Test]
+    public void RemoveBuildsOlderThan_WithNoOldBuilds_ReturnsZero()
+    {
+        var jobName = new JobName("TestJob");
+        StoreSetupLoad(jobName);
+        _store.Setup(s => s.Save(jobName, It.IsAny<BuildCollection<RootBuild>.InnerCollection.Serializable>()));
+        var collection = new BuildCollection<RootBuild>(jobName, _store.Object);
+        var now = DateTime.UtcNow;
+        collection.TryAdd(RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 1, startUtc: now.AddMinutes(-10), endUtc: now.AddMinutes(-5)));
+        collection.TryAdd(RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 2, startUtc: now.AddMinutes(-5), endUtc: now));
+
+        var removed = collection.RemoveBuildsOlderThan(now.AddHours(-1));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(removed, Is.Zero);
+            Assert.That(collection.Count, Is.EqualTo(2));
+        }
+    }
+
+    [Test]
+    public void RemoveBuildsOlderThan_WithAllOldBuilds_KeepsLastBuild()
+    {
+        var jobName = new JobName("TestJob");
+        StoreSetupLoad(jobName);
+        _store.Setup(s => s.Save(jobName, It.IsAny<BuildCollection<RootBuild>.InnerCollection.Serializable>()));
+        var collection = new BuildCollection<RootBuild>(jobName, _store.Object);
+        var threshold = DateTime.UtcNow;
+        collection.TryAdd(RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 1, endUtc: threshold.AddDays(-3)));
+        collection.TryAdd(RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 2, endUtc: threshold.AddDays(-2)));
+        collection.TryAdd(RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 3, endUtc: threshold.AddDays(-1)));
+
+        var removed = collection.RemoveBuildsOlderThan(threshold);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(removed, Is.EqualTo(2));
+            Assert.That(collection.Count, Is.EqualTo(1));
+            Assert.That(collection[0].BuildNumber, Is.EqualTo(3));
+        }
+    }
+
+    [Test]
+    public void RemoveBuildsOlderThan_WithSomeOldBuilds_RemovesOnlyOldOnes()
+    {
+        var jobName = new JobName("TestJob");
+        StoreSetupLoad(jobName);
+        _store.Setup(s => s.Save(jobName, It.IsAny<BuildCollection<RootBuild>.InnerCollection.Serializable>()));
+        var collection = new BuildCollection<RootBuild>(jobName, _store.Object);
+        var threshold = DateTime.UtcNow.AddDays(-2);
+        collection.TryAdd(RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 1, endUtc: threshold.AddDays(-2)));
+        collection.TryAdd(RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 2, endUtc: threshold.AddDays(-1)));
+        collection.TryAdd(RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 3, endUtc: threshold.AddDays(1)));
+        collection.TryAdd(RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 4, endUtc: threshold.AddDays(2)));
+
+        var removed = collection.RemoveBuildsOlderThan(threshold);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(removed, Is.EqualTo(2));
+            Assert.That(collection.Count, Is.EqualTo(2));
+            Assert.That(collection[0].BuildNumber, Is.EqualTo(3));
+            Assert.That(collection[1].BuildNumber, Is.EqualTo(4));
+        }
+    }
+
+    [Test]
+    public void RemoveBuildsOlderThan_WithEmptyCollection_ReturnsZero()
+    {
+        var jobName = new JobName("TestJob");
+        StoreSetupLoad(jobName);
+        var collection = new BuildCollection<RootBuild>(jobName, _store.Object);
+
+        var removed = collection.RemoveBuildsOlderThan(DateTime.UtcNow);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(removed, Is.Zero);
+            Assert.That(collection.Count, Is.Zero);
+        }
+    }
+
+    [Test]
+    public void RemoveBuildsOlderThan_WithSingleBuild_KeepsIt()
+    {
+        var jobName = new JobName("TestJob");
+        StoreSetupLoad(jobName);
+        _store.Setup(s => s.Save(jobName, It.IsAny<BuildCollection<RootBuild>.InnerCollection.Serializable>()));
+        var collection = new BuildCollection<RootBuild>(jobName, _store.Object);
+        var build = RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 1, endUtc: DateTime.UtcNow.AddDays(-10));
+        collection.TryAdd(build);
+
+        var removed = collection.RemoveBuildsOlderThan(DateTime.UtcNow);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(removed, Is.Zero);
+            Assert.That(collection.Count, Is.EqualTo(1));
+            Assert.That(collection[0].BuildNumber, Is.EqualTo(1));
+        }
+    }
+
+    [Test]
+    public void RemoveBuildsOlderThan_WhenSomethingIsRemoved_SavesOnce()
+    {
+        var jobName = new JobName("TestJob");
+        StoreSetupLoad(jobName);
+        var saveCount = 0;
+        _store.Setup(s => s.Save(jobName, It.IsAny<BuildCollection<RootBuild>.InnerCollection.Serializable>()))
+            .Callback(() => saveCount++);
+        var collection = new BuildCollection<RootBuild>(jobName, _store.Object);
+        var threshold = DateTime.UtcNow;
+        collection.TryAdd(RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 1, endUtc: threshold.AddDays(-2)));
+        collection.TryAdd(RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 2, endUtc: threshold.AddDays(-1)));
+        collection.TryAdd(RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 3, endUtc: threshold.AddDays(1)));
+        var savesBeforeRemove = saveCount;
+
+        collection.RemoveBuildsOlderThan(threshold);
+
+        Assert.That(saveCount - savesBeforeRemove, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void RemoveBuildsOlderThan_WhenNothingIsRemoved_DoesNotSave()
+    {
+        var jobName = new JobName("TestJob");
+        StoreSetupLoad(jobName);
+        var saveCount = 0;
+        _store.Setup(s => s.Save(jobName, It.IsAny<BuildCollection<RootBuild>.InnerCollection.Serializable>()))
+            .Callback(() => saveCount++);
+        var collection = new BuildCollection<RootBuild>(jobName, _store.Object);
+        collection.TryAdd(RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 1, endUtc: DateTime.UtcNow.AddDays(1)));
+        collection.TryAdd(RandomData.NextRootBuild(jobName: jobName.Value, buildNumber: 2, endUtc: DateTime.UtcNow.AddDays(2)));
+        var savesBeforeRemove = saveCount;
+
+        collection.RemoveBuildsOlderThan(DateTime.UtcNow.AddDays(-1));
+
+        Assert.That(saveCount - savesBeforeRemove, Is.Zero);
+    }
 }

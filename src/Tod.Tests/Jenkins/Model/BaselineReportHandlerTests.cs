@@ -155,8 +155,8 @@ internal sealed class BaselineReportHandlerTests
 
         var tracker = _baselineBranch.GetChainTracker(RootFilter.DefaultChain);
         Assert.That(tracker, Is.Not.Null);
-        var readyBuilds = tracker!.GetReadyForReport();
-        Assert.That(readyBuilds, Is.Empty);
+        var readyChains = tracker!.GetReadyForReport();
+        Assert.That(readyChains, Is.Empty);
     }
 
     [Test]
@@ -187,8 +187,8 @@ internal sealed class BaselineReportHandlerTests
 
         var tracker = _baselineBranch.GetChainTracker(RootFilter.DefaultChain);
         Assert.That(tracker, Is.Not.Null);
-        var readyBuilds = tracker!.GetReadyForReport();
-        Assert.That(readyBuilds, Is.Empty);
+        var readyChains = tracker!.GetReadyForReport();
+        Assert.That(readyChains, Is.Empty);
     }
 
     [Test]

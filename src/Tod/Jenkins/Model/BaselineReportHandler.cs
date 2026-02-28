@@ -90,10 +90,10 @@ internal sealed class BaselineReportHandler(BaselineBranch baselineBranch, Jenki
 
     private async Task SendReferenceReportsIfReady(string chainName, ChainReportTracker tracker)
     {
-        var readyBuilds = tracker.GetReadyForReport();
-        if (readyBuilds.Length > 0)
+        var readyChains = tracker.GetReadyForReport();
+        if (readyChains.Length > 0)
         {
-            var report = BaselineReportBuilder.Build(readyBuilds, chainName, baselineBranch, flakyTests);
+            var report = BaselineReportBuilder.Build(readyChains, chainName, baselineBranch, flakyTests);
             if (report != null)
             {
                 var sender = new BaselineReportSender(new MailSender(config.MailConfig), _hideFlakies);

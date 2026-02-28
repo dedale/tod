@@ -7,7 +7,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IEnumera
 {
     private async Task UpdateBaselineRootBuilds(BuildCollections<RootBuild> allRootBuilds)
     {
-        foreach (var rootBuilds in allRootBuilds)
+        foreach (var rootBuilds in allRootBuilds.OrderBy(x => x.JobName))
         {
             Log.Debug("Fetching root builds for {@JobName}", rootBuilds.JobName);
             var builds = await jenkinsClient.GetLastBuilds(rootBuilds.JobName).ConfigureAwait(false);
@@ -51,7 +51,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IEnumera
         await UpdateBaselineRootBuilds(baselineBranch.RootBuilds).ConfigureAwait(false);
 
         var newTestBuilds = false;
-        foreach (var testBuilds in baselineBranch.TestBuilds)
+        foreach (var testBuilds in baselineBranch.TestBuilds.OrderBy(x => x.JobName))
         {
             Log.Debug("Fetching test builds for {@JobName}", testBuilds.JobName);
             var builds = await jenkinsClient.GetLastBuilds(testBuilds.JobName).ConfigureAwait(false);
@@ -111,7 +111,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IEnumera
 
     private async Task UpdateOnDemandRootBuilds(BuildCollections<RootBuild> allRootBuilds)
     {
-        foreach (var rootBuilds in allRootBuilds)
+        foreach (var rootBuilds in allRootBuilds.OrderBy(x => x.JobName))
         {
             Log.Debug("Fetching root builds for {@JobName}", rootBuilds.JobName);
             var builds = await jenkinsClient.GetLastBuilds(rootBuilds.JobName).ConfigureAwait(false);
@@ -171,7 +171,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IEnumera
 
         await UpdateOnDemandRootBuilds(onDemandBuilds.RootBuilds).ConfigureAwait(false);
 
-        foreach (var testBuilds in onDemandBuilds.TestBuilds)
+        foreach (var testBuilds in onDemandBuilds.TestBuilds.OrderBy(x => x.JobName))
         {
             Log.Debug("Fetching test builds for {@JobName}", testBuilds.JobName);
             var builds = await jenkinsClient.GetLastBuilds(testBuilds.JobName).ConfigureAwait(false);

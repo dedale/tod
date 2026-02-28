@@ -20,7 +20,7 @@ internal sealed class TestCase(string className, string testName, string status,
     public string Status { get; } = status;
     public string ErrorDetails { get; } = errorDetails;
 
-    public bool IsFailed => Status == "FAILED";
+    public bool IsFailed => Status == "FAILED" || Status == "REGRESSION";
 
     public static TestCase Random(bool failed = false, string? errorDetails = null)
     {
@@ -29,7 +29,7 @@ internal sealed class TestCase(string className, string testName, string status,
         if (failed || _rand.Next(0, 2) == 0)
         {
             errorDetails ??= $"Error details for {className}.{testName}";
-            return new TestCase(className, testName, "FAILED", errorDetails);
+            return new TestCase(className, testName, _rand.Next(0, 2) == 0 ? "FAILED" : "REGRESSION", errorDetails);
         }
         else
         {
