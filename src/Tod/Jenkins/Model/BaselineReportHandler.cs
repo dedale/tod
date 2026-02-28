@@ -96,7 +96,7 @@ internal sealed class BaselineReportHandler(BaselineBranch baselineBranch, Jenki
             var report = BaselineReportBuilder.Build(readyChains, chainName, baselineBranch, flakyTests);
             if (report != null)
             {
-                var sender = new BaselineReportSender(new MailSender(config.MailConfig), _hideFlakies);
+                var sender = new BaselineReportSender(new JenkinsJobLinker(config), new MailSender(config.MailConfig), _hideFlakies);
                 await sender.SendReport(report).ConfigureAwait(false);
             }
         }

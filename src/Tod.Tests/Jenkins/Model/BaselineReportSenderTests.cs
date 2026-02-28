@@ -13,6 +13,7 @@ internal sealed class BaselineReportSenderTests
     private readonly JobName _testJob2 = new("TestJob2");
 
     private Mock<IMailSender> _mockMailSender;
+    private Mock<IJobLinker> _mockJobLinker;
     private BaselineReportSender _sender;
     private IFlakyTests _flakyTests;
 
@@ -20,7 +21,10 @@ internal sealed class BaselineReportSenderTests
     public void SetUp()
     {
         _mockMailSender = new Mock<IMailSender>(MockBehavior.Strict);
-        _sender = new BaselineReportSender(_mockMailSender.Object, hideFlakies: false);
+        _mockJobLinker = new Mock<IJobLinker>(MockBehavior.Loose);
+        _mockJobLinker.Setup(l => l.GetUrl(It.IsAny<JobName>(), It.IsAny<int>())).Returns("http://jenkins/job/1");
+        _mockJobLinker.Setup(l => l.GetUrl(It.IsAny<JobName>())).Returns("http://jenkins/job");
+        _sender = new BaselineReportSender(_mockJobLinker.Object, _mockMailSender.Object, hideFlakies: false);
         var flakyStore = InMemoryFlakyStore.Default;
         _flakyTests = new FlakyTests(flakyStore);
     }
@@ -45,7 +49,7 @@ internal sealed class BaselineReportSenderTests
     {
         var rootBuild = RandomData.NextRootBuild(commits: 1);
         var diff = FailedTestDiffer.Diff(_testJob1, [], [], _flakyTests);
-        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
+        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, BuildDiffResult> { [_testJob1] = NextBuildDiffResult(_testJob1, diff) });
 
         await _sender.SendReport(report);
     }
@@ -60,11 +64,11 @@ internal sealed class BaselineReportSenderTests
         var failedTest = new FailedTest("TestClass", "TestMethod", "Error");
         var diff = FailedTestDiffer.Diff(_testJob1, [], [failedTest], _flakyTests);
 
-        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
+        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, BuildDiffResult> { [_testJob1] = NextBuildDiffResult(_testJob1, diff) });
 
         _mockMailSender.Setup(m => m.Send(
             recipients,
-            "master Build Report: TestChain",
+            It.Is<string>(s => s.StartsWith("master Build Report#")),
             It.IsAny<string>(),
             It.IsAny<string>()
         )).Returns(Task.CompletedTask);
@@ -81,11 +85,11 @@ internal sealed class BaselineReportSenderTests
         var failedTest = new FailedTest("TestClass", "TestMethod", "Error");
         var diff = FailedTestDiffer.Diff(_testJob1, [], [failedTest], _flakyTests);
 
-        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
+        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, BuildDiffResult> { [_testJob1] = NextBuildDiffResult(_testJob1, diff) });
 
         _mockMailSender.Setup(m => m.Send(
             author.Email!,
-            "master Build Report: TestChain",
+            It.Is<string>(s => s.StartsWith("master Build Report#")),
             It.IsAny<string>(),
             It.IsAny<string>()
         )).Returns(Task.CompletedTask);
@@ -107,11 +111,11 @@ internal sealed class BaselineReportSenderTests
         var failedTest = new FailedTest("TestClass", "TestMethod", "Error");
         var diff = FailedTestDiffer.Diff(_testJob1, [], [failedTest], _flakyTests);
 
-        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild1, rootBuild2], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
+        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild1, rootBuild2], new Dictionary<JobName, BuildDiffResult> { [_testJob1] = NextBuildDiffResult(_testJob1, diff) });
 
         _mockMailSender.Setup(m => m.Send(
             recipients,
-            "master Build Report: TestChain",
+            It.Is<string>(s => s.StartsWith("master Build Report#")),
             It.IsAny<string>(),
             It.IsAny<string>()
         )).Returns(Task.CompletedTask);
@@ -129,11 +133,11 @@ internal sealed class BaselineReportSenderTests
         var failedTest = new FailedTest("TestClass", "TestMethod", "Error");
         var diff = FailedTestDiffer.Diff(_testJob1, [], [failedTest], _flakyTests);
 
-        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
+        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, BuildDiffResult> { [_testJob1] = NextBuildDiffResult(_testJob1, diff) });
 
         _mockMailSender.Setup(m => m.Send(
             recipients,
-            "master Build Report: TestChain",
+            It.Is<string>(s => s.StartsWith("master Build Report#")),
             It.IsAny<string>(),
             It.IsAny<string>()
         )).ThrowsAsync(new Exception("SMTP error"));
@@ -161,7 +165,7 @@ internal sealed class BaselineReportSenderTests
         var failedTest = new FailedTest("TestClass", "TestMethod", "Error");
         var diff = FailedTestDiffer.Diff(_testJob1, [], [failedTest], _flakyTests);
 
-        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
+        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, BuildDiffResult> { [_testJob1] = NextBuildDiffResult(_testJob1, diff) });
 
         await _sender.SendReport(report);
     }
@@ -181,16 +185,16 @@ internal sealed class BaselineReportSenderTests
             _branch,
             "TestChain",
             [rootBuild],
-            new Dictionary<JobName, FailedTestDiff>
+            new Dictionary<JobName, BuildDiffResult>
             {
-                [_testJob1] = diff1,
-                [_testJob2] = diff2
+                [_testJob1] = NextBuildDiffResult(_testJob1, diff1),
+                [_testJob2] = NextBuildDiffResult(_testJob2, diff2)
             }
         );
 
         _mockMailSender.Setup(m => m.Send(
             author.Email!,
-            "master Build Report: TestChain",
+            It.Is<string>(s => s.StartsWith("master Build Report#")),
             It.IsAny<string>(),
             It.Is<string>(body => body.Contains("TestClass1") && body.Contains("TestClass2"))
         )).Returns(Task.CompletedTask);
@@ -207,11 +211,11 @@ internal sealed class BaselineReportSenderTests
         var failedTest = new FailedTest("TestClass", "TestMethod", "Error");
         var diff = FailedTestDiffer.Diff(_testJob1, [], [failedTest], _flakyTests);
 
-        var report = new BaselineChainReport(_branch, "MyCustomChain", [rootBuild], new Dictionary<JobName, FailedTestDiff> { [_testJob1] = diff });
+        var report = new BaselineChainReport(_branch, "MyCustomChain", [rootBuild], new Dictionary<JobName, BuildDiffResult> { [_testJob1] = NextBuildDiffResult(_testJob1, diff) });
 
         _mockMailSender.Setup(m => m.Send(
             author.Email!,
-            "master Build Report: MyCustomChain",
+            It.Is<string>(s => s.Contains("Build Report#") && s.Contains("MyCustomChain")),
             It.IsAny<string>(),
             It.IsAny<string>()
         )).Returns(Task.CompletedTask);
@@ -224,7 +228,7 @@ internal sealed class BaselineReportSenderTests
     public async Task SendReport_WithFlakyTests_IncludedBasedOnHideFlakies(bool hideFlakyTests, bool isIncluded)
     {
         var testJob3 = new JobName("TestJob3");
-        var sender = new BaselineReportSender(_mockMailSender.Object, hideFlakyTests);
+        var sender = new BaselineReportSender(_mockJobLinker.Object, _mockMailSender.Object, hideFlakyTests);
         var rootBuild = RandomData.NextRootBuild(commits: 1);
 
         const string sharedError = "SharedError";
@@ -241,11 +245,11 @@ internal sealed class BaselineReportSenderTests
         var diff2 = FailedTestDiffer.Diff(_testJob2, [], [flakyTest], mockFlakyTests.Object);
         var diff3 = FailedTestDiffer.Diff(testJob3, [], [sharedErrorTest], mockFlakyTests.Object);
 
-        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, FailedTestDiff>
+        var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, BuildDiffResult>
         {
-            [_testJob1] = diff1,
-            [_testJob2] = diff2,
-            [testJob3] = diff3
+            [_testJob1] = NextBuildDiffResult(_testJob1, diff1),
+            [_testJob2] = NextBuildDiffResult(_testJob2, diff2),
+            [testJob3] = NextBuildDiffResult(testJob3, diff3)
         });
 
         string capturedAttachment = null!;
@@ -265,5 +269,12 @@ internal sealed class BaselineReportSenderTests
             : Does.Not.Contain("SharedErrorTestClass.SharedErrorTestMethod"));
 
         mockFlakyTests.VerifyAll();
+    }
+
+    private static BuildDiffResult NextBuildDiffResult(JobName testJob, FailedTestDiff diff)
+    {
+        var baselineRef = new BuildReferenceResult(testJob, RandomData.NextBuildNumber, BuildStatus.Success);
+        var currentRef = new BuildReferenceResult(testJob, RandomData.NextBuildNumber, BuildStatus.Success);
+        return new BuildDiffResult(baselineRef, currentRef, BuildDiff.Diff(diff));
     }
 }

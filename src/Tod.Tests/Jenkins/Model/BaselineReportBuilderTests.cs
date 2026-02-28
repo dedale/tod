@@ -142,8 +142,9 @@ internal sealed class BaselineReportBuilderTests
 
         Assert.That(report, Is.Not.Null);
         Assert.That(report!.TestDiffs, Has.Count.EqualTo(1));
-        Assert.That(report.TestDiffs[_testJob1].FailedTests, Has.Length.EqualTo(1));
-        Assert.That(report.TestDiffs[_testJob1].FailedTests[0].Test.ClassName, Is.EqualTo("TestClass"));
+        var testResults = report.TestDiffs[_testJob1].Diff.Match(onNotComparable: _ => [], onComparable: d => d.FailedTests);
+        Assert.That(testResults, Has.Length.EqualTo(1));
+        Assert.That(testResults[0].Test.ClassName, Is.EqualTo("TestClass"));
     }
 
     [Test]
@@ -169,8 +170,9 @@ internal sealed class BaselineReportBuilderTests
         var report = BaselineReportBuilder.Build([tracking], "TestChain", _baselineBranch, _flakyTests);
 
         Assert.That(report, Is.Not.Null);
-        Assert.That(report!.TestDiffs[_testJob1].FailedTests, Has.Length.EqualTo(2));
-        Assert.That(report.TestDiffs[_testJob1].FailedTests.All(t => t.Newness == Newness.New), Is.True);
+        var testResults = report!.TestDiffs[_testJob1].Diff.Match(onNotComparable: _ => [], onComparable: d => d.FailedTests);
+        Assert.That(testResults, Has.Length.EqualTo(2));
+        Assert.That(testResults.All(t => t.Newness == Newness.New), Is.True);
     }
 
     [Test]
@@ -218,8 +220,8 @@ internal sealed class BaselineReportBuilderTests
         var report = BaselineReportBuilder.Build([tracking], "TestChain", _baselineBranch, _flakyTests);
 
         Assert.That(report, Is.Not.Null);
-        var diff = report!.TestDiffs[_testJob1];
-        Assert.That(diff.FailedTests.Count(t => t.Newness == Newness.New), Is.EqualTo(1));
+        var diff = report!.TestDiffs[_testJob1].Diff.Match(onNotComparable: _ => null, onComparable: d => (FailedTestDiff?)d);
+        Assert.That(diff!.FailedTests.Count(t => t.Newness == Newness.New), Is.EqualTo(1));
     }
 
     [Test]

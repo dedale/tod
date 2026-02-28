@@ -4,7 +4,7 @@ internal sealed record BaselineChainReport(
     BranchName BranchName,
     string ChainName,
     RootBuild[] RootBuilds,
-    Dictionary<JobName, FailedTestDiff> TestDiffs
+    Dictionary<JobName, BuildDiffResult> TestDiffs
 );
 
 internal sealed class BaselineReportBuilder
@@ -20,7 +20,7 @@ internal sealed class BaselineReportBuilder
             return null;
         }
 
-        var testDiffs = new Dictionary<JobName, FailedTestDiff>();
+        var testDiffs = new Dictionary<JobName, BuildDiffResult>();
         var currentRootRef = baselineChains[^1].RootBuild;
         var currentRoot = baselineBranch.GetRootBuild(currentRootRef);
 
@@ -37,25 +37,26 @@ internal sealed class BaselineReportBuilder
             }
 
             var currentTestBuild = baselineBranch.GetTestBuild(currentTestBuildRef);
-
             var baselineTestBuild = GetBaselineTestBuild(currentRoot.Reference, testJob, baselineBranch);
+
+            var currentResult = BuildReferenceResult.Done(currentTestBuild);
 
             if (baselineTestBuild == null)
             {
-                testDiffs[testJob] = FailedTestDiffer.Diff(
-                    testJob,
-                    [],
-                    currentTestBuild.FailedTests,
-                    flakyTests
+                var baselineResult = new BuildReferenceResult(testJob, 0, BuildStatus.Pending);
+                testDiffs[testJob] = new BuildDiffResult(
+                    baselineResult,
+                    currentResult,
+                    BuildDiff.Diff(FailedTestDiffer.Diff(testJob, [], currentTestBuild.FailedTests, flakyTests))
                 );
             }
             else
             {
-                testDiffs[testJob] = FailedTestDiffer.Diff(
-                    testJob,
-                    baselineTestBuild.FailedTests,
-                    currentTestBuild.FailedTests,
-                    flakyTests
+                var baselineResult = BuildReferenceResult.Done(baselineTestBuild);
+                testDiffs[testJob] = new BuildDiffResult(
+                    baselineResult,
+                    currentResult,
+                    BuildDiff.Diff(FailedTestDiffer.Diff(testJob, baselineTestBuild.FailedTests, currentTestBuild.FailedTests, flakyTests))
                 );
             }
         }
