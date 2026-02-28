@@ -18,6 +18,7 @@ internal static class BuildAssertions
             for (var j = 0; j < expected.ChangeSets[i].Items.Length; j++)
             {
                 Assert.That(actual.ChangeSets[i].Items[0].CommitId, Is.EqualTo(expected.ChangeSets[i].Items[0].CommitId));
+                Assert.That(actual.ChangeSets[i].Items[0].Message, Is.EqualTo(expected.ChangeSets[i].Items[0].Message));
             }
         }
     }

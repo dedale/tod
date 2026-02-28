@@ -68,7 +68,7 @@ internal sealed class BaselineReportSenderTests
 
         _mockMailSender.Setup(m => m.Send(
             recipients,
-            It.Is<string>(s => s.StartsWith("master Build Report#")),
+            It.Is<string>(s => s.StartsWith("master Build Report")),
             It.IsAny<string>(),
             It.IsAny<string>()
         )).Returns(Task.CompletedTask);
@@ -89,7 +89,7 @@ internal sealed class BaselineReportSenderTests
 
         _mockMailSender.Setup(m => m.Send(
             author.Email!,
-            It.Is<string>(s => s.StartsWith("master Build Report#")),
+            It.Is<string>(s => s.StartsWith("master Build Report")),
             It.IsAny<string>(),
             It.IsAny<string>()
         )).Returns(Task.CompletedTask);
@@ -115,7 +115,7 @@ internal sealed class BaselineReportSenderTests
 
         _mockMailSender.Setup(m => m.Send(
             recipients,
-            It.Is<string>(s => s.StartsWith("master Build Report#")),
+            It.Is<string>(s => s.StartsWith("master Build Report")),
             It.IsAny<string>(),
             It.IsAny<string>()
         )).Returns(Task.CompletedTask);
@@ -137,7 +137,7 @@ internal sealed class BaselineReportSenderTests
 
         _mockMailSender.Setup(m => m.Send(
             recipients,
-            It.Is<string>(s => s.StartsWith("master Build Report#")),
+            It.Is<string>(s => s.StartsWith("master Build Report")),
             It.IsAny<string>(),
             It.IsAny<string>()
         )).ThrowsAsync(new Exception("SMTP error"));
@@ -194,7 +194,7 @@ internal sealed class BaselineReportSenderTests
 
         _mockMailSender.Setup(m => m.Send(
             author.Email!,
-            It.Is<string>(s => s.StartsWith("master Build Report#")),
+            It.Is<string>(s => s.StartsWith("master Build Report")),
             It.IsAny<string>(),
             It.Is<string>(body => body.Contains("TestClass1") && body.Contains("TestClass2"))
         )).Returns(Task.CompletedTask);
@@ -215,7 +215,7 @@ internal sealed class BaselineReportSenderTests
 
         _mockMailSender.Setup(m => m.Send(
             author.Email!,
-            It.Is<string>(s => s.Contains("Build Report#") && s.Contains("MyCustomChain")),
+            It.Is<string>(s => s.Contains("Build Report") && s.Contains(rootBuild.Reference.ToString())),
             It.IsAny<string>(),
             It.IsAny<string>()
         )).Returns(Task.CompletedTask);

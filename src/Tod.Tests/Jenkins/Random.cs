@@ -30,7 +30,8 @@ internal static class RandomBuilds
                 var sha1 = RandomData.NextSha1().Value;
                 var user = RandomData.NextUser();
                 var author = new CommitAuthor(user.Name, user.Email);
-                return new Commit(sha1, author);
+                var message = $"Commit message {s_rand.Next(1, 100)}";
+                return new Commit(sha1, author, message: message);
             }).ToArray();
             yield return new Build(id, number, result, timestamp, durationInMs, building, commits);
         }

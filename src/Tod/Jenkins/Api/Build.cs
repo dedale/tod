@@ -7,7 +7,7 @@ namespace Tod.Jenkins;
 
 internal sealed record CommitAuthor([property: JsonPropertyName("fullName")] string Name, string? Email = null);
 
-internal sealed class Commit(string sha1, CommitAuthor? author = null, string? authorEmail = null)
+internal sealed class Commit(string sha1, CommitAuthor? author = null, string? authorEmail = null, string? message = null)
 {
     [JsonPropertyName("commitId")]
     public string CommitId { get; } = sha1;
@@ -15,6 +15,8 @@ internal sealed class Commit(string sha1, CommitAuthor? author = null, string? a
     public CommitAuthor? Author { get; } = author;
     [JsonPropertyName("authorEmail")]
     public string? AuthorEmail { get; } = authorEmail;
+    [JsonPropertyName("msg")]
+    public string? Message { get; } = message;
 }
 
 internal sealed class ChangeSet(Commit[] commits)
@@ -89,7 +91,13 @@ internal sealed class Build(string id, int number, BuildResult result, DateTime 
                     authorEmail = authorEmailElement.GetString();
                 }
 
-                commits.Add(new Commit(commitId, author, authorEmail));
+                string? message = null;
+                if (item.TryGetProperty("msg", out var msgElement))
+                {
+                    message = msgElement.GetString();
+                }
+
+                commits.Add(new Commit(commitId, author, authorEmail, message));
             }
         }
 

@@ -77,7 +77,7 @@ internal sealed class JenkinsClientTests
         var builds = RandomBuilds.Generate(5).ToArray();
         var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
         apiClient
-            .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/api/json?tree=builds[id,number,result,timestamp,duration,building,changeSets[items[commitId,author[fullName],authorEmail]]]{{0,{count}}}"))
+            .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/api/json?tree=builds[id,number,result,timestamp,duration,building,changeSets[items[commitId,msg,author[fullName],authorEmail]]]{{0,{count}}}"))
             .ReturnsAsync(new BuildList { Builds = builds }.Serialize());
         apiClient.Setup(c => c.Dispose());
         using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))
@@ -100,7 +100,7 @@ internal sealed class JenkinsClientTests
         var builds = RandomBuilds.Generate(5, [], buildings: [false, true, false, true, false]).ToArray();
         var apiClient = new Mock<IApiClient>(MockBehavior.Strict);
         apiClient
-            .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/api/json?tree=builds[id,number,result,timestamp,duration,building,changeSets[items[commitId,author[fullName],authorEmail]]]{{0,{count}}}"))
+            .Setup(c => c.GetAsync($"{s_url}/{jobName.UrlPath}/api/json?tree=builds[id,number,result,timestamp,duration,building,changeSets[items[commitId,msg,author[fullName],authorEmail]]]{{0,{count}}}"))
             .ReturnsAsync(new BuildList { Builds = builds }.Serialize());
         apiClient.Setup(c => c.Dispose());
         using (var client = new JenkinsClient(s_config, "user", "token", apiClient.Object))

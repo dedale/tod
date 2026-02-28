@@ -35,7 +35,7 @@ internal sealed class BaselineReportSender(IJobLinker jobLinker, IMailSender mai
 
         var latestRootBuild = report.RootBuilds[^1];
         var shortJobName = latestRootBuild.JobName.Value.Split('/')[^1];
-        var subject = $"{report.BranchName} Build Report#{latestRootBuild.BuildNumber} {shortJobName}{(report.ChainName.Length > 0 ? $": {report.ChainName}" : "")}";
+        var subject = $"{report.BranchName} Build Report {shortJobName} #{latestRootBuild.BuildNumber}";
 
         var body = BuildEmailBody(report, false);
         var recipients = string.Join(", ", authors);
@@ -56,17 +56,17 @@ internal sealed class BaselineReportSender(IJobLinker jobLinker, IMailSender mai
 
     private string BuildEmailBody(BaselineChainReport report, bool full)
     {
+        var flakyTests = report.TestDiffs.Values
+            .SelectMany(d => d.Diff.Match(onNotComparable: _ => [], onComparable: fd => fd.FailedTests.Where(t => t.IsFlaky).Select(t => t.Test.ErrorDetails)))
+            .ToHashSet();
+
         var newFailures = report.TestDiffs.Values
-            .SelectMany(diff => diff.Diff.Match(onNotComparable: _ => [], onComparable: d => d.FailedTests.Where(t => t.Newness == Newness.New)))
+            .SelectMany(diff => diff.Diff.Match(onNotComparable: _ => [], onComparable: d => d.FailedTests.Where(ContainsNewErrors)))
             .Count();
 
         var totalFailures = report.TestDiffs.Values
             .SelectMany(diff => diff.Diff.Match(onNotComparable: _ => [], onComparable: d => (IEnumerable<FailedTestResult>)d.FailedTests))
             .Count();
-
-        var flakyTests = report.TestDiffs.Values
-            .SelectMany(d => d.Diff.Match(onNotComparable: _ => [], onComparable: fd => fd.FailedTests.Where(t => t.IsFlaky).Select(t => t.Test.ErrorDetails)))
-            .ToHashSet();
 
         var doc = new XDocument(
             new XElement("html",
@@ -145,7 +145,10 @@ internal sealed class BaselineReportSender(IJobLinker jobLinker, IMailSender mai
                             t.IsFlaky ? "🟠" : "🔴",
                             t.IsFlaky ? new XElement("span",
                                 new XAttribute("class", "label unstable"),
-                                "flaky") : null),
+                                "flaky") : null,
+                            t.Newness == Newness.New ? new XElement("span",
+                                new XAttribute("class", "label new"),
+                                "new") : null),
                         new XElement("td",
                             new XAttribute("class", "test-name"),
                             new XElement("span",
