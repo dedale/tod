@@ -11,8 +11,8 @@ internal sealed class BaselineReportSender(IJobLinker jobLinker, IMailSender mai
         var chainName = report.ChainName == RootFilter.DefaultChain ? "(default)" : report.ChainName;
 
         var authors = report.RootBuilds
-            .SelectMany(rb => rb.CommitAuthors)
-            .Select(ca => ca.Email)
+            .SelectMany(rb => rb.Commits.Select(c => c.Author))
+            .Select(ca => ca?.Email)
             .Where(email => !string.IsNullOrWhiteSpace(email))
             .Distinct()
             .ToArray();
@@ -92,27 +92,17 @@ internal sealed class BaselineReportSender(IJobLinker jobLinker, IMailSender mai
                                     $"#{rb.BuildNumber} ({(rb.IsSuccessful ? "✅" : "❌")})")
                             }))),
                         new XElement("tr",
-                            new XElement("th", "📝 Commits"),
-                            new XElement("td", string.Join(", ", report.RootBuilds
-                                .SelectMany(rb => rb.Commits)
-                                .Distinct()
-                                .Select(c => c.Value[..8])
-                            ))),
-                        new XElement("tr",
-                            new XElement("th", "👥 Authors"),
-                            new XElement("td", string.Join(", ", report.RootBuilds
-                                .SelectMany(rb => rb.CommitAuthors)
-                                .Select(ca => ca.Name)
-                                .Distinct()
-                            ))),
+                            new XElement("th", "📝 👥 Commits"),
+                            new XElement("td",
+                                string.Join("<br />",
+                                    report.RootBuilds.SelectMany(b =>
+                                        b.Commits.Select(c => $"{c.Message} by {c.Author?.Name ?? "?"} at {c.Sha1.Value[..8]}"))))),
                         new XElement("tr",
                             new XElement("th", "🔴 New Failures"),
                             new XElement("td", $"{newFailures} / {totalFailures}"))),
                     full ? report.TestDiffs
                         .Where(kvp => kvp.Value.Diff.Match(onNotComparable: _ => false, onComparable: d => d.FailedTests.Any(ContainsNewErrors)))
-                        .Select(kvp => GetTestDiffElement(kvp.Key, kvp.Value, ContainsNewErrors)) : null
-                )
-            )
+                        .Select(kvp => GetTestDiffElement(kvp.Key, kvp.Value, ContainsNewErrors)) : null))
         );
 
         return doc.ToString();

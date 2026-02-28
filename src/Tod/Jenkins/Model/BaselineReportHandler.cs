@@ -54,7 +54,7 @@ internal sealed class BaselineReportHandler(BaselineBranch baselineBranch, Jenki
 
     public Task PostBaselineRootBuild(RootBuild rootBuild, JobName[] scheduled)
     {
-        if (config.BaselineReportConfig?.Enabled == true && rootBuild.CommitAuthors.Length > 0)
+        if (config.BaselineReportConfig?.Enabled == true && rootBuild.Commits.Length > 0)
         {
             if (TryGetChain(rootBuild.JobName, out var chain))
             {

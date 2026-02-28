@@ -44,7 +44,7 @@ internal sealed class RequestManagerTests
         baselineBranch.TryAddRoot(new(jobName));
         rootBuild = RandomData.NextRootBuild(jobName: jobName, testJobNames: [_referenceTestJob.Value]);
         baselineBranch.TryAdd(rootBuild);
-        sha1 = rootBuild.Commits[1];
+        sha1 = rootBuild.Commits[1].Sha1;
         return baselineBranch;
     }
 
@@ -121,7 +121,7 @@ internal sealed class RequestManagerTests
 
         var requestFilters = new[] { "integration" };
 
-        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[1], _mainBranch, requestFilters, s_user, s_userEmail);
+        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[1].Sha1, _mainBranch, requestFilters, s_user, s_userEmail);
 
         var expectedBuildNumber = RandomData.NextBuildNumber;
         _jenkinsClient.Setup(c => c.TriggerBuild(OnDemandJobKind.Root, _onDemandRootJob, It.Is<TriggerParameters>(p => p.Commit == request.Commit)))
@@ -209,7 +209,7 @@ internal sealed class RequestManagerTests
         )), Is.True);
 
         var requestFilters = new[] { "integration" };
-        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[1], _mainBranch, requestFilters, s_user, s_userEmail);
+        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[1].Sha1, _mainBranch, requestFilters, s_user, s_userEmail);
 
         _jenkinsClient.Setup(c => c.TriggerBuild(OnDemandJobKind.Root, _onDemandRootJob, It.Is<TriggerParameters>(p => p.Commit == request.Commit)))
             .Returns(Task.CompletedTask);
@@ -254,7 +254,7 @@ internal sealed class RequestManagerTests
         )), Is.True);
 
         var requestFilters = new[] { "integration" };
-        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, s_user, s_userEmail);
+        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0].Sha1, _mainBranch, requestFilters, s_user, s_userEmail);
 
         var onDemandRootBuild = new RootBuild(
             _onDemandRootJob,
@@ -263,7 +263,7 @@ internal sealed class RequestManagerTests
             DateTime.UtcNow.AddHours(-2),
             DateTime.UtcNow.AddHours(-1),
             true,
-            [request.Commit],
+            [new Commit(request.Commit)],
             []
         );
 
@@ -320,7 +320,7 @@ internal sealed class RequestManagerTests
         )), Is.True);
 
         var requestFilters = new[] { "integration" };
-        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, s_user, s_userEmail);
+        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0].Sha1, _mainBranch, requestFilters, s_user, s_userEmail);
 
         var workspace = GetWorkspace(baselineBranch, onDemandStore, flakyStore);
 
@@ -331,7 +331,7 @@ internal sealed class RequestManagerTests
             DateTime.UtcNow.AddHours(-2),
             DateTime.UtcNow.AddHours(-1),
             false,
-            [RandomData.NextSha1()],
+            [new Commit(RandomData.NextSha1())],
             []
         );
         workspace.OnDemandBuilds.TryAdd(onDemandRootBuild);
@@ -375,7 +375,7 @@ internal sealed class RequestManagerTests
         )), Is.True);
 
         var requestFilters = new[] { "integration" };
-        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0], _mainBranch, requestFilters, s_user, s_userEmail);
+        var request = Request.Create(RandomData.NextSha1(), rootBuild.Commits[0].Sha1, _mainBranch, requestFilters, s_user, s_userEmail);
 
         var workspace = GetWorkspace(baselineBranch, onDemandStore, flakyStore);
 
@@ -386,7 +386,7 @@ internal sealed class RequestManagerTests
             DateTime.UtcNow.AddHours(-2),
             DateTime.UtcNow.AddHours(-1),
             true,
-            [request.Commit],
+            [new Commit(request.Commit)],
             []
         );
         workspace.OnDemandBuilds.TryAdd(onDemandRootBuild);

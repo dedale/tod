@@ -58,8 +58,8 @@ internal sealed class BaselineReportSenderTests
     public async Task SendReport_WithNewFailures_SendsToAllAuthors()
     {
         var rootBuild = RandomData.NextRootBuild(commits: 2);
-        var authors = rootBuild.CommitAuthors;
-        var recipients = string.Join(", ", authors.Select(a => a.Email).Distinct());
+        var authors = rootBuild.Commits.Select(c => c.Author);
+        var recipients = string.Join(", ", authors.Select(a => a?.Email).Distinct());
 
         var failedTest = new FailedTest("TestClass", "TestMethod", "Error");
         var diff = FailedTestDiffer.Diff(_testJob1, [], [failedTest], _flakyTests);
@@ -80,7 +80,7 @@ internal sealed class BaselineReportSenderTests
     public async Task SendReport_WithSingleAuthor_SendsOnce()
     {
         var rootBuild = RandomData.NextRootBuild(commits: 1);
-        var author = rootBuild.CommitAuthors[0];
+        var author = rootBuild.Commits[0].Author;
 
         var failedTest = new FailedTest("TestClass", "TestMethod", "Error");
         var diff = FailedTestDiffer.Diff(_testJob1, [], [failedTest], _flakyTests);
@@ -88,7 +88,7 @@ internal sealed class BaselineReportSenderTests
         var report = new BaselineChainReport(_branch, "TestChain", [rootBuild], new Dictionary<JobName, BuildDiffResult> { [_testJob1] = NextBuildDiffResult(_testJob1, diff) });
 
         _mockMailSender.Setup(m => m.Send(
-            author.Email!,
+            author!.Email!,
             It.Is<string>(s => s.StartsWith("master Build Report")),
             It.IsAny<string>(),
             It.IsAny<string>()
@@ -103,7 +103,7 @@ internal sealed class BaselineReportSenderTests
         var rootBuild1 = RandomData.NextRootBuild(buildNumber: 100, commits: 1);
         var rootBuild2 = RandomData.NextRootBuild(buildNumber: 101, commits: 1);
 
-        var uniqueAuthors = new[] { rootBuild1.CommitAuthors[0].Email, rootBuild2.CommitAuthors[0].Email }
+        var uniqueAuthors = new[] { rootBuild1.Commits[0].Author?.Email, rootBuild2.Commits[0].Author?.Email }
             .Distinct()
             .ToArray();
         var recipients = string.Join(", ", uniqueAuthors);
@@ -127,8 +127,8 @@ internal sealed class BaselineReportSenderTests
     public async Task SendReport_WithEmailSendFailure_LogsError()
     {
         var rootBuild = RandomData.NextRootBuild(commits: 2);
-        var authors = rootBuild.CommitAuthors;
-        var recipients = string.Join(", ", authors.Select(a => a.Email).Distinct());
+        var authors = rootBuild.Commits.Select(c => c.Author);
+        var recipients = string.Join(", ", authors.Select(a => a?.Email).Distinct());
 
         var failedTest = new FailedTest("TestClass", "TestMethod", "Error");
         var diff = FailedTestDiffer.Diff(_testJob1, [], [failedTest], _flakyTests);
@@ -148,7 +148,7 @@ internal sealed class BaselineReportSenderTests
     [Test]
     public async Task SendReport_WithEmptyAuthorEmail_SkipsAuthor()
     {
-        var commits = new[] { RandomData.NextSha1() };
+        var commits = new[] { new Commit(RandomData.NextSha1()) };
         var authors = new[] { new CommitAuthor("Author Name", string.Empty) };
         var rootBuild = new RootBuild(
             new JobName("TestJob"),
@@ -158,8 +158,7 @@ internal sealed class BaselineReportSenderTests
             DateTime.UtcNow,
             true,
             commits,
-            [],
-            authors
+            []
         );
 
         var failedTest = new FailedTest("TestClass", "TestMethod", "Error");
@@ -174,7 +173,7 @@ internal sealed class BaselineReportSenderTests
     public async Task SendReport_WithMultipleTestJobs_IncludesAllInReport()
     {
         var rootBuild = RandomData.NextRootBuild(commits: 1);
-        var author = rootBuild.CommitAuthors[0];
+        var author = rootBuild.Commits[0].Author;
 
         var failedTest1 = new FailedTest("TestClass1", "TestMethod1", "Error1");
         var failedTest2 = new FailedTest("TestClass2", "TestMethod2", "Error2");
@@ -193,7 +192,7 @@ internal sealed class BaselineReportSenderTests
         );
 
         _mockMailSender.Setup(m => m.Send(
-            author.Email!,
+            author!.Email!,
             It.Is<string>(s => s.StartsWith("master Build Report")),
             It.IsAny<string>(),
             It.Is<string>(body => body.Contains("TestClass1") && body.Contains("TestClass2"))
@@ -206,7 +205,7 @@ internal sealed class BaselineReportSenderTests
     public async Task SendReport_IncludesChainNameInSubject()
     {
         var rootBuild = RandomData.NextRootBuild(commits: 1);
-        var author = rootBuild.CommitAuthors[0];
+        var author = rootBuild.Commits[0].Author;
 
         var failedTest = new FailedTest("TestClass", "TestMethod", "Error");
         var diff = FailedTestDiffer.Diff(_testJob1, [], [failedTest], _flakyTests);
@@ -214,7 +213,7 @@ internal sealed class BaselineReportSenderTests
         var report = new BaselineChainReport(_branch, "MyCustomChain", [rootBuild], new Dictionary<JobName, BuildDiffResult> { [_testJob1] = NextBuildDiffResult(_testJob1, diff) });
 
         _mockMailSender.Setup(m => m.Send(
-            author.Email!,
+            author!.Email!,
             It.Is<string>(s => s.Contains("Build Report") && s.Contains(rootBuild.Reference.ToString())),
             It.IsAny<string>(),
             It.IsAny<string>()

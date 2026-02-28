@@ -7,7 +7,7 @@ namespace Tod.Jenkins;
 
 internal sealed record CommitAuthor([property: JsonPropertyName("fullName")] string Name, string? Email = null);
 
-internal sealed class Commit(string sha1, CommitAuthor? author = null, string? authorEmail = null, string? message = null)
+internal sealed class JenkinsCommit(string sha1, CommitAuthor? author = null, string? authorEmail = null, string? message = null)
 {
     [JsonPropertyName("commitId")]
     public string CommitId { get; } = sha1;
@@ -19,13 +19,13 @@ internal sealed class Commit(string sha1, CommitAuthor? author = null, string? a
     public string? Message { get; } = message;
 }
 
-internal sealed class ChangeSet(Commit[] commits)
+internal sealed class ChangeSet(JenkinsCommit[] commits)
 {
     [JsonPropertyName("items")]
-    public Commit[] Items { get; } = commits;
+    public JenkinsCommit[] Items { get; } = commits;
 }
 
-internal sealed class Build(string id, int number, BuildResult result, DateTime timestampUtc, int durationInMs, bool building, Commit[] commits)
+internal sealed class Build(string id, int number, BuildResult result, DateTime timestampUtc, int durationInMs, bool building, JenkinsCommit[] commits)
 {
     public string Id { get; } = id;
     public int Number { get; } = number;
@@ -45,14 +45,9 @@ internal sealed class Build(string id, int number, BuildResult result, DateTime 
         new ChangeSet(commits)
     ];
 
-    public Sha1[] GetCommits()
+    public Commit[] GetCommits()
     {
-        return [.. commits.Select(c => new Sha1(c.CommitId))];
-    }
-
-    public CommitAuthor[] GetCommitAuthors()
-    {
-        return [.. commits.Where(c => c.Author != null).Select(c => c.Author! with { Email = c.AuthorEmail })];
+        return [.. commits.Select(c => new Commit(new Sha1(c.CommitId), c.Message, new CommitAuthor(c.Author!.Name, c.AuthorEmail)))];
     }
 
     public static Build FromJson(JsonElement element)
@@ -65,7 +60,7 @@ internal sealed class Build(string id, int number, BuildResult result, DateTime 
         var timestampUtc = DateTimeOffset.FromUnixTimeMilliseconds(timestampMillis).UtcDateTime;
         var durationInMs = element.GetProperty("duration").GetInt32();
         var building = element.GetProperty("building").GetBoolean();
-        var commits = new List<Commit>();
+        var commits = new List<JenkinsCommit>();
 
         foreach (var changeSet in element.GetProperty("changeSets").EnumerateArray())
         {
@@ -97,7 +92,7 @@ internal sealed class Build(string id, int number, BuildResult result, DateTime 
                     message = msgElement.GetString();
                 }
 
-                commits.Add(new Commit(commitId, author, authorEmail, message));
+                commits.Add(new JenkinsCommit(commitId, author, authorEmail, message));
             }
         }
 

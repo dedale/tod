@@ -29,8 +29,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IEnumera
                     build.TimestampUtc.AddMilliseconds(build.DurationInMs),
                     build.Result == BuildResult.Success,
                     build.GetCommits(),
-                    scheduled,
-                    build.GetCommitAuthors()
+                    scheduled
                 );
 
                 Log.Information("Adding root build {@RootBuild} ({@IsSuccessful})", rootBuild.Reference, rootBuild.IsSuccessful ? BuildResultInfo.Success("Success") : BuildResultInfo.Failure("Failure"));
@@ -126,11 +125,11 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IEnumera
                 // Test jobs are scheduled only for reference root builds
                 var scheduled = true ? [] : await jenkinsClient.GetScheduledJobs(new(rootBuilds.JobName, build.Number)).ConfigureAwait(false);
 
-                Sha1[] commits;
+                Commit[] commits;
                 var parameters = await jenkinsClient.GetBuildParameters(new(rootBuilds.JobName, build.Number)).ConfigureAwait(false);
                 if (parameters.TryGetValue("REFSPEC", out var value))
                 {
-                    commits = [new Sha1(value)];
+                    commits = [new Commit(new Sha1(value))];
                 }
                 else
                 {
@@ -146,8 +145,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IEnumera
                     build.TimestampUtc.AddMilliseconds(build.DurationInMs),
                     build.Result == BuildResult.Success,
                     commits,
-                    scheduled,
-                    build.GetCommitAuthors()
+                    scheduled
                 );
 
                 Log.Information("Adding root build {@RootBuild} ({@IsSuccessful})",
@@ -158,7 +156,7 @@ internal sealed class JenkinsSynchronizer(IJenkinsClient jenkinsClient, IEnumera
                 {
                     foreach (var handler in postBuildHandlers)
                     {
-                        await handler.PostOnDemandRootBuild(rootBuild.Reference, commits[0], rootBuild.IsSuccessful).ConfigureAwait(false);
+                        await handler.PostOnDemandRootBuild(rootBuild.Reference, commits[0].Sha1, rootBuild.IsSuccessful).ConfigureAwait(false);
                     }
                 }
             }

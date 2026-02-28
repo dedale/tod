@@ -69,7 +69,7 @@ internal sealed class RequestState : IWithCustomSerialization<RequestState.Seria
             var rootJobName = requestChain.OnDemandRoot.JobName;
             var buildDiffs = requestChain.TestBuildDiffs.ToList();
             var onDemandRootBuilds = onDemandBuilds.RootBuilds[rootJobName];
-            var onDemandRootBuild = onDemandRootBuilds.FirstOrDefault(r => r.IsSuccessful && r.Commits.Contains(request.Commit));
+            var onDemandRootBuild = onDemandRootBuilds.FirstOrDefault(r => r.IsSuccessful && r.Contains(request.Commit));
             if (onDemandRootBuild == null)
             {
                 var parameters = new TriggerParameters(request.Commit, null);

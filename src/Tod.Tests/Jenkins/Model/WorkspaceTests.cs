@@ -26,7 +26,7 @@ internal sealed class WorkspaceTests
                 DateTime.UtcNow.AddHours(-2),
                 DateTime.UtcNow.AddHours(-1),
                 true,
-                [RandomData.NextSha1()],
+                [new Commit(RandomData.NextSha1())],
                 [
                     new JobName("MAIN-test"),
                     new JobName("MAIN-test2"),
@@ -87,7 +87,7 @@ internal sealed class WorkspaceTests
                 DateTime.UtcNow.AddHours(-2),
                 DateTime.UtcNow.AddHours(-1),
                 true,
-                [RandomData.NextSha1()],
+                [new Commit(RandomData.NextSha1())],
                 []
             );
             workspace.OnDemandBuilds.TryAdd(onDemandRootBuild);
@@ -188,7 +188,7 @@ internal sealed class WorkspaceTests
             isSuccessful: true,
             commits: 1
         );
-        rootBuild.Commits[0] = commits[1];
+        rootBuild.Commits[0] = new Commit(commits[1]);
         workspace.BaselineBranches.First().TryAdd(rootBuild);
         var gitReference = workspace.GetGitReference(filterManager, wantedBranch, rootFilters, commits, out var rootDiffs);
         Assert.That(gitReference, Is.Not.Null);
@@ -236,7 +236,7 @@ internal sealed class WorkspaceTests
             isSuccessful: true,
             commits: 1
         );
-        rootBuild.Commits[0] = commits[1];
+        rootBuild.Commits[0] = new Commit(commits[1]);
         workspace.BaselineBranches.First().TryAdd(rootBuild);
         var gitReference = workspace.GetGitReference(filterManager, null, rootFilters, commits, out var rootDiffs);
         Assert.That(gitReference, Is.Not.Null);

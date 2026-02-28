@@ -220,7 +220,7 @@ internal sealed class BuildCollectionTests
             startTime,
             endTime,
             true,
-            [RandomData.NextSha1()],
+            [new Commit(RandomData.NextSha1())],
             []
         );
 

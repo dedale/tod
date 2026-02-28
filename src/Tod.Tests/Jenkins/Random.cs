@@ -31,7 +31,7 @@ internal static class RandomBuilds
                 var user = RandomData.NextUser();
                 var author = new CommitAuthor(user.Name, user.Email);
                 var message = $"Commit message {s_rand.Next(1, 100)}";
-                return new Commit(sha1, author, message: message);
+                return new JenkinsCommit(sha1, author, message);
             }).ToArray();
             yield return new Build(id, number, result, timestamp, durationInMs, building, commits);
         }
@@ -105,11 +105,9 @@ internal static class RandomData
         DateTime endUtc = default
     )
     {
-        var commitShas = Enumerable.Range(0, commits).Select(_ => NextSha1()).ToArray();
-        var commitAuthors = commitShas.Select(_ =>
-        {
+        var changeset = Enumerable.Range(0, commits).Select(i => {
             var user = NextUser();
-            return new CommitAuthor(user.Name, user.Email);
+            return new Commit(NextSha1(), $"Commit message {i + 1}", new CommitAuthor(user.Name, user.Email));
         }).ToArray();
 
         return new RootBuild(
@@ -119,9 +117,8 @@ internal static class RandomData
             startUtc == DateTime.MinValue ? DateTime.UtcNow.AddHours(-1) : startUtc,
             endUtc == DateTime.MinValue ? DateTime.UtcNow : endUtc,
             isSuccessful,
-            commitShas,
-            [.. (testJobNames ?? ["MyTestJob1", "MyTestJob2"]).Select(j => new JobName(j))],
-            commitAuthors
+            changeset,
+            [.. (testJobNames ?? ["MyTestJob1", "MyTestJob2"]).Select(j => new JobName(j))]
         );
     }
 

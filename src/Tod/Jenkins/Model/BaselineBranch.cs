@@ -45,7 +45,7 @@ internal sealed class BaselineBranch : IBuildChains
         var rootBuilds = RootBuilds.GetOrAdd(jobName);
         for (var i = 0; i < rootBuilds.Count; i++)
         {
-            if (!rootBuilds[i].Commits.Contains(commitId))
+            if (!rootBuilds[i].Contains(commitId))
             {
                 continue;
             }

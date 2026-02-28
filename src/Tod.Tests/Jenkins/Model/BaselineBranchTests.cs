@@ -121,7 +121,7 @@ internal sealed class BaselineBranchTests
             Assert.That(added, Is.True);
             for (var c = 0; c < commits; c++)
             {
-                var found = baselineBranch.TryFindRootBuildByCommit(rootBuild.Commits[c], _rootJob, out var foundRootBuild);
+                var found = baselineBranch.TryFindRootBuildByCommit(rootBuild.Commits[c].Sha1, _rootJob, out var foundRootBuild);
                 Assert.That(found, Is.True);
                 Debug.Assert(foundRootBuild is not null);
                 Assert.That(foundRootBuild.Reference, Is.EqualTo(rootBuild.Reference));
@@ -157,7 +157,7 @@ internal sealed class BaselineBranchTests
                 var rootBuild = rootBuilds[b];
                 for (var c = 0; c < commitsPerBuild; c++)
                 {
-                    var found = baselineBranch.TryFindRootBuildByCommit(rootBuild.Commits[c], _rootJob, out var foundRootBuild);
+                    var found = baselineBranch.TryFindRootBuildByCommit(rootBuild.Commits[c].Sha1, _rootJob, out var foundRootBuild);
                     Assert.That(found, Is.True);
                     Debug.Assert(foundRootBuild is not null);
                     Assert.That(foundRootBuild.Reference, Is.EqualTo(rootBuild.Reference));
@@ -194,7 +194,7 @@ internal sealed class BaselineBranchTests
                 var rootBuild = rootBuilds[b];
                 for (var c = 0; c < commitsPerBuild; c++)
                 {
-                    Assert.That(baselineBranch.TryFindRootBuildByCommit(rootBuild.Commits[c], _rootJob, out _), Is.False);
+                    Assert.That(baselineBranch.TryFindRootBuildByCommit(rootBuild.Commits[c].Sha1, _rootJob, out _), Is.False);
                 }
             }
             Assert.That(baselineBranch.TryFindRootBuildByCommit(RandomData.NextSha1(), _rootJob, out _), Is.False);
@@ -412,7 +412,7 @@ internal sealed class BaselineBranchTests
             baselineBranch.TryAdd(rootBuild);
 
             var baselineBranches = new[] { baselineBranch };
-            var commits = new[] { rootBuild.Commits[0], RandomData.NextSha1() };
+            var commits = new[] { rootBuild.Commits[0].Sha1, RandomData.NextSha1() };
 
             Assert.That(
                 () => baselineBranches.TryFindRefCommit(commits, [_rootJob], _mainBranch, out _),
@@ -438,7 +438,7 @@ internal sealed class BaselineBranchTests
 
             var baselineBranches = new[] { baselineBranch };
             var localCommit = RandomData.NextSha1();
-            var refCommit = rootBuild.Commits[1];
+            var refCommit = rootBuild.Commits[1].Sha1;
             var commits = new[] { localCommit, refCommit };
 
             var result = baselineBranches.TryFindRefCommit(commits, [_rootJob], _mainBranch, out var foundRefCommit);
@@ -484,7 +484,7 @@ internal sealed class BaselineBranchTests
 
             var baselineBranches = new[] { baselineBranch };
             var localCommit = RandomData.NextSha1();
-            var refCommit = rootBuild2.Commits[2];
+            var refCommit = rootBuild2.Commits[2].Sha1;
             var commits = new[] { localCommit, refCommit };
             var result = baselineBranches.TryFindRefCommit(commits, [jobName1, jobName2], _mainBranch, out var foundRefCommit);
             Assert.That(result, Is.True);
@@ -564,7 +564,7 @@ internal sealed class BaselineBranchTests
 
             var baselineBranches = new[] { mainBranchRef, devBranchRef };
             var localCommit = RandomData.NextSha1();
-            var refCommit = mainRootBuild.Commits[1];
+            var refCommit = mainRootBuild.Commits[1].Sha1;
             var commits = new[] { localCommit, refCommit };
 
             var onDemandJob = new JobName("CustomJob");
@@ -633,8 +633,8 @@ internal sealed class BaselineBranchTests
             var baselineBranches = new[] { baselineBranch };
             var localCommit1 = RandomData.NextSha1();
             var localCommit2 = RandomData.NextSha1();
-            var refCommit1 = rootBuild.Commits[1];
-            var refCommit2 = rootBuild.Commits[2];
+            var refCommit1 = rootBuild.Commits[1].Sha1;
+            var refCommit2 = rootBuild.Commits[2].Sha1;
             var commits = new[] { localCommit1, localCommit2, refCommit1, refCommit2 };
 
             var result = baselineBranches.TryFindRefCommit(commits, [_rootJob], _mainBranch, out var foundRefCommit);
@@ -665,7 +665,7 @@ internal sealed class BaselineBranchTests
 
             var baselineBranches = new[] { mainBranchRef, devBranchRef };
             var localCommit = RandomData.NextSha1();
-            var refCommit = devRootBuild.Commits[1];
+            var refCommit = devRootBuild.Commits[1].Sha1;
             var commits = new[] { localCommit, refCommit };
 
             // Should find dev branch when not specified
@@ -693,7 +693,7 @@ internal sealed class BaselineBranchTests
 
             var baselineBranches = new[] { baselineBranch };
             var localCommit = RandomData.NextSha1();
-            var refCommit = rootBuild.Commits[0];
+            var refCommit = rootBuild.Commits[0].Sha1;
             var commits = new[] { localCommit, refCommit };
 
             var result = baselineBranches.TryFindRefCommit(commits, [_rootJob], _mainBranch, out var foundRefCommit);

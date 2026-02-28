@@ -64,21 +64,21 @@ internal sealed class BuildTests
                 {
                     items = new[]
                     {
-                        new { commitId = changeSet1[0] },
-                        new { commitId = changeSet1[1] }
+                        new { commitId = changeSet1[0], msg = "", author = new { fullName = "" }, authorEmail = "" },
+                        new { commitId = changeSet1[1], msg = "", author = new { fullName = "" }, authorEmail = "" }
                     }
                 },
                 new
                 {
                     items = new[]
                     {
-                        new { commitId = changeSet2[0] }
+                        new { commitId = changeSet2[0], msg = "", author = new { fullName = "" }, authorEmail = "" }
                     }
                 }
             }
         }.Serialize();
         var clone = Build.FromJson(buildDoc.RootElement);
-        Assert.That(clone.GetCommits().Select(s => s.Value), Is.EquivalentTo(changeSet1));
+        Assert.That(clone.GetCommits().Select(s => s.Sha1.Value), Is.EquivalentTo(changeSet1));
     }
 
     [Test]

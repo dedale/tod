@@ -92,7 +92,7 @@ internal sealed class WorkspaceStoreTests
                         DateTime.UtcNow.AddHours(-1),
                         DateTime.UtcNow,
                         true,
-                        [RandomData.NextSha1()],
+                        [new Commit(RandomData.NextSha1())],
                         [.. testJobs]
                     );
                     baselineBranch.TryAdd(rootBuild);

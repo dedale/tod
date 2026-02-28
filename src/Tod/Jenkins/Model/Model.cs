@@ -220,17 +220,28 @@ internal abstract class BaseBuild(JobName jobName, string id, int buildNumber, D
     public BuildReference Reference => _reference;
 }
 
-internal sealed class RootBuild(JobName jobName, string id, int buildNumber, DateTime startTimeUtc, DateTime endTimeUtc, bool isSuccessful, Sha1[] commits, JobName[] scheduled, CommitAuthor[]? commitAuthors = null)
+internal sealed class Commit(Sha1 sha1, string? message = null, CommitAuthor? author = null)
+{
+    public Sha1 Sha1 { get; } = sha1;
+    public string? Message { get; } = message;
+    public CommitAuthor? Author { get; } = author;
+}
+
+internal sealed class RootBuild(JobName jobName, string id, int buildNumber, DateTime startTimeUtc, DateTime endTimeUtc, bool isSuccessful, Commit[] commits, JobName[] scheduled)
     : BaseBuild(jobName, id, buildNumber, startTimeUtc, endTimeUtc, isSuccessful)
 {
-    public Sha1[] Commits { get; } = commits;
+    public Commit[] Commits { get; } = commits;
     public JobName[] Scheduled { get; } = scheduled;
-    public CommitAuthor[] CommitAuthors { get; } = commitAuthors ?? [];
 
     [ExcludeFromCodeCoverage]
     public override string ToString()
     {
         return Reference.ToString();
+    }
+
+    public bool Contains(Sha1 sha1)
+    {
+        return Commits.Any(c => c.Sha1 == sha1);
     }
 }
 

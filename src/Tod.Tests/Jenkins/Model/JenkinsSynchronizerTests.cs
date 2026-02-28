@@ -81,7 +81,7 @@ internal sealed class JenkinsSynchronizerTests
                 Assert.That(rootBuilds[j].IsSuccessful, Is.EqualTo(builds[i].Result == BuildResult.Success));
                 Assert.That(rootBuilds[j].StartTimeUtc, Is.EqualTo(builds[i].TimestampUtc));
                 Assert.That(rootBuilds[j].EndTimeUtc, Is.EqualTo(builds[i].TimestampUtc.AddMilliseconds(builds[i].DurationInMs)));
-                Assert.That(rootBuilds[j].Commits, Is.EqualTo(builds[i].GetCommits()));
+                Assert.That(rootBuilds[j].Commits.Select(c => c.Sha1), Is.EquivalentTo(builds[i].GetCommits().Select(c => c.Sha1)));
                 Assert.That(rootBuilds[j].Scheduled, Is.EqualTo(scheduled[i]));
             }
             Assert.That(baselineBranch.TestBuilds, Has.Count.EqualTo(2));
@@ -417,7 +417,8 @@ internal sealed class JenkinsSynchronizerTests
         Assert.That(rootBuild.IsSuccessful, Is.EqualTo(build.Result == BuildResult.Success));
         Assert.That(rootBuild.StartTimeUtc, Is.EqualTo(build.TimestampUtc));
         Assert.That(rootBuild.EndTimeUtc, Is.EqualTo(build.TimestampUtc.AddMilliseconds(build.DurationInMs)));
-        Assert.That(rootBuild.Commits, Is.EqualTo([commit]));
+        Assert.That(rootBuild.Commits.Length, Is.EqualTo(1));
+        Assert.That(rootBuild.Commits[0].Sha1, Is.EqualTo(commit));
         Assert.That(rootBuild.Scheduled, Is.Empty);
         client.VerifyAll();
         handler.VerifyAll();
