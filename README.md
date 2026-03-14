@@ -331,7 +331,7 @@ Tod can be run as a service or daemon to automate testing workflows. In service 
 
 ### Service User Authentication
 
-Use the `--service-user` option to specify the service account username for API access:
+Use the `--jenkins-user` and `--gerrit-user` options to specify dedicated service account usernames for API access:
 
 ```bash
 # Sync builds using service account
@@ -339,7 +339,7 @@ tod sync \
   --config jenkins_config.json \
   --workspace ./workspace \
   --jenkins-token $SERVICE_TOKEN \
-  --service-user jenkins-bot
+  --jenkins-user jenkins-bot
 
 # Create request on behalf of a developer
 tod new \
@@ -348,8 +348,9 @@ tod new \
   --root-filters build \
   --test-filters unit integration \
   --user john.doe \
-  --domain CORP \
-  --service-user jenkins-bot \
+  --email john.doe@corp.com \
+  --jenkins-user jenkins-bot \
+  --gerrit-user jenkins-bot \
   --jenkins-token $SERVICE_TOKEN \
   --gerrit-token $SERVICE_TOKEN
 ```
@@ -358,19 +359,23 @@ tod new \
 
 | Parameter | Purpose | Example | Used For |
 |-----------|---------|---------|----------|
-| `--service-user` | API authentication | `jenkins-bot` | Jenkins/Gerrit API calls |
+| `--jenkins-user` | Jenkins API authentication | `jenkins-bot` | Jenkins API calls |
+| `--gerrit-user` | Gerrit API authentication | `jenkins-bot` | Gerrit API calls |
 | `--user` | Request ownership | `john.doe` | Email notifications, request tracking |
-| `--domain` | User domain | `CORP` | Email address resolution |
+| `--domain` | User domain | `CORP` | Email address resolution via Active Directory |
+| `--email` | User email address | `john.doe@corp.com` | Email notifications (bypasses Active Directory) |
 
 **When to use each parameter:**
-- **`--service-user`**: Always use when Tod runs as a service with a dedicated service account
+- **`--jenkins-user`** / **`--gerrit-user`**: Always use when Tod runs as a service with a dedicated service account
 - **`--user`**: Use when creating requests on behalf of other users (e.g., via web API)
-- **`--domain`**: Use when the service runs in a different domain than the users
+- **`--domain`**: Use when the service runs in a different domain than the users (requires Active Directory)
+- **`--email`**: Use to provide the email address directly when Active Directory is unavailable or unreliable
 
 **Defaults:**
-- If `--service-user` is not specified, defaults to the current system user (`Environment.UserName`)
+- If `--jenkins-user` or `--gerrit-user` is not specified, defaults to the current system user (`Environment.UserName`)
 - If `--user` is not specified (in `new` command), defaults to the current system user
 - If `--domain` is not specified, defaults to the current system domain (`Environment.UserDomainName`)
+- If `--email` is not specified, the email address is resolved from `--user` and `--domain` via Active Directory
 
 ### Example: Automated Service
 
@@ -389,7 +394,7 @@ tod sync \
   --config $CONFIG \
   --workspace $WORKSPACE \
   --jenkins-token $SERVICE_TOKEN \
-  --service-user $SERVICE_USER
+  --jenkins-user $SERVICE_USER
 ```
 
 ### Example: Web API Integration
@@ -406,15 +411,17 @@ tod new \
   --root-filters build \
   --test-filters unit integration \
   --user john.doe \
-  --domain CORP \
-  --service-user jenkins-bot \
+  --email john.doe@corp.com \
+  --jenkins-user jenkins-bot \
+  --gerrit-user jenkins-bot \
   --jenkins-token $SERVICE_TOKEN \
   --gerrit-token $SERVICE_TOKEN
 ```
 
 Result:
 - Request is created by `john.doe` (receives email report)
-- Jenkins/Gerrit API calls use `jenkins-bot` credentials
+- Jenkins API calls use `jenkins-bot` credentials (`--jenkins-user`)
+- Gerrit API calls use `jenkins-bot` credentials (`--gerrit-user`)
 - Email sent to `john.doe@corp.com`
 
 ## Commands
@@ -436,16 +443,16 @@ tod sync --config jenkins_config.json --workspace ./workspace --jenkins-token TO
 **Options:**
 - `-c, --config` (required): Path to Jenkins config file
 - `-w, --workspace` (required): Path to workspace directory
-- `-j, --jenkins-token` (required): Jenkins API token
-- `--service-user`: Service account username for API access (defaults to current user)
-- `-s, --jobs`: Sync job definitions instead of builds
+- `-t, --jenkins-token` (required): Jenkins API token
+- `-u, --jenkins-user`: Jenkins user name for API access (defaults to current user)
+- `-j, --jobs`: Sync job definitions instead of builds
 
 **Service Mode:**
 
-When running Tod as a service (e.g., in a scheduled task or daemon), use the `--service-user` option to specify the service account credentials:
+When running Tod as a service (e.g., in a scheduled task or daemon), use the `--jenkins-user` option to specify the service account credentials:
 
 ```
-tod sync --config jenkins_config.json --workspace ./workspace --jenkins-token SERVICE_TOKEN --service-user jenkins-bot
+tod sync --config jenkins_config.json --workspace ./workspace --jenkins-token SERVICE_TOKEN --jenkins-user jenkins-bot
 ```
 
 This separates the API authentication user from the system user running the command.
@@ -464,15 +471,17 @@ tod new --config jenkins_config.json --workspace ./workspace --branch main --roo
 - `-b, --branch`: Baseline branch (auto-detected if not specified)
 - `-r, --root-filters` (required): Root filter names to run
 - `-t, --test-filters` (required): Test filter names to run
-- `-j, --jenkins-token` (required): Jenkins API token
-- `-g, --gerrit-token` (required): Gerrit API token (if Gerrit integration is enabled)
 - `-u, --user`: User name for request ownership (defaults to current user)
 - `--domain`: User domain for request ownership (defaults to current domain)
-- `--service-user`: Service account username for API access (defaults to current user)
+- `-e, --email`: User email address for request ownership (bypasses Active Directory lookup)
+- `--jenkins-user`: Jenkins user name for API access (defaults to current user)
+- `--jenkins-token` (required): Jenkins API token
+- `--gerrit-user`: Gerrit user name for API access (defaults to current user)
+- `--gerrit-token` (required): Gerrit API token (if Gerrit integration is enabled)
 
 **Service Mode:**
 
-When running Tod as a service, use both `--user` and `--service-user` to distinguish between the request owner and the API authentication:
+When running Tod as a service, use `--user` together with `--jenkins-user` and `--gerrit-user` to distinguish between the request owner and the API authentication:
 
 ```
 tod new \
@@ -482,15 +491,17 @@ tod new \
   --root-filters build \
   --test-filters unit integration \
   --user john.doe \
-  --domain CORP \
-  --service-user jenkins-bot \
+  --email john.doe@corp.com \
+  --jenkins-user jenkins-bot \
+  --gerrit-user jenkins-bot \
   --jenkins-token SERVICE_TOKEN \
   --gerrit-token SERVICE_TOKEN
 ```
 
 - `--user john.doe`: The request is owned by john.doe (who receives the email report)
-- `--service-user jenkins-bot`: API calls use jenkins-bot credentials
-- `--domain CORP`: Used to resolve john.doe's email address
+- `--email john.doe@corp.com`: Email address used for the report (bypasses Active Directory)
+- `--jenkins-user jenkins-bot`: Jenkins API calls use jenkins-bot credentials
+- `--gerrit-user jenkins-bot`: Gerrit API calls use jenkins-bot credentials
 
 **How it works:**
 1. Detects your current Git commit
