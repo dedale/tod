@@ -24,7 +24,7 @@ internal sealed class BaselineReportSender(IJobLinker jobLinker, IMailSender mai
         }
 
         var newFailures = report.TestDiffs.Values
-            .SelectMany(diff => diff.Diff.Match(onNotComparable: _ => [], onComparable: d => d.FailedTests.Where(t => t.Newness == Newness.New)))
+            .SelectMany(diff => diff.Diff.Match(onNotComparable: _ => [], onComparable: d => d.FailedTests.Where(t => t.Newness == Newness.New && (!hideFlakies || !t.IsFlaky))))
             .Count();
 
         if (newFailures == 0)
@@ -65,7 +65,7 @@ internal sealed class BaselineReportSender(IJobLinker jobLinker, IMailSender mai
             .Count();
 
         var totalFailures = report.TestDiffs.Values
-            .SelectMany(diff => diff.Diff.Match(onNotComparable: _ => [], onComparable: d => (IEnumerable<FailedTestResult>)d.FailedTests))
+            .SelectMany(diff => diff.Diff.Match(onNotComparable: _ => [], onComparable: d => (IEnumerable<FailedTestResult>)d.FailedTests.Where(t => !hideFlakies || !t.IsFlaky)))
             .Count();
 
         var doc = new XDocument(
@@ -146,9 +146,7 @@ internal sealed class BaselineReportSender(IJobLinker jobLinker, IMailSender mai
                                 new XAttribute("title", $"{t.Test.ClassName}.{t.Test.TestName}"),
                                 $"{t.Test.ClassName}.{t.Test.TestName}"),
                             new XElement("pre",
-                                TodReports.Shorten(t.Test.ErrorDetails)))))
-            )
-        );
+                                TodReports.Shorten(t.Test.ErrorDetails)))))));
     }
 
     private IEnumerable<object> GetLink(BuildReferenceResult result, string emoji)

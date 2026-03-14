@@ -23,7 +23,7 @@ internal sealed class JobNameDestructuringPolicyTests
 
             var events = TestCorrelator.GetLogEventsFromCurrentContext();
             var message = events.Single().RenderMessage();
-            Assert.That(message, Is.EqualTo($@"Job ""{'\x1b'}[90mfolder/{'\x1b'}[38;5;0045mjob-name"" found"));
+            Assert.That(message, Is.EqualTo($@"Job ""{'\x1b'}[90mfolder/{'\x1b'}[38;5;0045mjob-name{'\x1b'}[0m"" found"));
         }
     }
 
@@ -41,7 +41,7 @@ internal sealed class JobNameDestructuringPolicyTests
 
             var events = TestCorrelator.GetLogEventsFromCurrentContext();
             var message = events.Single().RenderMessage();
-            Assert.That(message, Is.EqualTo($@"Ref ""{'\x1b'}[90mfolder/{'\x1b'}[38;5;0045mCUSTOM-build"" and On-Demand ""{'\x1b'}[90mfolder/{'\x1b'}[38;5;0045mCUSTOM-build"" are linked"));
+            Assert.That(message, Is.EqualTo($@"Ref ""{'\x1b'}[90mfolder/{'\x1b'}[38;5;0045mCUSTOM-build{'\x1b'}[0m"" and On-Demand ""{'\x1b'}[90mfolder/{'\x1b'}[38;5;0045mCUSTOM-build{'\x1b'}[0m"" are linked"));
         }
     }
 

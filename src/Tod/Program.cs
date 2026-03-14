@@ -99,19 +99,20 @@ internal static class Program
 
     private static async Task<int> New(NewOptions options)
     {
-        using var gitRepo = new GitRepo(Environment.CurrentDirectory);
-        var commits = gitRepo.GetLastCommits(50);
+        var commits = options.Commits.Select(x => new Sha1(x)).ToArray();
+        if (commits.Length == 0 && string.IsNullOrEmpty(options.JenkinsUser) && string.IsNullOrEmpty(options.GerritUser))
+        {
+            using var gitRepo = new GitRepo(Environment.CurrentDirectory);
+            commits = gitRepo.GetLastCommits(10);
+        }
         var config = JenkinsConfig.Load(options.ConfigPath);
         JobName.Init(config.JobMappings);
         var workspace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
         var wantedBranch = options.BranchName is not null ? new BranchName(options.BranchName) : null;
         var rootFilters = options.RootFilters.ToArray();
 
-        var userName = options.User ?? Environment.UserName;
-        var userDomain = options.UserDomain ?? Environment.UserDomainName;
-        var serviceUser = options.ServiceUser ?? Environment.UserName;
-
-        var jenkinsClient = new JenkinsClient(config, serviceUser, options.JenkinsToken);
+        var jenkinsUser = options.JenkinsUser ?? Environment.UserName;
+        var jenkinsClient = new JenkinsClient(config, jenkinsUser, options.JenkinsToken);
         var jobManager = new JobManager(config, jenkinsClient);
         var jobGroups = await jobManager.TryLoad().ConfigureAwait(false);
         Debug.Assert(jobGroups is not null);
@@ -123,14 +124,18 @@ internal static class Program
             return ExitCodes.BadRequest;
         }
 
-        var request = Request.Create(commits.First(), gitReference, [.. options.TestFilters], userName, UserServices.GetUserEmail(userName, userDomain));
+        var userName = options.User ?? Environment.UserName;
+        var userDomain = options.UserDomain ?? Environment.UserDomainName;
+        var userMail = options.UserMail ?? UserServices.GetUserEmail(userName, userDomain);
+        var request = Request.Create(commits.First(), gitReference, [.. options.TestFilters], userName, userMail);
 
         Log.Information("Registering new request {RequestId} for commit {Commit} on branch {Branch}",
             request.Id, request.Commit, request.GitReference.Branch);
 
         if (!string.IsNullOrEmpty(config.GerritReviewServer))
         {
-            using var gerritClient = new GerritClient(config.GerritReviewServer, serviceUser, options.GerritToken);
+            var gerritUser = options.GerritUser ?? Environment.UserName;
+            using var gerritClient = new GerritClient(config.GerritReviewServer, gerritUser, options.GerritToken);
             if (!await gerritClient.IsKnown(request.Commit).ConfigureAwait(false))
             {
                 Log.Error("Commit {Commit} is not known in Gerrit. Jenkins will not be able to checkout the code. " +

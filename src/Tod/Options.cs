@@ -19,13 +19,13 @@ internal abstract class BaseOptions
 [Verb("sync", HelpText = "Sync builds or jobs")]
 internal sealed class SyncOptions : BaseOptions
 {
-    [Option('j', "jenkins-token", Required = true, HelpText = "Jenkins API token for authentication")]
+    [Option('t', "jenkins-token", Required = true, HelpText = "Jenkins API token for authentication")]
     public string JenkinsToken { get; set; }
 
-    [Option("service-user", HelpText = "Service user name for API access (defaults to current user)")]
+    [Option('u', "jenkins-user", HelpText = "Service user name for API access (defaults to current user)")]
     public string? ServiceUser { get; set; }
 
-    [Option('s', "jobs", HelpText = "Synchronize jobs")]
+    [Option('j', "jobs", HelpText = "Synchronize jobs")]
     public bool Jobs { get; set; }
 }
 
@@ -41,19 +41,28 @@ internal sealed class NewOptions : BaseOptions
     [Option('t', "test-filters", Required = true, HelpText = "Test filter names")]
     public IEnumerable<string> TestFilters { get; set; }
 
+    [Option('m', "commits", HelpText = "Sha1 of last commits of current branch in service mode")]
+    public IEnumerable<string> Commits { get; set; }
+
     [Option('u', "user", HelpText = "User name for request ownership (defaults to current user)")]
     public string? User { get; set; }
 
     [Option("domain", HelpText = "User domain for request ownership (defaults to current domain)")]
     public string? UserDomain { get; set; }
 
-    [Option("service-user", HelpText = "Service user name for API access (defaults to current user)")]
-    public string? ServiceUser { get; set; }
+    [Option('e', "email", HelpText = "User email for request ownership (fallback on Active Directory with user & domain)")]
+    public string? UserMail { get; set; }
 
-    [Option('j', "jenkins-token", Required = true, HelpText = "Jenkins API token for authentication")]
+    [Option("jenkins-user", HelpText = "Jenkins user name for API access (defaults to current user)")]
+    public string? JenkinsUser { get; set; }
+
+    [Option("jenkins-token", Required = true, HelpText = "Jenkins API token for authentication")]
     public string JenkinsToken { get; set; }
 
-    [Option('g', "gerrit-token", Required = true, HelpText = "Gerrit API token for authentication")]
+    [Option("gerrit-user", HelpText = "Gerrit user name for API access (defaults to current user)")]
+    public string? GerritUser { get; set; }
+
+    [Option("gerrit-token", Required = true, HelpText = "Gerrit API token for authentication")]
     public string GerritToken { get; set; }
 }
 

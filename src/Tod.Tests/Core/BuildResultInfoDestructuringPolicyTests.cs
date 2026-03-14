@@ -9,8 +9,8 @@ namespace Tod.Tests.Core;
 [TestFixture]
 internal sealed class BuildResultInfoDestructuringPolicyTests
 {
-    [TestCase("Success", true, @"""*[38;5;34mSuccess""")]
-    [TestCase("Failure", false, @"""*[38;5;160mFailure""")]
+    [TestCase("Success", true, @"""*[38;5;34mSuccess*[0m""")]
+    [TestCase("Failure", false, @"""*[38;5;160mFailure*[0m""")]
     public void TryDestructure_Works(string value, bool success, string expected)
     {
         using (TestCorrelator.CreateContext())

@@ -23,7 +23,7 @@ internal sealed class BuildReferenceDestructuringPolicyTests
 
             var events = TestCorrelator.GetLogEventsFromCurrentContext();
             var message = events.Single().RenderMessage();
-            Assert.That(message, Is.EqualTo($@"Build ""{'\x1b'}[90mfolder/{'\x1b'}[38;5;0045mjob-name{'\x1b'}[38;5;0015m #{'\x1b'}[38;5;0200m1234"" done"));
+            Assert.That(message, Is.EqualTo($@"Build ""{'\x1b'}[90mfolder/{'\x1b'}[38;5;0045mjob-name{'\x1b'}[0m{'\x1b'}[38;5;0015m #{'\x1b'}[38;5;0200m1234{'\x1b'}[0m"" done"));
         }
     }
 

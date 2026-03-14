@@ -10,7 +10,7 @@
     <ToolCommandName>tod</ToolCommandName>
 
     <PackageId>Tod</PackageId>
-    <Version>0.6.1</Version>
+    <Version>0.9.1</Version>
     <Authors>dedale</Authors>
     <Description>Tod is a command line tool to run test on-demand on Jenkins.</Description>
     <PackageTags>tod;jenkins;test;automation</PackageTags>

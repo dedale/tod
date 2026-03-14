@@ -1,5 +1,6 @@
 ﻿using Serilog;
 using System.Diagnostics.CodeAnalysis;
+using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -117,10 +118,14 @@ internal sealed class TestFilter(string name, string pattern, string group)
     }
 }
 
-internal sealed class MailConfig(string from, string smtpHost)
+internal sealed class MailConfig(string from, string smtpHost, int smtpPort = 25, bool enableSsl = false, string? user = null, string? password = null)
 {
     public string From { get; } = from;
     public string SmtpHost { get; } = smtpHost;
+    public int SmtpPort { get; } = smtpPort;
+    public bool EnableSsl { get; } = enableSsl;
+    public string? User { get; } = user;
+    public string? Password { get; } = password;
 }
 
 internal sealed record LoadThreshold(int QueueSize, TimeSpan MaxRequestDuration);

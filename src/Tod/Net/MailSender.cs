@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Net;
 using System.Net.Mail;
 using System.Text;
 using Tod.Jenkins;
@@ -34,9 +35,20 @@ internal sealed class MailSender(MailConfig config) : IMailSender
         return Send(mail, send);
     }
 
+    internal static SmtpClient GetSmtpClient(MailConfig config)
+    {
+        var client = new SmtpClient(config.SmtpHost, config.SmtpPort);
+        client.EnableSsl = config.EnableSsl;
+        if (!string.IsNullOrEmpty(config.User))
+        {
+            client.Credentials = new NetworkCredential(config.User, config.Password);
+        }
+        return client;
+    }
+
     [ExcludeFromCodeCoverage]
     private Task Send(MailMessage mail, Func<MailMessage, Task>? send = null)
     {
-        return (send ?? (new SmtpClient(config.SmtpHost).SendMailAsync))(mail);
+        return (send ?? (GetSmtpClient(config).SendMailAsync))(mail);
     }
 }

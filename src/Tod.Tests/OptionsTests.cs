@@ -99,11 +99,13 @@ internal sealed class OptionsTests
             "--branch", "main",
             "--root-filters", "build",
             "--test-filters", "unit",
-            "--jenkins-token", "jtoken",
-            "--gerrit-token", "gtoken",
             "--user", "john.doe",
             "--domain", "CORP",
-            "--service-user", "jenkins-bot"
+            "--email", "john.doe@example.org",
+            "--jenkins-user", "jenkins-bot",
+            "--jenkins-token", "jtoken",
+            "--gerrit-user", "gerrit-bot",
+            "--gerrit-token", "gtoken",
         };
 
         var result = Parser.Default.ParseArguments<SyncOptions, NewOptions>(args);
@@ -112,8 +114,10 @@ internal sealed class OptionsTests
         {
             Assert.That(opts.User, Is.EqualTo("john.doe"));
             Assert.That(opts.UserDomain, Is.EqualTo("CORP"));
-            Assert.That(opts.ServiceUser, Is.EqualTo("jenkins-bot"));
+            Assert.That(opts.UserMail, Is.EqualTo("john.doe@example.org"));
+            Assert.That(opts.JenkinsUser, Is.EqualTo("jenkins-bot"));
             Assert.That(opts.JenkinsToken, Is.EqualTo("jtoken"));
+            Assert.That(opts.GerritUser, Is.EqualTo("gerrit-bot"));
             Assert.That(opts.GerritToken, Is.EqualTo("gtoken"));
         });
     }
@@ -136,7 +140,8 @@ internal sealed class OptionsTests
 
         result.WithParsed<NewOptions>(opts =>
         {
-            Assert.That(opts.ServiceUser, Is.Null);
+            Assert.That(opts.JenkinsUser, Is.Null);
+            Assert.That(opts.GerritUser, Is.Null);
             Assert.That(opts.User, Is.Null);
         });
     }
@@ -161,7 +166,8 @@ internal sealed class OptionsTests
         result.WithParsed<NewOptions>(opts =>
         {
             Assert.That(opts.User, Is.EqualTo("developer"));
-            Assert.That(opts.ServiceUser, Is.Null);
+            Assert.That(opts.JenkinsUser, Is.Null);
+            Assert.That(opts.GerritUser, Is.Null);
         });
     }
 

@@ -60,7 +60,7 @@ internal static class JobNameFormatter
         if (index >= 0)
         {
             index++;
-            name = $"\x1b[90m{name[..index]}\x1b[38;5;0045m{name[index..]}";
+            name = $"\x1b[90m{name[..index]}\x1b[38;5;0045m{name[index..]}\x1b[0m";
         }
         return name;
     }
@@ -86,7 +86,7 @@ internal sealed class BuildReferenceDestructuringPolicy : IDestructuringPolicy
     {
         if (value is BuildReference buildRef)
         {
-            result = new ScalarValue($"{JobNameFormatter.Format(buildRef.JobName)}\x1b[38;5;0015m #\x1b[38;5;0200m{buildRef.BuildNumber}");
+            result = new ScalarValue($"{JobNameFormatter.Format(buildRef.JobName)}\x1b[38;5;0015m #\x1b[38;5;0200m{buildRef.BuildNumber}\x1b[0m");
             return true;
         }
         result = null;
@@ -100,7 +100,7 @@ internal sealed class BuildResultInfoDestructuringPolicy : IDestructuringPolicy
     {
         if (value is BuildResultInfo info)
         {
-            result = new ScalarValue($"{(info.IsSuccess ? "\x1b[38;5;34m" : "\x1b[38;5;160m")}{info.Value}");
+            result = new ScalarValue($"{(info.IsSuccess ? "\x1b[38;5;34m" : "\x1b[38;5;160m")}{info.Value}\x1b[0m");
             return true;
         }
         result = null;
