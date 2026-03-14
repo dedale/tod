@@ -1,5 +1,9 @@
 using Moq;
 using NUnit.Framework;
+using Serilog;
+using System.Diagnostics;
+using System.Security.AccessControl;
+using System.Text;
 using Tod.Git;
 using Tod.Jenkins;
 using Tod.Tests.IO;
@@ -474,6 +478,14 @@ internal sealed class RequestManagerTests
     [TestCase("CUSTOM-test", "MAIN-test")]
     public async Task UpdateRequests_WithActiveRequests_UpdatesStates(string job1, string job2)
     {
+        var sb = new StringBuilder();
+        var writer = new StringWriter(sb);
+
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Verbose()
+            .WriteTo.TextWriter(writer)
+            .CreateLogger();
+
         using var mocks = StoreMocks.New()
             .WithBaselineStore(_mainBranch, _referenceRootJob, out var baselineStore)
             .WithNewRootBuilds(_referenceRootJob)
@@ -502,6 +514,7 @@ internal sealed class RequestManagerTests
 
         foreach (var job in new[] { job1, job2 })
         {
+            Log.Debug("Updating job {Job}", job);
             if (job == _referenceTestJob.Value)
             {
                 var refTestBuild = RandomData.NextTestBuild(testJobName: job, rootBuild: referenceRoot);
@@ -519,7 +532,31 @@ internal sealed class RequestManagerTests
                 Assert.That(workspace.OnDemandRequests.ActiveRequests.Single().Value.ChainDiffs[0].Status, Is.EqualTo(ChainStatus.TestsTriggered));
             }
         }
-        Assert.That(workspace.OnDemandRequests.ActiveRequests, Is.Empty);
+        var activeRequests = workspace.OnDemandRequests.ActiveRequests;
+        Assert.That(activeRequests, Is.Empty, $"{GetDebugInfo(activeRequests)}");
+
+        string GetDebugInfo(List<CachedRequest> activeRequests)
+        {
+            if (activeRequests.Count == 0)
+            {
+                sb.AppendLine("No active requests");
+                return sb.ToString();
+            }
+            var cached = activeRequests[0];
+            sb.AppendLine($"{nameof(job1)}: {job1}");
+            sb.AppendLine($"{nameof(job2)}: {job2}");
+            var request = cached.Value;
+            sb.AppendLine($"{nameof(request.IsDone)}: {request.IsDone}");
+            foreach (var chainDiff in request.ChainDiffs)
+            {
+                sb.AppendLine($"ChainDiff {nameof(chainDiff.BaselineRoot)}={chainDiff.BaselineRoot} {nameof(chainDiff.OnDemandRoot)}={chainDiff.OnDemandRoot.Match((j, s) => "Queued", _ => "Done")} {nameof(chainDiff.Status)}={chainDiff.Status}");
+                foreach (var testBuildDiff in chainDiff.TestBuildDiffs)
+                {
+                    sb.AppendLine($"  Test {nameof(testBuildDiff.BaselineBuild)}={testBuildDiff.BaselineBuild.Match(_ => "Pending", _ => "Done")} {nameof(testBuildDiff.OnDemandBuild)}={testBuildDiff.OnDemandBuild.Match(_ => "Pending", _ => "Queued", _ => "Done")} {nameof(testBuildDiff.IsDone)}={testBuildDiff.IsDone}");
+                }
+            }
+            return sb.ToString().Trim();
+        }
     }
 
     [Test]
