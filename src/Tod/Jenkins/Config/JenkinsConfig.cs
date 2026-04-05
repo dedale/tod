@@ -1,6 +1,5 @@
 ﻿using Serilog;
 using System.Diagnostics.CodeAnalysis;
-using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -132,10 +131,7 @@ internal sealed record LoadThreshold(int QueueSize, TimeSpan MaxRequestDuration)
 
 internal sealed record JobMapping(string OldName, string NewName);
 
-internal sealed record BaselineReportConfig(
-    bool Enabled,
-    bool HideFlakyTests = false
-);
+internal sealed record BaselineReportConfig(bool Enabled, bool HideFlakyTests = false);
 
 internal sealed class JenkinsConfig
 {
@@ -268,6 +264,7 @@ internal sealed class JenkinsConfig
         var options = new JsonSerializerOptions
         {
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            ReadCommentHandling = JsonCommentHandling.Skip,
             WriteIndented = true,
         };
         options.Converters.Add(new JsonStringEnumConverter());

@@ -1,5 +1,4 @@
 using NUnit.Framework;
-using System.Text.Json;
 using Tod.Jenkins;
 
 namespace Tod.Tests.Jenkins.Model;

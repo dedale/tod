@@ -64,7 +64,6 @@ internal static class Program
         Debug.Assert(jobGroups is not null);
 
         var workSpace = Workspace.Load(options.WorkspaceDir, new WorkspaceStore(options.WorkspaceDir));
-        var filterManager = new FilterManager(config, jobGroups);
         var mailSender = new MailSender(config.MailConfig);
         var reportSender = new RequestReportSender(new JenkinsJobLinker(config), mailSender);
         var requestManager = new RequestManager(workSpace, jenkinsClient, reportSender);
@@ -83,7 +82,7 @@ internal static class Program
         var jenkinsSynchronizer = new JenkinsSynchronizer(jenkinsClient, postBuildHandlers);
         await jenkinsSynchronizer.Update(workSpace).ConfigureAwait(false);
 
-        if (config.KeptDays != null && config.KeptDays > 0)
+        if (config.KeptDays is > 0)
         {
             Log.Debug("Removing builds older than {KeptDays} days", config.KeptDays);
             var removed = workSpace.RemoveBuildsOlderThan(DateTime.UtcNow.AddDays((double)-config.KeptDays));
@@ -370,7 +369,7 @@ internal static class Program
                 (ReportOptions options) => Report(options),
                 (AbortOptions options) => Abort(options),
                 (FiltersOptions options) => Filters(options),
-                errors => Task.FromResult(ExitCodes.BadRequest)).ConfigureAwait(false);
+                _ => Task.FromResult(ExitCodes.BadRequest)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

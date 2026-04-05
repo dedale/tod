@@ -1,5 +1,5 @@
-﻿using System.Text.Json;
-using System.Text.Json.Serialization;
+﻿using System.Security.AccessControl;
+using System.Text.Json;
 
 namespace Tod.Jenkins;
 
@@ -140,13 +140,29 @@ internal sealed class ByJobNameStore : IByJobNameStore
 
     public T Load<T>(JobName jobName, Func<T> create)
     {
-        var jsonPath = Path.Combine(_jsonDir, $"{jobName.Value.Replace('/', Path.DirectorySeparatorChar)}.json");
+        var jsonPath = GetJsonPath(jobName);
+        if (!File.Exists(jsonPath))
+        {
+            foreach (var alternate in jobName.AlternateNames)
+            {
+                jsonPath = GetJsonPath(alternate);
+                if (File.Exists(jsonPath))
+                {
+                    break;
+                }
+            }
+        }
         if (File.Exists(jsonPath))
         {
             var json = File.ReadAllText(jsonPath);
             return JsonSerializer.Deserialize<T>(json)!;
         }
         return create();
+
+        string GetJsonPath(JobName jobName)
+        {
+            return Path.Combine(_jsonDir, $"{jobName.Value.Replace('/', Path.DirectorySeparatorChar)}.json");
+        }
     }
 }
 

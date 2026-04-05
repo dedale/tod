@@ -14,20 +14,8 @@ internal sealed record Sha1(string Value)
     }
 }
 
-internal interface IGitRepo : IDisposable
+internal sealed class GitRepo : IDisposable
 {
-    Sha1 Head { get; }
-    Sha1[] GetLastCommits(int count);
-}
-
-internal interface IGitRepoFactory
-{
-    IGitRepo Open(string? fromDir = null);
-}
-
-internal sealed class GitRepo : IGitRepo
-{
-    private readonly string _rootDir;
     private readonly IRepository _repo;
 
     [ExcludeFromCodeCoverage]
@@ -49,8 +37,7 @@ internal sealed class GitRepo : IGitRepo
         {
             throw new ArgumentException($"No git repository found from directory '{fromDir}'");
         }
-        _rootDir = discovered;
-        _repo = newRepo(_rootDir);
+        _repo = newRepo(discovered);
     }
 
     public Sha1 Head => new(_repo.Head.Tip.Sha);

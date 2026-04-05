@@ -1,8 +1,6 @@
 using Moq;
 using NUnit.Framework;
 using Serilog;
-using System.Diagnostics;
-using System.Security.AccessControl;
 using System.Text;
 using Tod.Git;
 using Tod.Jenkins;

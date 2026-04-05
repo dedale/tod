@@ -1,6 +1,5 @@
 using CommandLine;
 using NUnit.Framework;
-using Tod;
 
 namespace Tod.Tests;
 

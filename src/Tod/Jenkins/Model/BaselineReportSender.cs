@@ -9,6 +9,7 @@ internal sealed class BaselineReportSender(IJobLinker jobLinker, IMailSender mai
     public async Task SendReport(BaselineChainReport report)
     {
         var chainName = report.ChainName == RootFilter.DefaultChain ? "(default)" : report.ChainName;
+        var rootBuild = report.RootBuilds[^1];
 
         var authors = report.RootBuilds
             .SelectMany(rb => rb.Commits.Select(c => c.Author))
@@ -19,17 +20,21 @@ internal sealed class BaselineReportSender(IJobLinker jobLinker, IMailSender mai
 
         if (authors.Length == 0)
         {
-            Log.Warning("No authors found for baseline report on {BranchName} {ChainName}", report.BranchName, chainName);
+            Log.Warning("No authors found for baseline report on {BranchName} {ChainName} root build #{BuildNumber}", report.BranchName, chainName, rootBuild.BuildNumber);
             return;
         }
 
+        var flakyTests = report.TestDiffs.Values
+            .SelectMany(d => d.Diff.Match(onNotComparable: _ => [], onComparable: fd => fd.FailedTests.Where(t => t.IsFlaky).Select(t => t.Test.ErrorDetails)))
+            .ToHashSet();
+
         var newFailures = report.TestDiffs.Values
-            .SelectMany(diff => diff.Diff.Match(onNotComparable: _ => [], onComparable: d => d.FailedTests.Where(t => t.Newness == Newness.New && (!hideFlakies || !t.IsFlaky))))
+            .SelectMany(diff => diff.Diff.Match(onNotComparable: _ => [], onComparable: d => d.FailedTests.Where(t => t.Newness == Newness.New && (!hideFlakies || !t.IsFlaky && !flakyTests.Contains(t.Test.ErrorDetails)))))
             .Count();
 
         if (newFailures == 0)
         {
-            Log.Information("No new failures for {BranchName} {ChainName}, skipping report", report.BranchName, chainName);
+            Log.Information("No new failures for {BranchName} {ChainName} root build #{BuildNumber}, skipping report", report.BranchName, chainName, rootBuild.BuildNumber);
             return;
         }
 
@@ -44,13 +49,13 @@ internal sealed class BaselineReportSender(IJobLinker jobLinker, IMailSender mai
         try
         {
             await mailSender.Send(recipients, subject, body, attachment).ConfigureAwait(false);
-            Log.Information("Sent baseline report for {BranchName} {ChainName} to {AuthorCount} author(s): {Authors}",
-                report.BranchName, chainName, authors.Length, recipients);
+            Log.Information("Sent baseline report for {BranchName} {ChainName} root build #{BuildNumber} to {AuthorCount} author(s): {Authors}",
+                report.BranchName, chainName, rootBuild.BuildNumber, authors.Length, recipients);
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Failed to send baseline report for {BranchName} {ChainName} to {Authors}",
-                report.BranchName, chainName, recipients);
+            Log.Error(ex, "Failed to send baseline report for {BranchName} {ChainName} root build #{BuildNumber} to {Authors}",
+                report.BranchName, chainName, rootBuild.BuildNumber, recipients);
         }
     }
 
@@ -65,7 +70,7 @@ internal sealed class BaselineReportSender(IJobLinker jobLinker, IMailSender mai
             .Count();
 
         var totalFailures = report.TestDiffs.Values
-            .SelectMany(diff => diff.Diff.Match(onNotComparable: _ => [], onComparable: d => (IEnumerable<FailedTestResult>)d.FailedTests.Where(t => !hideFlakies || !t.IsFlaky)))
+            .SelectMany(diff => diff.Diff.Match(onNotComparable: _ => [], onComparable: d => (IEnumerable<FailedTestResult>)d.FailedTests))
             .Count();
 
         var doc = new XDocument(
@@ -94,12 +99,18 @@ internal sealed class BaselineReportSender(IJobLinker jobLinker, IMailSender mai
                         new XElement("tr",
                             new XElement("th", "📝 👥 Commits"),
                             new XElement("td",
-                                string.Join("<br />",
-                                    report.RootBuilds.SelectMany(b =>
-                                        b.Commits.Select(c => $"{c.Message} by {c.Author?.Name ?? "?"} at {c.Sha1.Value[..8]}"))))),
+                                report.RootBuilds
+                                    .SelectMany(b => b.Commits)
+                                    .Select((c, i) => new object[]
+                                    {
+                                        $"{c.Message} by {c.Author?.Name ?? "?"} at {c.Sha1.Value[..8]}",
+                                        new XElement("br")
+                                    })
+                                    .SelectMany(x => x)
+                                    .SkipLast(1))),
                         new XElement("tr",
                             new XElement("th", "🔴 New Failures"),
-                            new XElement("td", $"{newFailures} / {totalFailures}"))),
+                            new XElement("td", $"{newFailures} (new) / {totalFailures} (total including flaky tests)"))),
                     full ? report.TestDiffs
                         .Where(kvp => kvp.Value.Diff.Match(onNotComparable: _ => false, onComparable: d => d.FailedTests.Any(ContainsNewErrors)))
                         .Select(kvp => GetTestDiffElement(kvp.Key, kvp.Value, ContainsNewErrors)) : null))

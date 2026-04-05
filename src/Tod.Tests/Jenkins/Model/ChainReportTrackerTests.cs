@@ -32,7 +32,7 @@ internal sealed class ChainReportTrackerTests
         tracker.AddRootBuild(rootBuild, [_testJob1, _testJob2]);
 
         var testBuildRef = new BuildReference(_testJob1, RandomData.NextBuildNumber);
-        await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, testBuildRef, () => Task.CompletedTask).ConfigureAwait(false);
+        await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, testBuildRef, _ => Task.CompletedTask).ConfigureAwait(false);
 
         var readyChains = tracker.GetReadyForReport();
         Assert.That(readyChains, Is.Empty);
@@ -60,10 +60,10 @@ internal sealed class ChainReportTrackerTests
         tracker.AddRootBuild(rootBuild, [_testJob1, _testJob2]);
 
         BaselineChain[]? readyChains = null;
-        await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), () => Task.CompletedTask).ConfigureAwait(false);
-        await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob2, new BuildReference(_testJob2, RandomData.NextBuildNumber), () =>
+        await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), _ => Task.CompletedTask).ConfigureAwait(false);
+        await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob2, new BuildReference(_testJob2, RandomData.NextBuildNumber), chains =>
         {
-            readyChains = tracker.GetReadyForReport();
+            readyChains = chains;
             return Task.CompletedTask;
         }).ConfigureAwait(false);
 
@@ -83,9 +83,9 @@ internal sealed class ChainReportTrackerTests
         tracker.AddRootBuild(successBuild, [_testJob1]);
 
         BaselineChain[]? readyChains = null;
-        await tracker.MarkTestDone(successBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), () =>
+        await tracker.MarkTestDone(successBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), chains =>
         {
-            readyChains = tracker.GetReadyForReport();
+            readyChains = chains;
             return Task.CompletedTask;
         }).ConfigureAwait(false);
 
@@ -107,12 +107,12 @@ internal sealed class ChainReportTrackerTests
         tracker.AddRootBuild(failedBuild, [_testJob1]);
         tracker.AddRootBuild(successBuild2, [_testJob1]);
 
-        await tracker.MarkTestDone(successBuild1.BuildNumber, _testJob1, new BuildReference(_testJob1, 50), () => Task.CompletedTask).ConfigureAwait(false);
+        await tracker.MarkTestDone(successBuild1.BuildNumber, _testJob1, new BuildReference(_testJob1, 50), _ => Task.CompletedTask).ConfigureAwait(false);
 
         BaselineChain[]? readyChains = null;
-        await tracker.MarkTestDone(successBuild2.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), () =>
+        await tracker.MarkTestDone(successBuild2.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), chains =>
         {
-            readyChains = tracker.GetReadyForReport();
+            readyChains = chains;
             return Task.CompletedTask;
         }).ConfigureAwait(false);
 
@@ -128,7 +128,7 @@ internal sealed class ChainReportTrackerTests
         var tracker = new ChainReportTracker("test-chain", store);
         var rootBuild = RandomData.NextRootBuild(commits: 2, testJobNames: [_testJob1.Value]);
         tracker.AddRootBuild(rootBuild, [_testJob1]);
-        await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), () => Task.CompletedTask).ConfigureAwait(false);
+        await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), _ => Task.CompletedTask).ConfigureAwait(false);
 
         var readyChains = tracker.GetReadyForReport();
         Assert.That(readyChains, Is.Empty);
@@ -166,8 +166,8 @@ internal sealed class ChainReportTrackerTests
 
         tracker.AddRootBuild(rootBuild1, [_testJob1, _testJob2]);
         tracker.AddRootBuild(rootBuild2, [_testJob1, _testJob2]);
-        await tracker.MarkTestDone(rootBuild1.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), () => Task.CompletedTask).ConfigureAwait(false);
-        await tracker.MarkTestDone(rootBuild1.BuildNumber, _testJob2, new BuildReference(_testJob2, RandomData.NextBuildNumber), () => Task.CompletedTask).ConfigureAwait(false);
+        await tracker.MarkTestDone(rootBuild1.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), _ => Task.CompletedTask).ConfigureAwait(false);
+        await tracker.MarkTestDone(rootBuild1.BuildNumber, _testJob2, new BuildReference(_testJob2, RandomData.NextBuildNumber), _ => Task.CompletedTask).ConfigureAwait(false);
 
         var serializable = tracker.ToSerializable();
         var restored = serializable.FromSerializable(store);
@@ -218,7 +218,7 @@ internal sealed class ChainReportTrackerTests
         tracker.AddRootBuild(rootBuild, [_testJob1]);
         saveCount = 0;
 
-        await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), () => Task.CompletedTask).ConfigureAwait(false);
+        await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), _ => Task.CompletedTask).ConfigureAwait(false);
 
         Assert.That(saveCount, Is.EqualTo(1));
     }
@@ -232,10 +232,10 @@ internal sealed class ChainReportTrackerTests
         var rootBuild = RandomData.NextRootBuild(commits: 1, testJobNames: [_testJob1.Value, _testJob2.Value]);
         tracker.AddRootBuild(rootBuild, [_testJob1, _testJob2]);
 
-        await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), () => { sendReportCount++; return Task.CompletedTask; }).ConfigureAwait(false);
+        await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), _ => { sendReportCount++; return Task.CompletedTask; }).ConfigureAwait(false);
         Assert.That(sendReportCount, Is.EqualTo(0));
 
-        await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob2, new BuildReference(_testJob2, RandomData.NextBuildNumber), () => { sendReportCount++; return Task.CompletedTask; }).ConfigureAwait(false);
+        await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob2, new BuildReference(_testJob2, RandomData.NextBuildNumber), _ => { sendReportCount++; return Task.CompletedTask; }).ConfigureAwait(false);
         Assert.That(sendReportCount, Is.EqualTo(1));
     }
 
@@ -247,9 +247,26 @@ internal sealed class ChainReportTrackerTests
         var rootBuild = RandomData.NextRootBuild(commits: 1, testJobNames: [_testJob1.Value]);
         tracker.AddRootBuild(rootBuild, [_testJob1]);
 
-        await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), () => Task.CompletedTask).ConfigureAwait(false);
+        await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), _ => Task.CompletedTask).ConfigureAwait(false);
 
         var readyChains = tracker.GetReadyForReport();
         Assert.That(readyChains, Is.Empty);
+    }
+
+    [Test]
+    public async Task MarkTestDone_MarksAllReadyChainsReportSent_WhenPreviousRootBuildFailed()
+    {
+        var store = new InMemoryByChainStore();
+        var tracker = new ChainReportTracker("test-chain", store);
+        var failedBuild = RandomData.NextRootBuild(buildNumber: 100, isSuccessful: false, commits: 1, testJobNames: [_testJob1.Value]);
+        var successBuild = RandomData.NextRootBuild(buildNumber: 101, isSuccessful: true, commits: 1, testJobNames: [_testJob1.Value]);
+        tracker.AddRootBuild(failedBuild, [_testJob1]);
+        tracker.AddRootBuild(successBuild, [_testJob1]);
+
+        await tracker.MarkTestDone(successBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), _ => Task.CompletedTask).ConfigureAwait(false);
+
+        var serializable = tracker.ToSerializable();
+        Assert.That(serializable.BaselineChains[0].ReportSent, Is.True);
+        Assert.That(serializable.BaselineChains[1].ReportSent, Is.True);
     }
 }

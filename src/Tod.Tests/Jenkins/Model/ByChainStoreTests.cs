@@ -169,7 +169,7 @@ internal sealed class ByChainStoreTests
         var rootBuild = RandomData.NextRootBuild(buildNumber: 100, commits: 1, testJobNames: [_testJob1.Value, _testJob2.Value]);
         tracker.AddRootBuild(rootBuild, [_testJob1, _testJob2]);
 
-        await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), () => Task.CompletedTask).ConfigureAwait(false);
+        await tracker.MarkTestDone(rootBuild.BuildNumber, _testJob1, new BuildReference(_testJob1, RandomData.NextBuildNumber), _ => Task.CompletedTask).ConfigureAwait(false);
 
         _store.Save("chain1", tracker.ToSerializable());
 

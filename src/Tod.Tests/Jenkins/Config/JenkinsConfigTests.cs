@@ -60,6 +60,21 @@ internal sealed class JenkinsConfigTests
     }
 
     [Test]
+    public void Load_Succeeds_WhenJsonContainsComments()
+    {
+        using var temp = new TempDirectory();
+        var config = JenkinsConfig.New("http://localhost:8080", jobNames: [new("MAIN-build")]);
+        var path = Path.Combine(temp.Path, "jenkins_config.json");
+        config.Save(path);
+        var json = File.ReadAllText(path, Encoding.UTF8);
+        File.WriteAllText(path, "// config file\n" + json.Replace("\"url\"", "/* server */ \"url\""), Encoding.UTF8);
+
+        var reloaded = JenkinsConfig.Load(path);
+
+        Assert.That(reloaded.Url, Is.EqualTo(config.Url));
+    }
+
+    [Test]
     public void Load_NullConfig_ThrowsInvalidOperationException()
     {
         using var temp = new TempDirectory();

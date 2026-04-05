@@ -1,6 +1,5 @@
 using NUnit.Framework;
 using Tod.Jenkins;
-using Tod.Tests.Jenkins;
 
 namespace Tod.Tests.Jenkins.Model;
 
@@ -81,6 +80,16 @@ internal sealed class BaselineChainTests
         var chain = new BaselineChain(rootBuild, true, testBuilds);
 
         Assert.That(chain.AllTestsDone, Is.True);
+    }
+
+    [Test]
+    public void AllTestsDone_ReturnsFalse_WhenRootBuildFailed()
+    {
+        var rootBuild = new BuildReference(_rootJob, 100);
+
+        var chain = new BaselineChain(rootBuild, false, []);
+
+        Assert.That(chain.AllTestsDone, Is.False);
     }
 
     [Test]

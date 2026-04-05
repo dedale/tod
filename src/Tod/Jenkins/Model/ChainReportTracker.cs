@@ -9,18 +9,18 @@ internal sealed record BaselineChain(
     bool ReportSent = false
 ) : IWithCustomSerialization<BaselineChain.Serializable>
 {
-    public bool AllTestsDone => TestBuilds.Values.All(tb => tb.IsDone);
+    public bool AllTestsDone => RootBuildSucceeded && TestBuilds.Values.All(tb => tb.IsDone);
 
     public BaselineChain MarkTestDone(JobName testJob, BuildReference testBuild)
     {
-        if (!TestBuilds.ContainsKey(testJob))
+        if (!TestBuilds.TryGetValue(testJob, out BaseTestBuildReference? value))
         {
             return this;
         }
 
         var updated = new Dictionary<JobName, BaseTestBuildReference>(TestBuilds)
         {
-            [testJob] = TestBuilds[testJob].DoneBaseline(testBuild.BuildNumber)
+            [testJob] = value.DoneBaseline(testBuild.BuildNumber)
         };
         return this with { TestBuilds = updated };
     }
@@ -83,6 +83,18 @@ internal sealed class ChainReportTracker(string chain, List<BaselineChain> basel
     {
     }
 
+    private void MarkReportSent(IEnumerable<BaselineChain> chains)
+    {
+        foreach (var chain in chains)
+        {
+            var index = baselineChains.FindIndex(c => c.RootBuild.BuildNumber == chain.RootBuild.BuildNumber);
+            if (index >= 0)
+            {
+                baselineChains[index] = baselineChains[index].MarkReportSent();
+            }
+        }
+    }
+
     private void Save()
     {
         byChainStore.Save(chain, ToSerializable());
@@ -98,7 +110,7 @@ internal sealed class ChainReportTracker(string chain, List<BaselineChain> basel
         Save();
     }
 
-    public async Task MarkTestDone(int rootBuildNumber, JobName testJob, BuildReference testBuild, Func<Task> sendReport)
+    public async Task MarkTestDone(int rootBuildNumber, JobName testJob, BuildReference testBuild, Func<BaselineChain[], Task> sendReport)
     {
         var index = baselineChains.FindIndex(c => c.RootBuild.BuildNumber == rootBuildNumber);
         if (index >= 0)
@@ -107,15 +119,17 @@ internal sealed class ChainReportTracker(string chain, List<BaselineChain> basel
 
             if (baselineChains[index].AllTestsDone && !baselineChains[index].ReportSent)
             {
-                await sendReport().ConfigureAwait(false);
-                baselineChains[index] = baselineChains[index].MarkReportSent();
+                var readyChains = GetReadyForReport();
+                await sendReport(readyChains).ConfigureAwait(false);
+                MarkReportSent(readyChains);
             }
 
             Save();
         }
     }
 
-    public BaselineChain[] GetReadyForReport()
+    // internal for test
+    internal BaselineChain[] GetReadyForReport()
     {
         var index = baselineChains.FindIndex(rb => rb.AllTestsDone && !rb.ReportSent);
         if (index < 0)

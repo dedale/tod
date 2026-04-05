@@ -81,6 +81,24 @@ internal sealed record JobName(string Value) : IComparable<JobName>, IEquatable<
     {
         s_jobMappings = jobMappings ?? [];
     }
+
+    public IEnumerable<JobName> AlternateNames
+    {
+        get
+        {
+            if (s_jobMappings.Length == 0)
+            {
+                yield break;
+            }
+            foreach (var mapping in s_jobMappings)
+            {
+                if (Value.Contains(mapping.NewName, StringComparison.Ordinal))
+                {
+                    yield return new JobName(Value.Replace(mapping.NewName, mapping.OldName, StringComparison.Ordinal));
+                }
+            }
+        }
+    }
 }
 
 [DebuggerStepThrough]

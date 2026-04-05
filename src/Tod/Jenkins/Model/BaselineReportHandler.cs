@@ -74,7 +74,7 @@ internal sealed class BaselineReportHandler(BaselineBranch baselineBranch, Jenki
         if (TryGetChain(testBuild.JobName, out var chain))
         {
             var tracker = baselineBranch.GetOrCreateChainTracker(chain);
-            await tracker.MarkTestDone(rootBuild.BuildNumber, testBuild.JobName, testBuild, () => SendReferenceReportsIfReady(chain, tracker)).ConfigureAwait(false);
+            await tracker.MarkTestDone(rootBuild.BuildNumber, testBuild.JobName, testBuild, readyChains => SendReferenceReportsIfReady(chain, readyChains)).ConfigureAwait(false);
         }
     }
 
@@ -88,9 +88,8 @@ internal sealed class BaselineReportHandler(BaselineBranch baselineBranch, Jenki
         return Task.CompletedTask;
     }
 
-    private async Task SendReferenceReportsIfReady(string chainName, ChainReportTracker tracker)
+    private async Task SendReferenceReportsIfReady(string chainName, BaselineChain[] readyChains)
     {
-        var readyChains = tracker.GetReadyForReport();
         if (readyChains.Length > 0)
         {
             var report = BaselineReportBuilder.Build(readyChains, chainName, baselineBranch, flakyTests);

@@ -1,8 +1,6 @@
 ﻿using NUnit.Framework;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Tod.Core;
-using Tod.Git;
 using Tod.Jenkins;
 
 namespace Tod.Tests.Jenkins;
